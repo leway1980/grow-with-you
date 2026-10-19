@@ -1138,6 +1138,7 @@
 
 本 repo 是公開 repo，直接用 GitHub Pages 發布（Settings → Pages → 從 main 分支發布），網址為 `https://leway1980.github.io/grow-with-you/`。
 若之後要加線上統計，可沿用《47萬分之1》的 Cloudflare Worker 架構。
+要做統計、部署或換網址前，先讀 leway1980/Game 的 [`GAME_WEB_OPS_STANDARD.md`](https://github.com/leway1980/Game/blob/main/GAME_WEB_OPS_STANDARD.md)（網頁遊戲發布與維運共用標準）；這邊學到能跨遊戲沿用的教訓，也加回那份檔案。
 
 ## 10. 模型校準原則（與研究對照後的修正）
 
