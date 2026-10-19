@@ -15,7 +15,7 @@
 - 玩家是父母；孩子、家庭條件都是開局抽出來的，不能挑。
 - 一年 6 回合（約兩個月一回合），國小一年級到高三共 12 年、72 回合；時間自動走，可暫停、加速、讓他自己過。
 - 遊戲中不說教、不警告；所有因果在結局一次揭露，資源（特教、評估管道、親職諮詢）只在結局出現。
-- 依 [遊戲體驗共用標準](../../GAME_EXPERIENCE_STANDARD.md) EXP-01：每個場景都要是「穩定 → 擾動 → 有理由的選擇 → 世界改變 → 代價 → 恢復」，
+- 依 leway1980/Game 的遊戲體驗共用標準 EXP-01：每個場景都要是「穩定 → 擾動 → 有理由的選擇 → 世界改變 → 代價 → 恢復」，
   每個選項都同時有好處與代價（沿用 47 萬「每張卡至少一個不花錢、不會變灰的選項」的檢查）。
 
 ## 2. 開局抽籤
@@ -553,9 +553,8 @@
 
 ## 9. 發布
 
-Game 是私人 repo，GitHub Pages 免費方案無法發布私人 repo。
-改用 Cloudflare Pages：GitHub Actions 在 push 時用 `wrangler pages deploy ParentSim` 發布，網址如 `parent-sim.pages.dev`。
-需要老師在既有 Cloudflare token 加上「Cloudflare Pages：Edit」權限；其餘設定由程式完成。
+本 repo 是公開 repo，直接用 GitHub Pages 發布（Settings → Pages → 從 main 分支發布），網址為 `https://leway1980.github.io/grow-with-you/`。
+若之後要加線上統計，可沿用《47萬分之1》的 Cloudflare Worker 架構。
 
 ## 10. 模型校準原則（與研究對照後的修正）
 
