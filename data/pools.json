@@ -1,0 +1,19 @@
+{
+  "_readme": "池（DESIGN §6.2）。先抽池、再抽池裡的骨架。base＝基本權重；mods＝依狀況乘上倍率（同 47wan pools.mods）；follow＝這個池被某個選項 opens 打開時額外加上的權重（base 為 0 的後續池只有被打開才會出現），打開時再乘上 opens 給的倍率 x。",
+  "pools": {
+    "日常_嬰幼兒": { "base": 10, "mods": [] },
+    "日常_幼兒園": { "base": 10, "mods": [] },
+    "日常_國小低": { "base": 10, "mods": [] },
+    "日常_國小中高": { "base": 10, "mods": [] },
+    "夫妻": { "base": 3, "mods": [ { "if": "經濟 == '吃緊'", "x": 1.5 } ] },
+    "手機後續": { "base": 0, "follow": 9, "mods": [] },
+    "寵物照顧": { "base": 0, "follow": 7, "mods": [] },
+    "孩子重提": { "base": 0, "follow": 12, "mods": [] },
+    "球隊": { "base": 0, "follow": 6, "mods": [] },
+    "老師來電": { "base": 0, "follow": 8, "mods": [] },
+    "3C": { "base": 0, "follow": 7, "mods": [] },
+    "長輩帶孩子": { "base": 0, "follow": 7, "mods": [] },
+    "剛入托": { "base": 0, "follow": 8, "mods": [] },
+    "_fixed": { "base": 0, "mods": [] }
+  }
+}
