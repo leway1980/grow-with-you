@@ -12,7 +12,9 @@
 | [docs/DATA.md](docs/DATA.md) | 台灣比例資料與來源；標「待確認」者尚未查到原始統計 |
 
 引擎沿用《47萬分之1》（leway1980/47wan）已驗證的事件系統、變數槽、資料檢查、模擬器與組合式結局。
-依 [遊戲架構共用標準](../GAME_ARCHITECTURE_STANDARD.md) ARC-03「組裝，不複製」：
+依 leway1980/Game 的遊戲架構共用標準 ARC-03「組裝，不複製」：
 先在本資料夾複製一份經過驗證的 JS 引擎；等兩款遊戲的契約穩定後，再評估是否抽出共用引擎。
 
-發布：Game 為私人 repo，網頁預計用 Cloudflare Pages 經 GitHub Actions 部署（需另加 Pages 權限，見 DESIGN §9）。
+發布：本 repo 為公開 repo，網頁用 GitHub Pages 發布（網址預計為 https://leway1980.github.io/grow-with-you/，見 DESIGN §9）。
+
+歷史：設計文件原本寫在 leway1980/Game 的 `ParentSim/`，2026-10-19 連同修改紀錄搬到本 repo。
