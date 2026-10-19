@@ -1,0 +1,180 @@
+// 資料對齊檢查：事件、標籤、變數槽、日曆、池之間有沒有「寫了沒人讀、讀了沒人寫」，以及選項寫法的規則。
+// 沿用《高中，只有一次》(leway1980/Game 47wan @ ce1d972) tools/lint-data.mjs 的作法（條件檢查、槽檢查、旗標對讀寫），規則改為親子遊戲的：
+// 每個選項要有 ≥1 個可見效果與 ≥1 個標籤、選項不能有 hidden、標籤必須在詞彙表、不能寫教養風格宣告。
+// 用法：node tools/lint-data.mjs（有錯誤時 exit 1）；tests 也會呼叫 lintData()
+import { fileURLToPath } from 'node:url';
+import { tokenize, compile, buildCtx } from '../js/engine/events.js';
+import { newState } from '../js/engine/state.js';
+import { FIXED_TOKENS } from '../js/engine/slots.js';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { loadRaw, loadData, ROOT } from './data-node.mjs';
+
+const STYLE_PHRASES = [/開明/, /民主式/, /權威式/, /威權/, /放任式/, /我是.{0,6}的(父母|爸爸|媽媽)/, /尊重孩子的教養/, /當個.{0,4}的父母/, /採(用)?.{0,3}(式|型)(教養|溝通)/];
+const VISIBLE = ['體力', '耐心', '錢', '工作表現', '夫妻關係', '心情', '成績', '作業', '3C時間', '睡眠', '同學往來'];
+
+export function lintData(raw = loadRaw()) {
+  const errors = [], warns = [];
+  const data = loadData(raw);
+  const T = raw.tags;
+  const st = newState(1, data, {});
+  const ctx = buildCtx(st, data.timeline[0], { topic: '運動' });
+  const ctxKeys = new Set(Object.keys(ctx));
+  const cards = raw.events.cards;
+  const ids = new Set(cards.map((c) => c.id));
+  const pools = raw.pools.pools;
+  const hiddenKeys = Object.keys(T.hidden);
+  const stages = new Set(T.stages);
+  const flagSet = new Map(), flagRead = new Map();
+  const note = (m, k, w) => { if (!m.has(k)) m.set(k, []); m.get(k).push(w); };
+  // 引擎程式裡讀取的旗標（例如 st.flags.育嬰留停）
+  const engineSrc = readdirSync(join(ROOT, 'js', 'engine')).map((f) => readFileSync(join(ROOT, 'js', 'engine', f), 'utf8')).join('\n');
+  for (const m of engineSrc.matchAll(/flags\.([㐀-鿿A-Za-z0-9_]+)/g)) if (!['every', 'some', 'includes'].includes(m[1])) note(flagRead, m[1], '引擎');
+
+  const checkExpr = (expr, where) => {
+    let toks;
+    try { toks = tokenize(expr); compile(expr); } catch (e) { errors.push(`${where}：條件寫錯「${expr}」：${e.message}`); return; }
+    for (const t of toks) {
+      if (t.t === 'var' && !ctxKeys.has(t.v)) errors.push(`${where}：條件用到不存在的變數「${t.v}」`);
+      if (t.t === 'flag') note(flagRead, t.v, where);
+    }
+  };
+
+  // ── 標籤詞彙表 ──
+  for (const [name, def] of Object.entries(T.tags)) {
+    for (const k of Object.keys(def.d || {})) {
+      if (!hiddenKeys.includes(k)) errors.push(`標籤 ${name}：隱藏數值「${k}」不存在`);
+      if (T.derived.includes(k)) errors.push(`標籤 ${name}：「${k}」是推算出來的，不能直接由標籤改變`);
+    }
+    for (const k of Object.keys(def.stage || {})) if (!stages.has(k)) errors.push(`標籤 ${name}：階段「${k}」不在 stages`);
+  }
+  T.modifiers.forEach((m, i) => { checkExpr(m.if, `標籤 modifier #${i}`); for (const t of m.tags) if (!T.tags[t]) errors.push(`標籤 modifier #${i}：標籤「${t}」不存在`); });
+  T.startAdjust.forEach((r, i) => { checkExpr(r.if, `startAdjust #${i}`); for (const k of Object.keys(r.d)) if (!hiddenKeys.includes(k)) errors.push(`startAdjust #${i}：「${k}」不存在`); });
+
+  // ── 變數槽 ──
+  const slots = raw.slots.slots;
+  const slotTokens = (t) => [...String(t || '').matchAll(/\{([^{}]+)\}/g)].map((m) => m[1]);
+  const checkTokens = (text, where) => { // 標題、內文、選項與結果共用同一組槽值（同一張卡同一個槽只抽一次）
+    for (const n of slotTokens(text)) if (!FIXED_TOKENS.includes(n) && !slots[n]) errors.push(`${where}：用到不存在的槽 {${n}}`);
+  };
+  for (const [name, vals] of Object.entries(slots)) {
+    if (!vals.some((v) => !v.if)) errors.push(`槽 ${name}：沒有無條件的值`);
+    for (const v of vals) {
+      if (v.if) checkExpr(v.if, `槽 ${name}／${v.t}`);
+      checkTokens(v.t, `槽 ${name}／${v.t}`);
+      for (const [k, x] of Object.entries(v.set || {})) {
+        if (!slots[k]) errors.push(`槽 ${name}／${v.t}：set 指到不存在的槽「${k}」`);
+        else if (!slots[k].some((y) => y.t === x)) errors.push(`槽 ${name}／${v.t}：set 的值「${x}」不在槽「${k}」裡`);
+      }
+    }
+  }
+  const visit = (n, path) => {
+    if (path.includes(n)) { errors.push(`槽 ${[...path, n].join(' → ')}：巢狀成圈`); return; }
+    for (const v of slots[n] || []) for (const m of slotTokens(v.t)) if (slots[m]) visit(m, [...path, n]);
+  };
+  for (const n of Object.keys(slots)) visit(n, []);
+
+  // ── 日曆 ──
+  if (data.timeline.length !== raw.calendar.totalTurns) errors.push('日曆回合數不等於 totalTurns');
+  for (const f of raw.calendar.fixed) if (!ids.has(f.event)) errors.push(`日曆 fixed：事件「${f.event}」不存在`);
+  for (const f of raw.calendar.schoolFixed) if (!ids.has(f.event)) errors.push(`日曆 schoolFixed：事件「${f.event}」不存在`);
+  for (const s of raw.calendar.stages) if (!stages.has(s.id)) errors.push(`日曆階段「${s.id}」不在 tags.json 的 stages`);
+
+  // ── 池 ──
+  for (const [name, def] of Object.entries(pools)) {
+    (def.mods || []).forEach((m) => checkExpr(m.if, `池 ${name}`));
+    if (!name.startsWith('_') && !cards.some((c) => c.pool === name)) errors.push(`池「${name}」沒有任何卡`);
+  }
+
+  // ── 事件卡 ──
+  const leakRe = new RegExp(hiddenKeys.join('|'));
+  const allowedChoiceKeys = new Set(['label', 'effects', 'tags', 'result', 'showIf', 'grayIf', 'opens', 'followUp', 'chance', 'setFlags', 'clearFlags', 'setVars', 'incVars', 'direction', 'topic']);
+  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldown', 'requires', 'excludes', 'modifiers', 'stages', 'topic']);
+  const dirTags = new Set(Object.entries(T.tags).filter(([, d]) => d.dir != null).map(([k]) => k));
+  const exposure = Object.fromEntries(hiddenKeys.map((k) => [k, 0]));
+  let nChoices = 0;
+  const seen = new Set();
+  for (const c of cards) {
+    const W = `卡片 ${c.id}`;
+    if (seen.has(c.id)) errors.push(`${W}：id 重複`);
+    seen.add(c.id);
+    for (const k of Object.keys(c)) if (!allowedCardKeys.has(k)) errors.push(`${W}：不認得的欄位「${k}」`);
+    if (!pools[c.pool]) errors.push(`${W}：池「${c.pool}」不存在`);
+    for (const s of c.stages || []) if (!stages.has(s)) errors.push(`${W}：階段「${s}」不存在`);
+    if (c.topic && !(c.topic in st.interest)) errors.push(`${W}：topic「${c.topic}」不是興趣類別`);
+    if (c.requires?.expr) checkExpr(c.requires.expr, W);
+    if (c.excludes?.expr) checkExpr(c.excludes.expr, W);
+    for (const f of c.requires?.flags || []) note(flagRead, f, W);
+    for (const f of c.excludes?.flags || []) note(flagRead, f, W);
+    for (const m of c.modifiers || []) checkExpr(m.if, W);
+    for (const t of c.textIf || []) { checkExpr(t.if, W); checkTokens(t.text, W); if (leakRe.test(t.text)) errors.push(`${W}：文字出現隱藏數值的名稱`); }
+    checkTokens(c.text, W); checkTokens(c.title, W + '標題');
+    if (leakRe.test(c.text) || leakRe.test(c.title)) errors.push(`${W}：文字出現隱藏數值的名稱`);
+    if (!c.choices || c.choices.length < 2) errors.push(`${W}：至少要 2 個選項`);
+    if (c.choices.length > 5 && c.pool !== '_fixed') warns.push(`${W}：選項超過 5 個`);
+    if (!(c.choices || []).some((ch) => !ch.showIf && !ch.grayIf)) errors.push(`${W}：沒有任何「一定可選」的選項（不含 showIf 與 grayIf）`);
+    const avail = (c.choices || []).filter((ch) => !ch.grayIf).length;
+    if (avail < 2) warns.push(`${W}：不會變灰的選項少於 2 個`);
+    for (const ch of c.choices || []) {
+      nChoices++;
+      const WC = `${W}／${ch.label}`;
+      for (const k of Object.keys(ch)) if (!allowedChoiceKeys.has(k)) errors.push(`${WC}：不認得的欄位「${k}」${k === 'hidden' ? '（選項不能寫 hidden，隱藏數值只能由 tags 換算，見 DESIGN §3.6）' : ''}`);
+      if ('hidden' in ch) errors.push(`${WC}：選項不能有 hidden`);
+      const eff = Object.entries(ch.effects || {});
+      if (!eff.some(([, v]) => v !== 0)) errors.push(`${WC}：至少要有 1 個看得到的效果（effects）`);
+      for (const [k] of eff) if (!VISIBLE.includes(k)) errors.push(`${WC}：可見數值「${k}」不存在`);
+      if (!ch.tags || !ch.tags.length) errors.push(`${WC}：至少要有 1 個行為標籤`);
+      for (const t of ch.tags || []) {
+        if (!T.tags[t]) errors.push(`${WC}：標籤「${t}」不在詞彙表`);
+        else for (const k of Object.keys(T.tags[t].d || {})) exposure[k]++;
+      }
+      if ((ch.tags || []).some((t) => dirTags.has(t)) && !ch.direction) warns.push(`${WC}：用了「轉述消息」類標籤，但沒有 direction`);
+      if (ch.direction && !(ch.tags || []).some((t) => dirTags.has(t))) warns.push(`${WC}：有 direction 但沒有轉述消息類標籤`);
+      if (ch.topic && !(ch.topic in st.interest)) errors.push(`${WC}：topic「${ch.topic}」不是興趣類別`);
+      for (const re of STYLE_PHRASES) if (re.test(ch.label || '')) errors.push(`${WC}：選項文字不能是教養風格宣告（${re}）（DESIGN §3、§11）`);
+      checkTokens(ch.label, WC + '標籤'); checkTokens(ch.result, WC);
+      if (leakRe.test(ch.label || '') || leakRe.test(ch.result || '')) errors.push(`${WC}：文字出現隱藏數值的名稱`);
+      if (ch.showIf) checkExpr(ch.showIf, WC);
+      for (const g of [].concat(ch.grayIf || [])) checkExpr(g.if, WC);
+      const branches = [ch, ...(ch.chance ? [ch.chance.win, ch.chance.lose] : [])];
+      if (ch.chance) { (ch.chance.mods || []).forEach((m) => checkExpr(m.if, WC)); if (!(ch.chance.p > 0 && ch.chance.p < 1)) errors.push(`${WC}：chance.p 要在 0–1 之間`); checkTokens(ch.chance.win.result, WC); checkTokens(ch.chance.lose.result, WC); }
+      for (const b of branches) {
+        for (const [k, v] of Object.entries(b.effects || {})) if (!VISIBLE.includes(k) || typeof v !== 'number') errors.push(`${WC}：分支效果「${k}」不合法`);
+        for (const f of b.setFlags || []) note(flagSet, f, WC);
+        for (const f of b.clearFlags || []) note(flagRead, f, WC);
+        for (const [p] of Object.entries(b.opens || {})) if (!pools[p]) errors.push(`${WC}：opens 的池「${p}」不存在`);
+        for (const f of b.followUp || []) {
+          if (!ids.has(f.card)) errors.push(`${WC}：followUp 的卡「${f.card}」不存在`);
+          if (f.if) checkExpr(f.if, WC);
+          if (!f.after) errors.push(`${WC}：followUp 要有 after`);
+        }
+        for (const k of Object.keys(b.setVars || {})) if (!(k in st.vars)) errors.push(`${WC}：setVars 的「${k}」不存在`);
+        for (const k of Object.keys(b.incVars || {})) if (!(k in st.vars)) errors.push(`${WC}：incVars 的「${k}」不存在`);
+      }
+    }
+  }
+  for (const [f, w] of flagSet) if (!flagRead.has(f) && !/_(中|落)$/.test(f)) warns.push(`旗標「${f}」有設定（${w[0]}）但沒有任何地方讀取`);
+  for (const [f, w] of flagRead) if (!flagSet.has(f)) warns.push(`旗標「${f}」被讀取（${w[0]}）但從來沒有被設定`);
+  // 後續池的卡要真的有人打開
+  const opened = new Set();
+  for (const c of cards) for (const ch of c.choices) for (const b of [ch, ...(ch.chance ? [ch.chance.win, ch.chance.lose] : [])]) for (const p of Object.keys(b.opens || {})) opened.add(p);
+  const byFollow = new Set();
+  for (const c of cards) for (const ch of c.choices) for (const b of [ch, ...(ch.chance ? [ch.chance.win, ch.chance.lose] : [])]) for (const f of b.followUp || []) { const t = cards.find((x) => x.id === f.card); if (t) byFollow.add(t.pool); }
+  for (const [name, def] of Object.entries(pools)) if (def.base === 0 && !name.startsWith('_') && !opened.has(name) && !byFollow.has(name)) warns.push(`池「${name}」base 為 0，但沒有任何選項會打開它`);
+  // 參數曝光（靜態）：某隱藏數值被過多選項推動，或幾乎沒有選項推動
+  for (const k of hiddenKeys) {
+    if (T.derived.includes(k)) continue;
+    const share = exposure[k] / nChoices;
+    if (share > 0.5) warns.push(`隱藏數值「${k}」被 ${(share * 100).toFixed(0)}% 的選項推動（超過一半），會主導結局`);
+    if (exposure[k] === 0) warns.push(`隱藏數值「${k}」沒有任何選項推動，在結局等於擺設`);
+  }
+  return { errors, warns, stats: { cards: cards.length, choices: nChoices, exposure } };
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  const { errors, warns, stats } = lintData();
+  for (const e of errors) console.log('✗ ' + e);
+  for (const w of warns) console.log('△ ' + w);
+  console.log(`\n${stats.cards} 張卡、${stats.choices} 個選項；錯誤 ${errors.length}、提醒 ${warns.length}`);
+  process.exit(errors.length ? 1 : 0);
+}
