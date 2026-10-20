@@ -3,7 +3,7 @@
 // 每個選項要有 ≥1 個可見效果與 ≥1 個標籤、選項不能有 hidden、標籤必須在詞彙表、不能寫教養風格宣告。
 // 用法：node tools/lint-data.mjs（有錯誤時 exit 1）；tests 也會呼叫 lintData()
 import { fileURLToPath } from 'node:url';
-import { tokenize, compile, buildCtx, evalCond, gateNames, choiceState } from '../js/engine/events.js';
+import { tokenize, compile, buildCtx, evalCond, gateNames, choiceState, PING_BIG_ID, PING_BIG_P } from '../js/engine/events.js';
 import { newState } from '../js/engine/state.js';
 import { isGrowthChoice } from '../js/engine/tags.js';
 import { FIXED_TOKENS } from '../js/engine/slots.js';
@@ -227,6 +227,8 @@ export function lintData(raw = loadRaw()) {
         try { if (ch.showIf) evalCond(ch.showIf, cctx); for (const g of [].concat(ch.grayIf || [])) evalCond(g.if, cctx); } catch (e) { errors.push(`${WC}：條件求值失敗：${e.message}`); }
       }
       const branches = [ch, ...(ch.chance ? [ch.chance.win, ch.chance.lose] : [])];
+      if (ch.chance) { for (const b of [ch.chance.win, ch.chance.lose]) for (const t of b.tags || []) if (!T.tags[t]) errors.push(`${WC}：chance 分支的標籤「${t}」不在詞彙表`); }
+      if (ch.chance && ch.chance.id === PING_BIG_ID && (ch.chance.p !== PING_BIG_P || (ch.chance.mods || []).length)) errors.push(`${WC}：id＝${PING_BIG_ID} 的 chance 必須是 p＝${PING_BIG_P} 且沒有 mods（和條件環境的「來問重要」同一顆骰子）`);
       if (ch.chance) { (ch.chance.mods || []).forEach((m) => checkExpr(m.if, WC)); if (!(ch.chance.p > 0 && ch.chance.p < 1)) errors.push(`${WC}：chance.p 要在 0–1 之間`); checkTokens(ch.chance.win.result, WC); checkTokens(ch.chance.lose.result, WC); }
       for (const b of branches) {
         for (const [k, v] of Object.entries(b.effects || {})) if (!VISIBLE.includes(k) || typeof v !== 'number') errors.push(`${WC}：分支效果「${k}」不合法`);
@@ -307,6 +309,14 @@ export function lintData(raw = loadRaw()) {
     const rows = cards.filter((c) => c.choices.every((ch) => (ch.tags || []).every((t) => T.tags[t]))).map((c) => [c.id, cardCorrelation(T, c)]);
     const mc = meanCorrelation(T, cards.filter((c) => rows.some(([id]) => id === c.id)));
     if (Math.abs(mc) > CORRELATION_BOUND) errors.push(`劑量表分數與隱藏分數的平均 Spearman 相關是 ${mc.toFixed(2)}，要在 ±${CORRELATION_BOUND} 內（最偏的卡：${[...rows].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 5).map(([id, r]) => `${id} ${r.toFixed(2)}`).join('、')}）`);
+    // 每張卡的相關：全域平均會讓 +1 和 −1 互相抵消，所以每張卡也要看。|ρ| 超過 maxAbs 的卡最多占全部的 maxShare
+    const PC = R.perCard;
+    if (PC) {
+      const bad = rows.filter(([, r]) => Math.abs(r) > PC.maxAbs + 1e-9);
+      const limit = Math.floor(PC.maxShare * rows.length + 1e-9);
+      if (bad.length > limit) errors.push(`每張卡的相關：|ρ| > ${PC.maxAbs} 的卡有 ${bad.length}/${rows.length} 張（${(bad.length / rows.length * 100).toFixed(0)}%），上限 ${PC.maxShare * 100}%（${limit} 張）：${bad.sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).map(([id, r]) => `${id} ${r.toFixed(2)}`).join('、')}`);
+      stats0.extremeCards = bad.length;
+    }
     for (const [id, r] of rows) if (Math.abs(r) >= 0.8) warns.push(`卡片 ${id}：劑量表分數與隱藏分數的相關 ${r.toFixed(2)}，看得到的方向幾乎能預測好壞`);
     stats0.meanCorrelation = mc;
   }
