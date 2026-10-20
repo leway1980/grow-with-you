@@ -109,6 +109,39 @@ export function lintContent(raw, data, cards, ctxKeys, st0) {
     }
   }
 
+  // ── 規則 14：後續卡要有前因；規則 13：排到下一回合以後的卡不寫隔天／過幾天 ──
+  {
+    const pools = raw.pools.pools;
+    const zero = new Set(Object.entries(pools).filter(([n, d]) => d.base === 0 && !n.startsWith('_')).map(([n]) => n));
+    const branches = (ch) => [ch, ...(ch.chance ? [ch.chance.win, ch.chance.lose] : [])];
+    const setters = new Map(); // 旗標 → [{ opens:Set, follow:Set }]
+    const later = new Map();   // 卡片 id → 最早排在幾個回合以後（followUp 的 after[0]）
+    for (const c of cards) for (const ch of c.choices) {
+      const opens = new Set(), follow = new Set(), flags = [];
+      for (const b of branches(ch)) {
+        for (const p of Object.keys(b.opens || {})) opens.add(p);
+        for (const f of b.followUp || []) { follow.add(f.card); later.set(f.card, Math.min(later.get(f.card) ?? 99, f.after[0])); }
+        for (const f of b.setFlags || []) flags.push(f);
+      }
+      for (const f of flags) (setters.get(f) || setters.set(f, []).get(f)).push({ opens, follow });
+    }
+    for (const c of cards) {
+      if (!zero.has(c.pool)) continue;
+      const rq = c.requires || {};
+      const need = [...(rq.flags || []), ...[...(rq.expr || '').matchAll(/#([^\s()=!<>&|]+)/g)].map((m) => m[1])];
+      if (!need.length) { errors.push(`卡片 ${c.id}：規則 14：後續池「${c.pool}」的卡要用 requires 寫明是哪個旗標觸發的（現在誰都能抽到它）`); continue; }
+      const ok = need.some((f) => (setters.get(f) || []).some((s) => s.opens.has(c.pool) || s.follow.has(c.id)));
+      if (!ok) warns.push(`卡片 ${c.id}：規則 14：requires 的旗標（${need.join('、')}）沒有任何一個選項在「打開池 ${c.pool}」或「排後續卡 ${c.id}」的同時設定它`);
+    }
+    const words = R.timeWords || [];
+    for (const c of cards) {
+      const delayed = (later.get(c.id) ?? 0) >= 1 || zero.has(c.pool);
+      if (!delayed) continue;
+      const strs = [c.title, c.text, ...(c.textIf || []).map((t) => t.text), ...c.choices.map((ch) => ch.label)];
+      for (const w of words) if (strs.some((x) => String(x).includes(w))) warns.push(`卡片 ${c.id}：規則 13：排在下一回合以後的卡，不寫「${w}」（一個回合不是一天）——改用「上次」「那陣子」「後來」`);
+    }
+  }
+
   // ── 規則 15：稱謂與代名詞用依角色切換的槽 ──
   {
     const words = R.hardcodedWords || [];

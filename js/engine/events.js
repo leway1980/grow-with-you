@@ -147,6 +147,7 @@ export function buildCtx(st, tl, extra = {}) {
     托育方式: st.vars.托育方式, 幼兒園類型: st.vars.幼兒園類型, 照顧者: st.vars.照顧者, 換照顧者次數: st.vars.換照顧者次數,
     孩子不再開口: st.vars.孩子不再開口 || 0, 孩子主動開口: st.vars.孩子主動開口 || 0, 起點: st.startMode,
     上學方式: st.vars.上學方式 || '', 孩子來找_連續錯過: st.vars.孩子來找_連續錯過 || 0, 不太來找你: !!st.vars.不太來找你,
+    事故骰: rngAt(st.seed, st.turn, 'acc_dice'), // 命運骰（0–1）：重大意外（cm_hospital）只在這個回合的骰子夠小時才可能出現，不因為『池裡剩下它』就被抽到
     來問重要: rngAt(st.seed, st.turn, PING_BIG_ID) < PING_BIG_P, // 命運骰：孩子這次來問的事其實重不重要（§4.28）；和選項的 chance（id＝ping_big、p＝0.3）用同一顆骰子，文字與結果才會一致
     // 已經選定的事（hi_pet 養的寵物、lo_club 想要的球類……）：之後的卡讀同一個值；養了寵物之後 有寵物／寵物種類 也跟著變
     有寵物: !!f.pet || !!st.vars.養的寵物, 寵物種類: f.pet ? f.pet.type : st.vars.養的寵物 || '',

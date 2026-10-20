@@ -282,7 +282,7 @@ test('門檻有名字：卡片裡不寫「了解度 >= 55」這種裸數字，�
 test('後續卡記下排進去的回合；出現時記下延遲；到期的後續卡比抽卡優先', () => {
   const st = fresh(5); st.turn = 25;
   st.delayed.push({ card: 'fu_ask_again', due: 25, from: 23 });
-  st.flags.參加球類社團 = false;
+  st.flags.參加球類社團 = false; st.flags.社團_被擋 = true; // 後續卡要有前因（規則 14）
   const res = startTurn(st, data);
   assert.equal(res.raw.id, 'fu_ask_again');
   chooseCard(st, data, res.card.choices.find((c) => !c.disabled).i);

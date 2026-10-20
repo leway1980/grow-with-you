@@ -87,3 +87,39 @@ test('規則 14：persist 的槽與 vars 要存在；存選定值的 setVars 要
   assert.match(run((r) => { r.slots.persist.球類 = '沒有這個變數'; }).e, /vars「沒有這個變數」不在 state/);
   assert.match(run((r) => { card(r, 'lo_club').choices[0].setVars = { 想要的球類: '籃球' }; }).e, /setVars「想要的球類」存的是槽「球類」選定的值/);
 });
+
+/* ───── 規則 13、14：後續卡要有前因；時間詞 ───── */
+test('規則 14：後續池（base 0）裡的卡一定要有 requires 的旗標', () => {
+  assert.equal(run(() => {}).e, '');
+  assert.match(run((r) => { delete card(r, 'fu_teacher_call').requires; }).e, /fu_teacher_call：規則 14：後續池「老師來電」的卡要用 requires/);
+  assert.match(run((r) => { delete card(r, 'fu_screen_ask').requires; }).e, /fu_screen_ask：規則 14/);
+  assert.match(run((r) => { delete card(r, 'lo_interrupt_back').requires; }).e, /lo_interrupt_back：規則 14/);
+  // 旗標有寫，但沒有任何選項在打開池／排後續卡時設定它 → 警告
+  assert.match(run((r) => { card(r, 'fu_bully_after').requires = { flags: ['霸凌_發生過_改名'] }; }).w, /fu_bully_after：規則 14：requires 的旗標/);
+});
+
+test('規則 14：具體的前因（資料）', () => {
+  const raw = loadRaw();
+  const req = (id) => JSON.stringify(card(raw, id).requires);
+  assert.match(req('fu_teacher_call'), /聯絡簿_簽名帶過/);
+  assert.match(req('fu_bully_after'), /霸凌_發生過/);
+  assert.match(req('hi_game_pay'), /#手機_有規則 or #手機_無規則/);
+  assert.match(req('kid_doll_play'), /#吵架_孩子看見 or #吵架_有說明/);
+  // lo_afterschool#0 不再打開老師來電；lo_club 已經參加就不再出現
+  assert.equal(card(raw, 'lo_afterschool').choices[0].opens, undefined);
+  assert.deepEqual(card(raw, 'lo_club').excludes.flags, ['參加球類社團']);
+  // 學校發的平板只處理一次
+  for (const id of ['lo_tablet', 'hi_tablet']) { assert.deepEqual(card(raw, id).excludes.flags, ['學校平板']); assert.ok(card(raw, id).choices.every((o) => o.setFlags.includes('學校平板'))); }
+  // 公幼候補有結局
+  const lost = card(raw, 'fu_kg_lost');
+  for (const i of [2, 3]) assert.equal(lost.choices[i].followUp[0].card, 'fu_kg_waitlist');
+  assert.ok(card(raw, 'fu_kg_waitlist'));
+});
+
+test('規則 13：排在下一回合以後的卡不寫隔天、過幾天、兩週後 ……（警告）', () => {
+  assert.equal(run(() => {}).w.split('\n').filter((l) => /規則 13/.test(l)).length, 0, '現有資料沒有時間詞的警告');
+  assert.match(run((r) => { card(r, 'fu_ask_again').text = '隔天，{孩子}又問：「{球類}社團可以嗎？」'; }).w, /fu_ask_again：規則 13：排在下一回合以後的卡，不寫「隔天」/);
+  assert.match(run((r) => { card(r, 'lo_interrupt_back').choices[0].label = '兩週後再說'; }).w, /lo_interrupt_back：規則 13/);
+  // 當回合的日常卡可以寫（不是後續卡）
+  assert.doesNotMatch(run((r) => { card(r, 'lo_hw').text += '隔天'; }).w, /lo_hw：規則 13/);
+});
