@@ -42,10 +42,29 @@ export function buildTimeline(cal) {
   return tl;
 }
 
+/**
+ * 標籤自帶的可見代價（tags.json 的 tagCosts，例如 硬撐）：載入時加進選項的 effects，不改原始資料。
+ * 這樣劑量表、疲勞累積、資料檢查與機器人看到的都是同一份效果；新卡不必每次記得寫。
+ */
+export function withTagCosts(events, tagCosts) {
+  if (!tagCosts || !Object.keys(tagCosts).length) return events;
+  const cards = events.cards.map((c) => ({
+    ...c,
+    choices: c.choices.map((ch) => {
+      const add = (ch.tags || []).filter((t) => tagCosts[t]);
+      if (!add.length) return ch;
+      const eff = { ...(ch.effects || {}) };
+      for (const t of add) for (const [k, d] of Object.entries(tagCosts[t])) eff[k] = (eff[k] || 0) + d;
+      return { ...ch, effects: eff };
+    }),
+  }));
+  return { ...events, cards };
+}
+
 export function prepareData(raw) {
   setSlotData(raw.slots);
   setGates(raw.tags.gates);
-  const events = raw.events;
+  const events = withTagCosts(raw.events, raw.tags.tagCosts);
   // 卡片依「階段 × 池」建索引：每回合只看這個階段的池，不必掃全部卡（500 張時也夠快）。
   const index = {};
   for (const st of raw.tags.stages) index[st] = {};

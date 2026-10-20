@@ -1,7 +1,7 @@
 // 遊戲狀態：整個遊戲就是一個可 JSON 序列化的物件（種子 + 目前進度）。
 // 沿用《高中，只有一次》(leway1980/Game 47wan @ ce1d972) state.js 的存檔作法（SAVE_VERSION、serialize/deserialize、種子衍生的亂數流）；
 // 內容改為親子遊戲：可見的父母／孩子數值、隱藏數值（只能經由 tags.js 改變）、興趣向量、父母傳遞的方向計數、歷史紀錄與曲線。
-import { generateFamily, familyCtx } from './family.js';
+import { generateFamily, familyCtx, rollWork } from './family.js';
 import { evalCond } from './events.js';
 import { recomputeDerived } from './tags.js';
 
@@ -44,6 +44,7 @@ export function newState(seed, data, opts = {}) {
     startHidden: null,                         // 開局時的隱藏數值（自然漂移與結局的『相對於開局』用）
     flags: {}, cooldowns: {}, used: {}, openPools: {}, delayed: [], slotLast: {}, cardScope: null,
     hist: [], curves: [], vcurves: [], done: {},
+    parentGrowth: [],                          // 父母一起參與過的活動（§7.2b）：{turn, slot, value} 或 {turn, tag}
     cur: null, ended: false, endReason: null,
   };
   // 「從國小開始」：學前托育由抽籤決定（DATA §4），並給國小起點一點差異
@@ -78,7 +79,10 @@ export function migrate(st, data) {
   st.vars = { 托育方式: '', 幼兒園類型: '', 照顧者: '', 換照顧者次數: 0, 孩子主動開口: 0, 孩子不再開口: 0, ...(st.vars || {}) };
   st.costEMA = { 體力: 0, 耐心: 0, ...(st.costEMA || {}) };
   for (const k of ['dirCount', 'tagCounts', 'flags', 'cooldowns', 'used', 'openPools', 'slotLast', 'done']) st[k] ||= {};
-  for (const k of ['delayed', 'hist', 'curves', 'vcurves']) st[k] ||= [];
+  for (const k of ['delayed', 'hist', 'curves', 'vcurves', 'parentGrowth']) st[k] ||= [];
+  // 舊存檔沒有職位、交通工具、通勤距離：用同一個種子補上（各自獨立的亂數流，不影響已經抽好的其他東西）
+  const f = st.family, jd = data.identities.jobs.find((j) => j.name === f.job.name);
+  if (jd && !(f.rank && f.transport && f.commute)) Object.assign(f, rollWork(st.seed, data.identities, jd, f.econ, f.urban));
   st.slotS ??= (st.seed ^ 0x7f4a7c15) >>> 0;
   st.autoS ??= (st.seed ^ 0x51ed270b) >>> 0;
   if (!st.startHidden) st.startHidden = newState(st.seed, data, { role: st.role, startMode: st.startMode }).startHidden;

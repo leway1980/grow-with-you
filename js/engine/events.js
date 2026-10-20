@@ -3,7 +3,7 @@
 import { pickWeighted, clamp, rngAt, shuffleOrder } from './rng.js';
 import { fillSlots } from './slots.js';
 import { familyCtx } from './family.js';
-import { applyTags } from './tags.js';
+import { applyTags, isGrowthChoice } from './tags.js';
 
 /* ───────────── 小型條件求值器 ─────────────
    語法：數字、'字串'、變數名(中文可)、#旗標、== != < <= > >=、and or not（也可用 && || !）、括號、true/false */
@@ -336,6 +336,18 @@ export function resolveDirection(card, ch, scope) {
 }
 
 /**
+ * 父母的收穫（§7.2b）：記下這次一起參與的是什麼。這張卡抽到的槽值（球類、才藝、出遊、營隊……）才有名字；
+ * 沒有槽的卡就記下標籤本身。st.parentGrowth 不是隱藏數值，隱藏的『父母的收穫』由 tags.js 改。
+ */
+export function recordGrowth(st, T, ch, scope) {
+  const G = T.growth, list = (ch.tags || []).filter((t) => T.growthTags.includes(t) && !G.joinOnly.includes(t));
+  const named = G.slots.filter((n) => scope[n]);
+  (st.parentGrowth ||= []);
+  if (named.length) for (const n of named) st.parentGrowth.push({ turn: st.turn, slot: n, value: scope[n] });
+  else st.parentGrowth.push({ turn: st.turn, tag: list[0] });
+}
+
+/**
  * 套用玩家的選擇（idx 是 card.choices 的原始索引）。回傳 { result, acc }：acc＝這次想要造成的可見變化（給劑量表）。
  * 隱藏數值只經由 tags.js 改變。
  */
@@ -362,6 +374,7 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
     st.flags[`${c.id}_${win ? '中' : '落'}`] = true;
   }
   applyTags(st, ch.tags, data.tags, { turn: st.turn, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope) });
+  if (isGrowthChoice(data.tags, ch.tags)) recordGrowth(st, data.tags, ch, scope);
   if (card.once) st.used[card.id] = true;
   if (card.cooldown) st.cooldowns[card.id] = st.turn + card.cooldown + 1;
   const d = {};

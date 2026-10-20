@@ -17,6 +17,16 @@ export function stageMult(def, stage) {
   return def.stage && stage in def.stage ? def.stage[stage] : 1;
 }
 
+/**
+ * 父母的收穫（§7.2b）：這組標籤算不算『父母一起參與』。growthTags 裡的標籤才算；joinOnly 的標籤（嘗試新活動）
+ * 要同一個選項裡還有別的參與標籤才算（光是把孩子送去不算）。
+ */
+export function isGrowthChoice(T, tags) {
+  const list = T.growthTags || [], only = (T.growth && T.growth.joinOnly) || [];
+  const g = (tags || []).filter((t) => list.includes(t));
+  return g.some((t) => !only.includes(t));
+}
+
 /** 同一個標籤在最近 window 回合內出現過幾次（含這次之前的） */
 export function recentCount(st, tag, turn, T) {
   const w = T.repetition.window;
@@ -79,6 +89,12 @@ export const applyTags = writer((st, tags, T, opts) => {
     if (def.relief) for (const k of ['體力', '耐心']) st.costEMA[k] *= 1 - def.relief; // 真的休息：累積的疲勞減輕（不是隱藏數值）
     for (const [k, n] of Object.entries(def.counts || {})) st.vars[k] = (st.vars[k] || 0) + n;
     st.tagCounts[tag] = (st.tagCounts[tag] || 0) + 1;
+  }
+  // 父母的收穫：一個選項只算一次，只在這裡寫（單一寫入口）；飽和與其他隱藏數值相同
+  if (isGrowthChoice(T, tags)) {
+    const before = st.hidden.父母的收穫 ?? 0;
+    st.hidden.父母的收穫 = clamp(before + saturate(before, T.growth.gain), 0, 100);
+    deltas.父母的收穫 = (deltas.父母的收穫 || 0) + (st.hidden.父母的收穫 - before);
   }
   recomputeDerived(st, T);
   return { deltas };

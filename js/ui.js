@@ -175,6 +175,11 @@ export function renderEnding(root, e, { seed, onSame, onNew }) {
       h('h2', { class: 'sec' }, '你們一起的幸福'),
       h('p', { class: 'big' }, e.line),
       bar3(`${e.name}`, w.child, wbWord(w.child)), bar3('你', w.parent, wbWord(w.parent)), bar3('你們之間', w.between, wbWord(w.between))),
+    h('section', { class: 'paper', id: 'ending-growth' },
+      h('h2', { class: 'sec' }, '你也重新長大了一次'),
+      e.growth.lines.length > 0
+        ? h('div', null, h('p', { class: 'muted small' }, '陪著孩子的這些年，你自己也跟著學了、玩了一些新東西：'), h('ul', null, e.growth.lines.map((l) => h('li', null, l))))
+        : h('p', null, e.growth.none)),
     h('section', { class: 'paper', id: 'ending-achievement' },
       h('h2', { class: 'sec' }, '孩子的學習與去向'),
       h('p', null, `${e.name}：${e.achievement.scoreWord}。`), h('p', { class: 'muted small' }, e.achievement.note),

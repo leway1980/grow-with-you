@@ -81,6 +81,16 @@ test('M1 的存檔可以升級：補上新欄位的預設值，每次選擇的�
   assert.equal(st.cur.cardId, 'lo_silkworm'); assert.deepEqual(st.cur.acc, {});
 });
 
+test('舊存檔沒有職位、交通工具、通勤距離（與父母的收穫紀錄）：升級時補上，值和同一個種子新開局抽到的一樣', () => {
+  const raw = m1();
+  assert.equal(raw.family.rank, undefined); assert.equal(raw.family.transport, undefined);
+  const st = migrate(raw, data);
+  const fresh = newState(raw.seed, data, { role: raw.role, startMode: raw.startMode }).family;
+  assert.deepEqual([st.family.rank, st.family.transport, st.family.commute], [fresh.rank, fresh.transport, fresh.commute]);
+  assert.deepEqual(st.parentGrowth, []);
+  assert.equal(st.hidden.父母的收穫, 0);
+});
+
 test('升級時丟掉已經不存在的後續卡與當前卡；舊的 delayed 補上 from', () => {
   const raw = m1();
   raw.delayed = [{ card: 'fu_ask_again', due: 30 }, { card: '已經刪掉的卡', due: 31 }];

@@ -5,6 +5,7 @@
 import { fileURLToPath } from 'node:url';
 import { tokenize, compile, buildCtx, evalCond, gateNames, choiceState } from '../js/engine/events.js';
 import { newState } from '../js/engine/state.js';
+import { isGrowthChoice } from '../js/engine/tags.js';
 import { FIXED_TOKENS } from '../js/engine/slots.js';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -54,6 +55,25 @@ export function lintData(raw = loadRaw()) {
       if (t.t === 'flag') note(flagRead, t.v, where);
     }
   };
+
+  // ── 父母的收穫（§7.2b）與標籤自帶的代價 ──
+  {
+    const G = T.growth || {};
+    if (!hiddenKeys.includes('父母的收穫')) errors.push('隱藏數值「父母的收穫」不存在');
+    for (const t of T.growthTags || []) {
+      if (!T.tags[t]) errors.push(`growthTags：標籤「${t}」不在詞彙表`);
+      else if (!(G.joinOnly || []).includes(t) && !(G.tagPhrases || {})[t]) errors.push(`growth.tagPhrases：缺少「${t}」的句子`);
+    }
+    for (const t of G.joinOnly || []) if (!(T.growthTags || []).includes(t)) errors.push(`growth.joinOnly：「${t}」不在 growthTags`);
+    for (const n of G.slots || []) {
+      if (!raw.slots.slots[n]) errors.push(`growth.slots：槽「${n}」不存在`);
+      if (!(G.phrases || {})[n] || !G.phrases[n].includes('{v}')) errors.push(`growth.phrases：「${n}」的句子要有 {v}`);
+    }
+    for (const [t, c] of Object.entries(T.tagCosts || {})) {
+      if (!T.tags[t]) errors.push(`tagCosts：標籤「${t}」不在詞彙表`);
+      for (const [k, d] of Object.entries(c)) { if (!VISIBLE.includes(k)) errors.push(`tagCosts.${t}：可見數值「${k}」不存在`); if (typeof d !== 'number') errors.push(`tagCosts.${t}.${k} 要是數字`); }
+    }
+  }
 
   // ── 標籤詞彙表 ──
   for (const [name, def] of Object.entries(T.tags)) {
@@ -180,6 +200,7 @@ export function lintData(raw = loadRaw()) {
         if (!T.tags[t]) errors.push(`${WC}：標籤「${t}」不在詞彙表`);
         else for (const k of Object.keys(T.tags[t].d || {})) exposure[k]++;
       }
+      if (isGrowthChoice(T, ch.tags)) exposure.父母的收穫++;
       if ((ch.tags || []).some((t) => dirTags.has(t)) && !ch.direction) warns.push(`${WC}：用了「轉述消息」類標籤，但沒有 direction`);
       if (ch.direction && !(ch.tags || []).some((t) => dirTags.has(t))) warns.push(`${WC}：有 direction 但沒有轉述消息類標籤`);
       if (ch.topic && !(ch.topic in st.interest)) errors.push(`${WC}：topic「${ch.topic}」不是興趣類別`);

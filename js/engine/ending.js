@@ -39,7 +39,7 @@ export function opennessOf(st) {
 }
 
 /** 父母幸福的參數預設值（正式的值在 data/identities.json 的 parentModel；buildEnding 會帶進來） */
-const DEFAULT_PM = { lowShareWeight: 60, lowThreshold: 35, levelWeight: 1 };
+const DEFAULT_PM = { lowShareWeight: 60, lowThreshold: 35, levelWeight: 1, growthWeight: 0 };
 /**
  * 共同的幸福（§7.1 第一個畫面）：孩子、父母、彼此之間。成績、去向不會被加進來（成就和幸福是兩條軸，§7.2）。
  * 父母那一項是整段時間的樣子（平均＋體力見底的回合比例），不是最後幾回合；錢不算（§2.3：家境改變代價，不改變能不能幸福）。
@@ -53,7 +53,8 @@ export function wellbeing(st, M = DEFAULT_PM) {
   // 平均水準只算一半的權重（往 50 收）：辛苦但可持續——撐不住的那幾回合（體力或耐心見底）才是主要的扣分
   const whole = 50 + M.levelWeight * (mean(rows.map((c) => mean(keys.map((k) => c[k])))) - 50);
   const lowShare = rows.length ? rows.filter((c) => c.體力 < M.lowThreshold || c.耐心 < M.lowThreshold).length / rows.length : 0;
-  const parent = mean([whole, avgHidden(st, '父母情緒穩定度')]) - M.lowShareWeight * lowShare;
+  // 父母的收穫（§7.2b）：一起參與的活動補回一部分犧牲，權重中等，不會抵消全部（也不會讓沒參與的人扣分：收穫從 0 起算）
+  const parent = mean([whole, avgHidden(st, '父母情緒穩定度')]) - M.lowShareWeight * lowShare + (M.growthWeight ?? 0) * (h.父母的收穫 ?? 0);
   const between = mean([h.親子信任, h.了解度, opennessOf(st)]) - 0.25 * Math.max(0, h.期待壓力 - 50);
   return { child: clamp(child), parent: clamp(parent), between: clamp(between) };
 }
@@ -133,6 +134,32 @@ export function keyMoments(st, data, n = 5) {
   });
 }
 
+/**
+ * 『你也重新長大了一次』（§7.2b）：把父母一起參與過的活動寫成白話句子，最多 T.growth.max（5）條。
+ * 有槽值的（打樂樂棒球、學游泳、去科學館……）比只有標籤的具體，先列；同一個槽挑次數最多的，盡量多樣；
+ * 一條都沒有就給一句溫和的話（不責怪）。
+ */
+export function growthSection(st, T) {
+  const G = T.growth, nm = st.family.child.given, f = (x) => x.replace(/\{孩子\}/g, nm);
+  const recs = st.parentGrowth || [];
+  const groups = new Map();
+  for (const r of recs) {
+    const key = r.slot ? r.slot + ':' + r.value : 'tag:' + r.tag;
+    const g = groups.get(key) || { key, r, n: 0, first: r.turn };
+    g.n++; groups.set(key, g);
+  }
+  const all = [...groups.values()];
+  const named = all.filter((g) => g.r.slot).sort((a, b) => b.n - a.n || a.first - b.first);
+  const tagged = all.filter((g) => !g.r.slot).sort((a, b) => b.n - a.n || a.first - b.first);
+  const picked = [], usedSlot = new Set();
+  for (const g of named) if (picked.length < G.max && !usedSlot.has(g.r.slot)) { picked.push(g); usedSlot.add(g.r.slot); }
+  for (const g of named) if (picked.length < G.max && !picked.includes(g)) picked.push(g);
+  for (const g of tagged) if (picked.length < G.max) picked.push(g);
+  picked.sort((a, b) => a.first - b.first);
+  const lines = picked.map((g) => f(g.r.slot ? G.phrases[g.r.slot].replace(/\{v\}/g, g.r.value) : G.tagPhrases[g.r.tag]));
+  return { lines, none: lines.length ? '' : f(G.none) };
+}
+
 const POINTS = 8;
 /** 每個隱藏數值的曲線資料（給 SVG 小圖用） */
 export function curveSeries(st) {
@@ -160,6 +187,7 @@ export function buildEnding(st, data) {
       note: `${nm}國小畢業了。接下來是國中，這一版先寫到這裡，後面的路還沒有鋪好。`,
     },
     route: routePosition(st),
+    growth: growthSection(st, data.tags),  // 你也重新長大了一次（§7.2b）：UI 放在幸福畫面之後
     combo: comboOf(axes),
     moments: keyMoments(st, data),
     groups: REVEAL_GROUPS,
