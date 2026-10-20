@@ -90,11 +90,31 @@ export const SURFACE_BOTS = {
 export const HUMAN_MIX = ['tiredLazy', 'commonReaction', 'occasionalResearch', 'tiredLazy', 'commonReaction', 'random', 'occasionalResearch', 'commonReaction', 'tiredLazy'];
 /** 機器人亂數的種子偏移（所有工具共用，同一個種子＋同一個策略＝同一局） */
 export const SALT = 0x9e3779b1;
-export const ALL_BOTS = { ...BOTS, ...HUMAN_BOTS, ...SURFACE_BOTS, ...BLIND_BOTS };
+/* ───── 階段可塑性用的分段機器人（M3 B1；tools/checks/plasticity.mjs）─────
+   phases：[[從第幾回合起, 機器人名稱], …]（依回合序號；50＝國中、63＝高中）。每一段用該機器人自己的選法，亂數流各自獨立、決定性。
+   不放進 BOTS／HUMAN_BOTS：校準與影響上限的局數不應該多出這些策略。 */
+export const HARSH_TAGS = ['罵一頓', '說教一段', '拿別人比較'];
+const PHASE_BASE = {
+  harsh: { desc: '嚴厲（罵一頓這類：責罵、說教、拿別人比較；沒有這類選項時挑最不溫暖的）', score: (T, ch) => 10 * hasTag(ch, HARSH_TAGS) - 0.5 * BOTS.warmFirm.score(T, ch) },
+};
+export const PLASTICITY_BOTS = {
+  earlyGood: { desc: '一路溫暖＋堅定', phases: [[0, 'warmFirm']] },
+  lateStarter: { desc: '國中前照習慣反應，第 50 回合（國中）起溫暖＋堅定', phases: [[0, 'commonReaction'], [50, 'warmFirm']] },
+  veryLateStarter: { desc: '國中、高中前照習慣反應，第 63 回合（高中）起溫暖＋堅定', phases: [[0, 'commonReaction'], [63, 'warmFirm']] },
+  neverChange: { desc: '一路照習慣反應', phases: [[0, 'commonReaction']] },
+  earlyLapse: { desc: '國中前溫暖＋堅定，第 50 回合起照習慣反應', phases: [[0, 'warmFirm'], [50, 'commonReaction']] },
+  earlyHarshLate: { desc: '國小溫暖＋堅定，國中起嚴厲', phases: [[0, 'warmFirm'], [50, 'harsh']] },
+  elemHarsh: { desc: '鏡像：同樣的嚴厲決定數（22 個回合）放在國小（第 28–49 回合），其餘溫暖＋堅定', phases: [[0, 'warmFirm'], [28, 'harsh'], [50, 'warmFirm']] },
+};
+export const ALL_BOTS = { ...BOTS, ...HUMAN_BOTS, ...SURFACE_BOTS, ...BLIND_BOTS, ...PLASTICITY_BOTS, ...PHASE_BASE };
 
 /** only：選填，卡片 id 的集合——只在這些卡上照 bot 的做法選，其他卡隨機（tools/surface.mjs 逐檔量字面機器人用） */
 export function botPolicy(botName, seedSalt, only = null) {
   const bot = ALL_BOTS[botName];
+  if (bot.phases) { // 分段機器人：依回合序號換成該段的機器人
+    const subs = bot.phases.map(([, b]) => botPolicy(b, seedSalt, only));
+    return { choose(st, view, raw, data) { let k = 0; bot.phases.forEach(([from], i) => { if (st.turn >= from) k = i; }); return subs[k].choose(st, view, raw, data); } };
+  }
   let holder = null;
   return {
     choose(st, view, raw, data) {

@@ -2,7 +2,7 @@
 // 換算會依情境調整：孩子的階段、（只有害處會累積的標籤才有的）重複加速、「父母傳遞的方向」計數、孩子的狀態與氣質。
 // 數值有飽和（越接近 0 或 100 越難動）與自然漂移（不維持就慢慢回到常態，例如了解度）。純函式，無 DOM。
 import { evalCond } from './events.js';
-import { derivedValue } from './model.js';
+import { derivedValue, plasticityOf } from './model.js';
 import { perSpan, decaySpan } from './timescale.js';
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
@@ -158,7 +158,7 @@ export const applyTags = writer((st, tags, T, opts) => {
       st.dirCount[key] = prior + def.dir * scale; // 劑量加權（scale＝這張卡的劑量倍率）
     }
     for (const [k, d] of Object.entries(def.d || {})) {
-      const m = mult * (def.dirAccel && def.dirAccel.includes(k) && pressureSide(k, d) ? dirMult : 1);
+      const m = mult * (def.dirAccel && def.dirAccel.includes(k) && pressureSide(k, d) ? dirMult : 1) * plasticityOf(T.model, stage, k, def, Math.sign(d)); // 階段可塑性（B1）
       const before = st.hidden[k];
       st.hidden[k] = clamp(before + saturate(before, d * m), 0, 100);
       deltas[k] = (deltas[k] || 0) + (st.hidden[k] - before);

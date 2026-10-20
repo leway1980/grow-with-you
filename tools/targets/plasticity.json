@@ -1,0 +1,45 @@
+{
+  "plasticity": {
+    "_why": "M3 B1 階段可塑性的目標（計畫 §2.1、§8 第 2–4 項）。預覽內容（國中到離家）還很薄，E1 會把國中以後補滿並強制這些目標，所以先 pending（只報告、不擋 CI）。局數＝每個分段機器人在預覽（玩到第 72 回合）各玩幾局；ax.0＝親子軸、w.2＝彼此之間的幸福。",
+    "pending": true,
+    "games": 600,
+    "bots": [
+      "earlyGood",
+      "lateStarter",
+      "veryLateStarter",
+      "neverChange",
+      "earlyLapse",
+      "earlyHarshLate",
+      "elemHarsh"
+    ],
+    "repairRatio": {
+      "min": 0.3,
+      "max": 0.65,
+      "note": "今日（全 1）0.76；ax.0 由最近 24 個月窗口主導，等 B2 後重量"
+    },
+    "earlyMinusLate": {
+      "min": 8,
+      "max": 20,
+      "note": "今日（全 1）+8.8（已過）"
+    },
+    "veryLateMinusNever": {
+      "min": 2,
+      "note": "今日（全 1）+16.6（已過）"
+    },
+    "veryLateApproachExit": {
+      "min": 0.1,
+      "switchTurn": 63,
+      "note": "今日（全 1）0%（243 局）：國中以後還沒有 approach／initiate 卡，等 C2/C3"
+    },
+    "harshLateVsElem": {
+      "min": 0.7,
+      "note": "今日（全 1）0.74（已過）；負向地板 0.85 之下再降不應低於 0.70"
+    },
+    "earlyMinusLapse": {
+      "min": 8,
+      "max": 25,
+      "note": "國中起不再陪伴，到 18 歲時親子分數明顯下降是合理的；上限防止早期完全無效。今日（全 1）+21.2；原範圍 3–12 改為 8–25（規劃者決定）"
+    },
+    "_note": "byStage 目前全部是 1（B1 規劃者決定：等 B2 習慣與國中以後的來找你卡片之後重新量測，再決定是否調到 1 以下）。以下 note 是 byStage 全 1、600 局的今日數值。"
+  }
+}

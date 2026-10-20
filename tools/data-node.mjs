@@ -14,6 +14,7 @@ export const loadRaw = () => {
   const m = mergeData(manifest, files);
   const model = rd('model.json');
   if (process.env.GWY_ALPHA !== undefined && model.timeScale) model.timeScale.alpha = Number(process.env.GWY_ALPHA); // 只給 α 掃描用（tools/alpha-sweep.mjs）；遊戲與 CI 不設定這個環境變數
+  if (process.env.GWY_BYSTAGE && model.plasticity) model.plasticity.byStage = { ...model.plasticity.byStage, ...JSON.parse(process.env.GWY_BYSTAGE) }; // 只給 byStage 掃描用（tools/checks/plasticity.mjs --sweep）；遊戲與 CI 不設定
   return { identities: rd('identities.json'), tags: rd('tags.json'), model, ending: rd('ending.json'), events: m.events, pools: rd('pools.json'), slots: m.slots, calendar: rd('calendar.json'), manifest, mergeProblems: m.problems };
 };
 export const loadData = (raw = loadRaw()) => prepareData(raw);

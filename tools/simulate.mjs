@@ -57,10 +57,11 @@ export function moneyAtSchoolPlus(st, data, e, months = 6) {
 
 /* ───── 一局 ───── */
 export function playGame(data, bot, seed, opts = {}) {
-  const st = newState(seed, data, { role: opts.role || (seed % 2 ? '媽媽' : '爸爸'), startMode: opts.startMode || 'birth' });
+  const st = newState(seed, data, { role: opts.role || (seed % 2 ? '媽媽' : '爸爸'), startMode: opts.startMode || 'birth', preview: !!opts.preview });
   const meter = opts.influence ? influenceMeter(st, data) : null;
   const tracker = approachTracker(data), policy = botPolicy(bot, SALT, opts.only ? new Set(opts.only) : null);
-  try { let guard = 0; while (!st.ended && guard++ < 200) { const t = st.turn; playTurn(st, data, policy); tracker.observe(st, t); } } finally { if (meter) meter.stop(); } // = playToEnd，另外記下『不太來找你』的進出
+  const axAt = {}; // opts.snap（回合序號陣列）：玩完那個回合、準備進入第 n 回合時的三條結果軸（階段可塑性的『同劑量嚴厲』比較要在劑量剛結束時量）
+  try { let guard = 0; while (!st.ended && guard++ < 200) { const t = st.turn; playTurn(st, data, policy); tracker.observe(st, t); if (opts.snap && opts.snap.includes(st.turn) && !(st.turn in axAt)) { const a = outcomeAxes(st); axAt[st.turn] = [a.親子, a.人際, a.學習]; } } } finally { if (meter) meter.stop(); } // = playToEnd，另外記下『不太來找你』的進出
   const ax = outcomeAxes(st), w = wellbeing(st, data.identities.parentModel), rp = routePosition(st);
   const f = st.family;
   const e = startTurnOf(data, 'elementary'); // 國小開始的回合（由日曆算出）
@@ -74,6 +75,8 @@ export function playGame(data, bot, seed, opts = {}) {
     g24, sens: f.child.temperament.敏感度,
     bot, seed, partner: f.partner.attitude || '無', econ: f.econ, pattern: f.pattern, support: f.support, struct: f.structure,
     ax: [ax.親子, ax.人際, ax.學習], w: [w.child, w.parent, w.between], route: rp.kind, combo: comboOf(ax),
+    axAt,
+    episodes: tracker.episodes.map((x) => ({ ...x })), // 『不太來找你』的進出（月齡；tools/checks/plasticity.mjs 看某個回合時是否在裡面）
     hid: { ...st.hidden }, money30: moneyAtSchoolPlus(st, data, e), lowBody: st.vcurves.filter((c) => c.體力 < 35).length / st.vcurves.length,
     elemTurns, elemNonFixed, nTurnsElem, fu: st.hist.filter((h) => h.fu != null).map((h) => h.fu), // 後續卡的延遲（月） cards: st.hist.length,
   };
@@ -126,7 +129,7 @@ export async function execute(tasks, opts) {
   }
   const url = new URL(import.meta.url);
   const parts = await Promise.all(chunk(tasks, nw).map((ts) => new Promise((res, rej) => {
-    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, mech: opts.mech, influence: opts.influence, role: opts.role, only: opts.only } });
+    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, preview: opts.preview, snap: opts.snap, mech: opts.mech, influence: opts.influence, role: opts.role, only: opts.only } });
     w.once('message', res); w.once('error', rej);
   })));
   return parts.flat();

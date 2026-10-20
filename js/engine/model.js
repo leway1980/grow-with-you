@@ -36,6 +36,19 @@ export function edgeForTagEffect(M, tag, node, d) {
   return list.find((e) => e.sign === (d > 0 ? '+' : '-')) || null;
 }
 
+/**
+ * 階段可塑性（M3 B1，data/model.json 的 plasticity）：同一個選擇在孩子越大時改變越少（只作用在孩子端的節點）。
+ * 回傳乘在這次變化量上的倍率：節點不在 plasticity.nodes → 1；標籤自己有 stage 表且當前階段在表中（它的年齡加成已寫在標籤上）→ 1；
+ * 否則正向取 byStage[stage]；負向（sign < 0）在 negativeFloor.nodes 取 max(byStage, negativeFloor.min)。沒有 plasticity 區塊 → 1。
+ */
+export function plasticityOf(M, stage, node, tagDef, sign) {
+  const P = M && M.plasticity;
+  if (!P || !P.nodes.includes(node)) return 1;
+  if (P.exemptIfTagHasStageMap && tagDef && tagDef.stage && stage in tagDef.stage) return 1;
+  const f = P.byStage[stage] ?? 1, N = P.negativeFloor;
+  return sign < 0 && N && N.nodes.includes(node) ? Math.max(f, N.min) : f;
+}
+
 /** 推算值（承受度）：50 + Σ sign×w×(來源−center)，全部從邊讀 */
 export function derivedValue(M, name, getter) {
   const D = M.derived[name];
