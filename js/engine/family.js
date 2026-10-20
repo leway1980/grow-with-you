@@ -19,6 +19,26 @@ export function urbanTypeOf(idn, county, district) {
   return m[district] || m._default || '中小城鎮';
 }
 
+/**
+ * 孩子的名字（DESIGN §2.2）：姓氏依人口比例加權，名字由男／女各自的『第一個字』『第二個字』字庫組合；
+ * 單名機率另計；同一個字不重複；命中黑名單就重抽（有上限，之後退回確定的組合）。r 是名字專用的亂數流。
+ */
+export function rollName(r, idn, sex) {
+  const M = idn.nameModel, side = sex === '男' ? 'M' : 'F';
+  const surname = pickWeighted(r, idn.surnames.map((n, k) => ({ n, w: idn.surnameW[k] })), (x) => x.w).n;
+  const pool = (o) => Object.entries(o).map(([c, w]) => ({ c, w }));
+  const first = pool(M[side].first), second = pool(M[side].second);
+  const bad = (g) => (M.blockGiven || []).includes(g) || (M.blockFull || []).includes(surname + g);
+  const single = r() < M.singleP[side];
+  for (let i = 0; i < 40; i++) {
+    const a = pickWeighted(r, first, (x) => x.w).c, b = pickWeighted(r, second, (x) => x.w).c;
+    if (single) { if (!bad(b)) return { surname, given: b }; continue; }
+    if (a !== b && !bad(a + b)) return { surname, given: a + b };
+  }
+  const a = first[0].c;
+  return { surname, given: a + second.find((x) => x.c !== a && !bad(a + x.c)).c };
+}
+
 export function generateFamily(seed, idn) {
   seed >>>= 0;
   // 1–2 縣市、行政區、城鄉類型
@@ -104,9 +124,8 @@ export function generateFamily(seed, idn) {
     interests[k] = Math.round(Math.max(0, Math.min(1, v)) * 100) / 100;
   }
   const rnm = rs(seed, 'childName');
-  const surname = pickWeighted(rnm, idn.surnames.map((n, k) => ({ n, w: idn.surnameW[k] })), (x) => x.w).n;
-  const gl = sex === '男' ? idn.givenNamesM : idn.givenNamesF;
-  const given = gl[Math.floor(rnm() * gl.length)];
+  const { surname, given: gn } = rollName(rnm, idn, sex);
+  const given = gn.length === 1 ? surname + gn : gn; // 單名：文字裡叫全名，只叫一個字很怪
   // 孩子對教養的「接受度」：同樣的做法，有的孩子反應大、有的小（個別差異；用自己的亂數流，不影響其他抽籤）
   const RS = C.responsive, rr = rs(seed, 'childResp');
   const responsive = Math.round(Math.max(RS.min, Math.min(RS.max, 1 + gauss(rr) * RS.sd)) * 100) / 100;

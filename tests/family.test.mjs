@@ -56,10 +56,10 @@ test('每一步是獨立的亂數流：改某張表只改變那一步', () => {
     assert.deepEqual(without(a, 'upbringing'), without(b, 'upbringing'));
   });
   // 姓氏權重：只有孩子的名字改變
-  mutate((m) => { m.surnameW = m.surnameW.map((_, i) => (i === 39 ? 1 : 0)); }, (a, b) => {
+  mutate((m) => { m.surnameW = m.surnameW.map((_, i) => (m.surnames[i] === '沈' ? 1 : 0)); }, (a, b) => {
     assert.ok(b.child.name.startsWith('沈'));
     assert.deepEqual(without(a, 'child'), without(b, 'child'));
-    assert.deepEqual(without(a.child, 'name'), without(b.child, 'name'));
+    assert.deepEqual(without(a.child, 'name', 'given'), without(b.child, 'name', 'given')); // 單名時 given 帶姓
   });
   // 寵物權重
   mutate((m) => { m.pets.base = [0, 0, 1, 0]; }, (a, b) => {
@@ -104,4 +104,76 @@ test('從國小開始：學前托育依 DATA §4 的比例抽出', () => {
   assert.ok(c.父母自己帶 / 2000 > 0.42 && c.父母自己帶 / 2000 < 0.58, JSON.stringify(c));
   assert.ok(c.送托 / 2000 > 0.2 && c.送托 / 2000 < 0.36, JSON.stringify(c));
   assert.ok(c.長輩主要照顧 / 2000 > 0.1 && c.長輩主要照顧 / 2000 < 0.3, JSON.stringify(c));
+});
+
+/* ───────────── 名字（DESIGN §2.2） ───────────── */
+import { rollName } from '../js/engine/family.js';
+import { mulberry32 } from '../js/engine/rng.js';
+const NM = BASE.nameModel;
+const rollMany = (sex, n, salt = 1) => { const r = mulberry32(salt); return Array.from({ length: n }, () => rollName(r, BASE, sex)); };
+
+test('名字：同一個種子永遠同一個名字；名字用自己的亂數流，其他抽籤不受影響', () => {
+  for (const s of [1, 2, 3, 500]) assert.equal(generateFamily(s, idn()).child.name, generateFamily(s, idn()).child.name);
+  // 把名字字庫整個換掉：除了名字之外，整個家庭（含孩子的性別、氣質、天分、手足、寵物）不變
+  for (const s of [1, 2, 3, 77, 4096]) {
+    const m = clone(); m.nameModel.M.first = { 子: 1 }; m.nameModel.M.second = { 睿: 1 }; m.nameModel.F.first = { 品: 1 }; m.nameModel.F.second = { 妍: 1 };
+    const a = generateFamily(s, idn()), b = generateFamily(s, m);
+    assert.deepEqual(without(a.child, 'name', 'given'), without(b.child, 'name', 'given'));
+    assert.deepEqual(without(a, 'child'), without(b, 'child'));
+  }
+});
+
+test('名字：男女分開兩套字庫；強性別字不會跑到另一邊', () => {
+  const strongM = new Set('柏翰廷翔豪軒碩睿彥冠昱辰凱傑'), strongF = new Set('妍妤瑄萱涵菲霏彤綺蓁芯苡婕琪馨薇恬柔');
+  for (const side of ['M', 'F']) for (const pos of ['first', 'second']) for (const c of Object.keys(NM[side][pos])) assert.ok(!(side === 'M' ? strongF : strongM).has(c), `${side}.${pos} 含 ${c}`);
+  for (const { given } of rollMany('男', 3000)) for (const c of given) assert.ok(!strongF.has(c), '男生名字出現偏女的字 ' + c);
+  for (const { given } of rollMany('女', 3000)) for (const c of given) assert.ok(!strongM.has(c), '女生名字出現偏男的字 ' + c);
+  // 兩性都常見的字兩邊都有
+  for (const c of ['宥', '恩', '子', '品']) assert.ok(c in NM.M.first && c in NM.F.first, c);
+});
+
+test('名字：同一個字不重複、黑名單不會出現、姓名組合不在 blockFull', () => {
+  for (const sex of ['男', '女']) for (const { surname, given } of rollMany(sex, 10000, 7)) {
+    if (given.length === 2) assert.notEqual(given[0], given[1], given);
+    assert.ok(!NM.blockGiven.includes(given), given);
+    assert.ok(!NM.blockFull.includes(surname + given), surname + given);
+  }
+});
+
+test('名字：黑名單是資料驅動的——把某個組合以外的字庫全部關掉，只剩黑名單組合時會被避開', () => {
+  const m = clone();
+  m.nameModel.M.first = { 思: 1, 士: 1 }; m.nameModel.M.second = { 哲: 1, 安: 1 }; m.nameModel.singleP.M = 0;
+  const r = mulberry32(3);
+  const seen = new Set();
+  for (let i = 0; i < 400; i++) seen.add(rollName(r, m, '男').given);
+  assert.ok(!seen.has('思哲') && !seen.has('士哲') && seen.has('思安') && seen.has('士安'), [...seen].join());
+});
+
+test('名字：單名比例約男 3%、女 5%；姓氏分布符合權重（陳最多）；10,000 次的分布合理', () => {
+  const N = 10000;
+  const m = rollMany('男', N, 11), f = rollMany('女', N, 12);
+  const sm = m.filter((x) => x.given.length === 1).length / N, sf = f.filter((x) => x.given.length === 1).length / N;
+  assert.ok(sm > 0.02 && sm < 0.042, '男單名 ' + sm);
+  assert.ok(sf > 0.035 && sf < 0.065, '女單名 ' + sf);
+  const cnt = {}; for (const x of m) cnt[x.surname] = (cnt[x.surname] || 0) + 1;
+  const tot = BASE.surnameW.reduce((a, b) => a + b, 0); // 41 個姓重新歸一
+  assert.ok(Math.abs(cnt.陳 / N - 11.2 / tot) < 0.012 && Math.abs(cnt.林 / N - 8.33 / tot) < 0.012, `陳 ${cnt.陳 / N} 林 ${cnt.林 / N}`);
+  assert.ok(Object.keys(cnt).length >= 35);
+  // 名字夠多樣：兩個字的名字至少 600 種不同；單一名字最多不超過 2%
+  const two = m.filter((x) => x.given.length === 2).map((x) => x.given);
+  const c2 = {}; for (const g of two) c2[g] = (c2[g] || 0) + 1;
+  assert.ok(Object.keys(c2).length >= 600, '男生不同名字 ' + Object.keys(c2).length);
+  assert.ok(Math.max(...Object.values(c2)) / N < 0.02);
+  // 第一個字最常出現的是字庫權重最高的幾個
+  const firsts = {}; for (const g of two) firsts[g[0]] = (firsts[g[0]] || 0) + 1;
+  const top = Object.entries(firsts).sort((a, b) => b[1] - a[1]).slice(0, 4).map((x) => x[0]);
+  assert.ok(['宥', '承', '子', '柏'].filter((c) => top.includes(c)).length >= 3, top.join());
+  // 單名的孩子，文字裡叫的是全名
+  for (const s of Array.from({ length: 800 }, (_, i) => i + 1)) { const c = generateFamily(s, idn()).child; if (c.name.length === 2) assert.equal(c.given, c.name); else assert.equal(c.name.endsWith(c.given), true); }
+});
+
+test('名字：_readme 說明來源，並標明設計估計／待確認與已查證的項目', () => {
+  assert.ok(/設計估計/.test(NM._readme) && /待確認/.test(NM._readme) && /內政部/.test(NM._readme) && /無法連線/.test(NM._readme));
+  assert.equal(BASE.surnames.length, BASE.surnameW.length);
+  assert.deepEqual(BASE.surnames.slice(0, 11), ['陳', '林', '黃', '張', '李', '王', '吳', '劉', '蔡', '楊', '許']);
 });
