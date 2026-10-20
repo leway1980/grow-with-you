@@ -10,6 +10,7 @@ import { FIXED_TOKENS } from '../js/engine/slots.js';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadRaw, loadData, ROOT } from './data-node.mjs';
+import { loadPlugins, loadTargets } from './plugins.mjs';
 import { lintModel } from './lint-model.mjs';
 import { lintContent } from './lint-content.mjs';
 import { rule11, cardFileMap } from './rule11.mjs';
@@ -21,6 +22,8 @@ const VISIBLE = VISIBLE_KEYS;
 const NEEDS = ['晚餐', '睡前', '早晨', '週末'];
 /** V4b：一張卡所有選項的標籤合計，每個隱藏數值的平均推動量要落在 ±這個值之內 */
 export const V4B_BOUND = 0.5;
+/** tools/lint/*.mjs 外掛（plugins.mjs）：後面的工作包把自己的檢查放進這個資料夾，不必改這個檔 */
+const LINT_PLUGINS = await loadPlugins('lint', 'lint');
 
 const bigrams = (s) => { const a = [...s.replace(/[\s，。、：「」？！,.:]/g, '')]; return new Set(a.slice(0, -1).map((x, i) => x + a[i + 1])); };
 /** 字元雙連詞的 Jaccard 相似度（標籤近似重複檢查） */
@@ -134,7 +137,7 @@ export function lintData(raw = loadRaw()) {
 
   // ── 節奏：每個階段有固定事件的回合比例（design-targets.json 的 rhythm.fixedShareMax）──
   {
-    const share = fixedShareByStage(data.timeline), R = JSON.parse(readFileSync(join(ROOT, 'tools', 'design-targets.json'), 'utf8')).rhythm;
+    const share = fixedShareByStage(data.timeline), R = loadTargets().rhythm;
     for (const [stage, max] of Object.entries((R && R.fixedShareMax) || {})) {
       const o = share[stage];
       if (o && o.share > max + 1e-9) errors.push(`日曆節奏：${stage} 有 ${o.fixed}/${o.turns}＝${(o.share * 100).toFixed(0)}% 的回合有固定事件，超過上限 ${max * 100}%`);
@@ -157,8 +160,8 @@ export function lintData(raw = loadRaw()) {
 
   // ── 事件卡 ──
   const leakRe = new RegExp(hiddenKeys.join('|'));
-  const allowedChoiceKeys = new Set(['label', 'effects', 'tags', 'result', 'showIf', 'grayIf', 'opens', 'followUp', 'chance', 'setFlags', 'clearFlags', 'setVars', 'incVars', 'direction', 'topic', 'needs', 'labelIf', 'resultIf', 'tagsIf', 'effectsIf', 'toward', 'classroom', 'flagMonths']);
-  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldownMonths', 'scale', 'requires', 'excludes', 'modifiers', 'stages', 'topic', 'direction', 'approach', 'initiate', 'toward', 'note', '_variantOf', '_variantIf']);
+  const allowedChoiceKeys = new Set(['label', 'effects', 'tags', 'result', 'showIf', 'grayIf', 'opens', 'followUp', 'chance', 'setFlags', 'clearFlags', 'setVars', 'incVars', 'direction', 'topic', 'needs', 'labelIf', 'resultIf', 'tagsIf', 'effectsIf', 'toward', 'classroom', 'flagMonths', 'route', 'habitPattern']);
+  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldownMonths', 'scale', 'requires', 'excludes', 'modifiers', 'stages', 'topic', 'direction', 'approach', 'initiate', 'toward', 'note', 'habit', 'traceOf', 'sensitive', 'reviewed', '_variantOf', '_variantIf']);
   const gateVars = new Set(gateNames());
   const seeds = [1, 2, 3, 4, 5, 6, 7, 8].map((sd) => newState(sd, data, {}));
   const dirSlotOk = (d) => d[0] !== '@' || (slots[d.slice(1)] && slots[d.slice(1)].every((v) => v.dir));
@@ -176,6 +179,7 @@ export function lintData(raw = loadRaw()) {
     if ('note' in c && !(typeof c.note === 'string' && c.note.trim())) errors.push(`${W}：note（研究小卡）要是非空字串`);
     if (c.note) { checkTokens(c.note, W + '研究小卡'); if (leakRe.test(c.note)) errors.push(`${W}：研究小卡出現隱藏數值的名稱`); }
     if (!pools[c.pool]) errors.push(`${W}：池「${c.pool}」不存在`);
+    if (!c.pool.startsWith('_') && !(Array.isArray(c.stages) && c.stages.length)) errors.push(`${W}：要寫 stages（沒寫會載入每個階段；只有固定事件池 _ 開頭的卡可以不寫）`);
     // 時間單位（A2.5）：冷卻是『月』；scale:false＝一次性的固定事件，劑量不隨回合長度放大
     if ('cooldownMonths' in c && !(Number.isInteger(c.cooldownMonths) && c.cooldownMonths >= 0)) errors.push(`${W}：cooldownMonths 要是 ≥ 0 的整數（月）`);
     if ('scale' in c && typeof c.scale !== 'boolean') errors.push(`${W}：scale 要是 true 或 false（true＝隨回合長度放大的『一段時間的政策』，false＝一次性事件）`);
@@ -398,6 +402,7 @@ export function lintData(raw = loadRaw()) {
   errors.push(...lm.errors); warns.push(...lm.warns);
   const lc = lintContent(raw, data, cards, ctxKeys, st);
   errors.push(...lc.errors); warns.push(...lc.warns);
+  for (const p of LINT_PLUGINS) { const r = p.fn({ raw, data, cards, T, hiddenKeys }) || {}; errors.push(...(r.errors || []).map((e) => `[${p.name}] ${e}`)); warns.push(...(r.warns || []).map((e) => `[${p.name}] ${e}`)); }
   const r11 = rule11(cards, T, cardFileMap());
   if (R.rule11Enforce) errors.push(...r11.errors);
   warns.push(...r11.warns);

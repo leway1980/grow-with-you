@@ -12,6 +12,10 @@ import { lintModel } from './lint-model.mjs';
 import { readModel, writeModel } from './model-io.mjs';
 import { AXES } from '../js/engine/model.js';
 import { fixedShareByStage } from './metrics.mjs';
+import { loadPlugins } from './plugins.mjs';
+
+/** tools/checks/*.mjs 外掛（plugins.mjs）：後面的工作包把自己的檢查放進這個資料夾，不必改這個檔 */
+const CHECK_PLUGINS = await loadPlugins('checks', 'check');
 
 const CLASSES = [['tag', 'perTag', '標籤'], ['card', 'perCard', '卡片'], ['pool', 'perPool', '池']];
 
@@ -103,6 +107,10 @@ export async function checkDesign(N = 3000, s0 = 1, opts = {}) {
   if (opts.calibration) {
     const games = await runBots(200, 1);
     for (const r of evaluateCalibration(games)) add(r.ok, '校準', r.desc, r.value, r.target);
+  }
+  for (const p of CHECK_PLUGINS) { // 外掛的列接在最後；回傳列陣列，或自己呼叫 ctx.add
+    const out = await p.fn({ N, s0, raw, data, TARGETS, mix, ext, everyone, inf, runBots, add });
+    if (Array.isArray(out)) rows.push(...out);
   }
   return { rows, mix, ext, everyone, inf, ms: Date.now() - t0, NX, raw, data };
 }

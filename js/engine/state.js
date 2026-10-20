@@ -19,6 +19,9 @@ export function startTurnOf(data, mode) {
   return i;
 }
 
+/** st.vars 的預設值。M3 的路線變數（學制、國中類型、去向、中途離校、實驗教育、選組）先登記成空字串：之後 paths.js 與卡片寫入，buildCtx 讀取，舊存檔由 migrate 補上 */
+const VAR_DEFAULTS = { 托育方式: '', 幼兒園類型: '', 照顧者: '', 換照顧者次數: 0, 孩子主動開口: 0, 孩子不再開口: 0, 上學方式: '', 孩子來找_連續錯過: 0, 孩子來找_回來連續: 0, 不太來找你: 0, 不太來找你_曾: 0, 養的寵物: '', 養的寵物名: '', 想要的球類: '', 選的才藝: '', 校隊項目: '', 校隊比賽層級: '', 學制: '', 國中類型: '', 去向: '', 中途離校: '', 實驗教育: '', 選組: '' };
+
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 
 export function newState(seed, data, opts = {}) {
@@ -46,12 +49,14 @@ export function newState(seed, data, opts = {}) {
     interest: { ...fam.child.interests },      // 興趣向量（隱藏）：之後會依接觸經驗改變
     dirCount: {},                              // 父母傳遞的方向計數（§3.3）
     tagCounts: {},                             // 各行為標籤累計次數
-    vars: { 托育方式: '', 幼兒園類型: '', 照顧者: '', 換照顧者次數: 0, 孩子主動開口: 0, 孩子不再開口: 0, 上學方式: '', 孩子來找_連續錯過: 0, 孩子來找_回來連續: 0, 不太來找你: 0, 不太來找你_曾: 0, 養的寵物: '', 養的寵物名: '', 想要的球類: '', 選的才藝: '', 校隊項目: '', 校隊比賽層級: '' },
+    vars: { ...VAR_DEFAULTS },
     costEMA: { 體力: 0, 耐心: 0 },             // 最近幾回合體力、耐心的花費（指數移動平均），父母的回復目標會被它拉低
     startHidden: null,                         // 開局時的隱藏數值（自然漂移與結局的『相對於開局』用）
     classroom: newClassroom(T),                // 班級共享狀態（§4.38）：老師投入度；換老師時重抽
     flags: {}, flagExpiry: {}, cooldowns: {}, used: {}, openPools: {}, delayed: [], slotLast: {}, cardScope: null,
     hist: [], curves: [], vcurves: [], done: {},
+    habits: {},                                // 習慣（M3 B2）：{ 家族: { pattern, shift:{n} } }；現在還沒有東西寫入
+    autoLog: [],                               // 習慣自動帶入的紀錄 {turn, family, pattern, line}（不進 hist）
     parentGrowth: [],                          // 父母一起參與過的活動（§7.2b）：{turn, slot, value} 或 {turn, tag}
     cur: null, ended: false, endReason: null,
   };
@@ -158,11 +163,11 @@ export function migrate(st, data) {
   const T = data.tags;
   st.hidden ||= {};
   for (const k of Object.keys(T.hidden)) if (typeof st.hidden[k] !== 'number' || Number.isNaN(st.hidden[k])) st.hidden[k] = T.hidden[k];
-  st.vars = { 托育方式: '', 幼兒園類型: '', 照顧者: '', 換照顧者次數: 0, 孩子主動開口: 0, 孩子不再開口: 0, 上學方式: '', 孩子來找_連續錯過: 0, 孩子來找_回來連續: 0, 不太來找你: 0, 不太來找你_曾: 0, 養的寵物: '', 養的寵物名: '', 想要的球類: '', 選的才藝: '', 校隊項目: '', 校隊比賽層級: '', ...(st.vars || {}) };
+  st.vars = { ...VAR_DEFAULTS, ...(st.vars || {}) };
   st.costEMA = { 體力: 0, 耐心: 0, ...(st.costEMA || {}) };
-  for (const k of ['dirCount', 'tagCounts', 'flags', 'flagExpiry', 'cooldowns', 'used', 'openPools', 'slotLast', 'done']) st[k] ||= {};
+  for (const k of ['dirCount', 'tagCounts', 'flags', 'flagExpiry', 'cooldowns', 'used', 'openPools', 'slotLast', 'done', 'habits']) st[k] ||= {};
   st.classroom = { ...newClassroom(T), ...(st.classroom || {}) }; // 舊存檔沒有班級狀態：下一個換老師的年級會重抽；在那之前用預設值
-  for (const k of ['delayed', 'hist', 'curves', 'vcurves', 'parentGrowth']) st[k] ||= [];
+  for (const k of ['delayed', 'hist', 'curves', 'vcurves', 'parentGrowth', 'autoLog']) st[k] ||= [];
   // 舊存檔沒有職位、交通工具、通勤距離：用同一個種子補上（各自獨立的亂數流，不影響已經抽好的其他東西）
   const f = st.family, jd = data.identities.jobs.find((j) => j.name === f.job.name);
   if (jd && !(f.rank && f.transport && f.commute)) Object.assign(f, rollWork(st.seed, data.identities, jd, f.econ, f.urban));

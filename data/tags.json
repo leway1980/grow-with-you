@@ -189,7 +189,7 @@
   "attendTags": ["聽他說完", "先接住情緒", "放下手機陪", "聽孩子重複的要求", "問具體的事", "先了解再處理"],
   "initiateTags": ["問具體的事", "聽他說完", "放下手機陪", "先接住情緒"],
   "enterAt": 5, "enterAtSensitive": 4, "sensitiveFrom": 4,
-  "exitStreak": {"嬰幼兒": 2, "幼兒園": 2, "國小低": 2, "國小中高": 3, "國中": 4, "高中": 3},
+  "exitStreak": {"嬰幼兒": 2, "幼兒園": 2, "國小低": 2, "國小中高": 3, "國中": 4, "高中": 3, "離家": 3},
   "weightX": 0.7,
   "approachCredit": 1,
   "repairBoost": 2.5

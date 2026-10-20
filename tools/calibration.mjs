@@ -1,13 +1,13 @@
 // 校準目標（DESIGN §3.4 修訂版）。tests/calibration.test.mjs 與 tools/simulate.mjs 共用這一份：現況對目標，一個地方定義。
 // 範圍（目標數字）寫在 tools/design-targets.json 的 calibration；這裡只負責「量現況」與「對範圍」（DESIGN §3.7 第 5 點）。
-import { readFileSync } from 'node:fs';
+import { loadTargets } from './plugins.mjs';
 import { avg, median, share, pct } from './stats.mjs';
 import { loadData } from './data-node.mjs';
 import { meanCorrelation, CORRELATION_BOUND } from './metrics.mjs';
 import { COMBOS } from '../js/engine/ending.js';
 
 export const groupBy = (arr, f) => { const m = {}; for (const x of arr) (m[f(x)] ||= []).push(x); return m; };
-export const TARGETS = JSON.parse(readFileSync(new URL('./design-targets.json', import.meta.url), 'utf8'));
+export const TARGETS = loadTargets(); // tools/design-targets.json ＋ tools/targets/*.json（plugins.mjs）
 const f1 = (x) => x.toFixed(1);
 const rangeOf = (id) => { const r = TARGETS.calibration[id]; if (!r) throw new Error(`design-targets.json 沒有校準目標 ${id}`); return r; };
 const inRange = (v, r) => (r.min == null || v >= r.min) && (r.max == null || v <= r.max) && (r.gt == null || v > r.gt);
