@@ -1,0 +1,16 @@
+{
+  "paths": {
+    "_why": "M3 B4 路線的目標（計畫 §2.4、§8 第 8 項；規劃者決定 2026-10-20）。預覽內容（國中以後）已有路線（paths.js），所以這組目標直接強制（pending:false）。局數＝每個機器人在預覽（玩到第 72 回合）各玩幾局。學制的 base 比例是設計估計，只有普通科約五成、專業群科近四成有教育部統計可查（docs/research/teen.md §5.1）。",
+    "pending": false,
+    "games": 250,
+    "bots": ["random", "permissive", "controlling", "warmFirm", "doseGreedy", "antiDose", "warmFirmRest", "tiredLazy", "commonReaction", "occasionalResearch", "lateStarter", "veryLateStarter"],
+    "shareTol": { "max": 0.10, "note": "每個學制的比例（全部機器人合計）與 base 的差，絕對值 ≤ 10 個百分點；各機器人的偏離另外報告" },
+    "dropout": { "min": 0.04, "max": 0.08, "note": "預覽局中，孩子真的離開學校（在家、工作、職訓、實驗教育）的比例；前兆出現的比例另外報告" },
+    "destMax": { "max": 0.60, "note": "任何一個機器人，任何一個去向的比例都不能超過 60%" },
+    "stigmaHand": { "min": 0.5, "note": "技高入學的孩子中，動手做興趣高於全體中位數的比例至少 50%：技高是興趣的選擇，不是成績差的出路" },
+    "stigmaGrade": { "min": 0.3, "note": "技高入學的孩子中，成績高於全體中位數的比例至少 30%（規劃者原文『≥30%』；任務單寫成『at most 30%』，採 ≥30%，因為 anti-stigma 的意思是技高不該只收成績差的孩子，不對再告訴我）" },
+    "econGap": { "min": 0.05, "max": 0.30, "note": "P(大學|寬裕) − P(大學|吃緊)：現實但不是決定性的差距，百分點 5–30" },
+    "noGirlEnlist": { "max": 0, "note": "女生的入伍局數一定是 0" },
+    "wellbeingGapNote": "各去向的孩子幸福平均差（依機器人、依經濟）只報告、不擋：沒有一條路是失敗結局，差距主要來自不同去向的孩子本來就不一樣（反事實測試在 tests/paths.test.mjs：同一個狀態強制不同去向，離家前的幸福完全相同）"
+  }
+}

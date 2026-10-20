@@ -64,8 +64,11 @@ export function playGame(data, bot, seed, opts = {}) {
   const jh0 = data.timeline.findIndex((t) => t.stage === '國中'), sh0 = data.timeline.findIndex((t) => t.stage === '高中');
   const hab = opts.habits && !meter ? { det: null, atSH: null, absAll: 0 } : null;
   if (hab) setTagObserver(({ turn, deltas }) => { if (turn >= jh0) for (const d of Object.values(deltas)) hab.absAll += Math.abs(d); });
+  // 路線量測（opts.paths；tools/checks/paths.mjs）：第 62 回合（選高中之前）的興趣與成績，以及最後的學制、去向、中途離校
+  const hs0 = data.timeline.findIndex((t) => t.stage === '國中' && t.fixed.includes('fx_choose_hs'));
+  let pathSnap = null;
   const axAt = {}; // opts.snap（回合序號陣列）：玩完那個回合、準備進入第 n 回合時的三條結果軸（階段可塑性的『同劑量嚴厲』比較要在劑量剛結束時量）
-  try { let guard = 0; while (!st.ended && guard++ < 200) { const t = st.turn; playTurn(st, data, policy); tracker.observe(st, t); if (hab) { if (st.turn === jh0 + 1 && !hab.det) hab.det = structuredClone(st.habits); if (st.turn === sh0 && !hab.atSH) hab.atSH = structuredClone(st.habits); } if (opts.snap && opts.snap.includes(st.turn) && !(st.turn in axAt)) { const a = outcomeAxes(st); axAt[st.turn] = [a.親子, a.人際, a.學習]; } } } finally { if (meter) meter.stop(); if (hab) setTagObserver(null); } // = playToEnd，另外記下『不太來找你』的進出
+  try { let guard = 0; while (!st.ended && guard++ < 200) { const t = st.turn; if (opts.paths && t === hs0 && !pathSnap) pathSnap = { 手: st.interest.動手做, 美術: st.interest.美術, 績: st.child.成績, 心情: st.child.心情, 往來: st.child.同學往來 }; playTurn(st, data, policy); tracker.observe(st, t); if (hab) { if (st.turn === jh0 + 1 && !hab.det) hab.det = structuredClone(st.habits); if (st.turn === sh0 && !hab.atSH) hab.atSH = structuredClone(st.habits); } if (opts.snap && opts.snap.includes(st.turn) && !(st.turn in axAt)) { const a = outcomeAxes(st); axAt[st.turn] = [a.親子, a.人際, a.學習]; } } } finally { if (meter) meter.stop(); if (hab) setTagObserver(null); } // = playToEnd，另外記下『不太來找你』的進出
   const ax = outcomeAxes(st), w = wellbeing(st, data.identities.parentModel), rp = routePosition(st);
   const f = st.family;
   const e = startTurnOf(data, 'elementary'); // 國小開始的回合（由日曆算出）
@@ -90,6 +93,7 @@ export function playGame(data, bot, seed, opts = {}) {
     rec.ending = { ids: lines.map((l) => l.id), facets: lines.map((l) => l.facet), contra: lineContradictions(lines, data.ending).length };
   }
   if (hab) rec.hab = { det: hab.det, atSH: hab.atSH, end: structuredClone(st.habits), absAll: hab.absAll, autoAbs: st.autoLog.reduce((a, e) => a + e.abs, 0), nAuto: st.autoLog.filter((e) => e.tags.length).length, nChange: st.hist.filter((h) => h.card === 'jh_habit_change').length, jhChange: st.hist.filter((h) => h.card === 'jh_habit_change' && data.timeline[h.turn].stage === '國中').length, shChange: st.hist.filter((h) => h.card === 'jh_habit_change' && data.timeline[h.turn].stage === '高中').length };
+  if (opts.paths) rec.paths = { snap: pathSnap, type: st.vars.學制, dest: st.vars.去向, drop: st.vars.中途離校, sex: f.child.sex, override: !!st.flags.志願被決定, pref: st.vars.志願偏好, chain: st.hist.some((h) => h.card === 'sh_drop_signal') };
   if (meter) rec.inf = meter.result();
   if (opts.st) rec.st = st;
   if (opts.exposure) {
@@ -134,7 +138,7 @@ export async function execute(tasks, opts) {
   }
   const url = new URL(import.meta.url);
   const parts = await Promise.all(chunk(tasks, nw).map((ts) => new Promise((res, rej) => {
-    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, preview: opts.preview, snap: opts.snap, mech: opts.mech, influence: opts.influence, role: opts.role, only: opts.only, habits: opts.habits } });
+    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, preview: opts.preview, snap: opts.snap, mech: opts.mech, influence: opts.influence, role: opts.role, only: opts.only, habits: opts.habits, paths: opts.paths } });
     w.once('message', res); w.once('error', rej);
   })));
   return parts.flat();
