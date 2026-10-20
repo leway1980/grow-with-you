@@ -10,9 +10,11 @@ const data = loadData();
 const POOL = '父母自己';
 const cards = data.events.cards.filter((c) => c.pool === POOL);
 
-test('「父母自己」池：8–14 張卡（rest-parent 校準需要夠多的自我照顧機會，上限 12 → 14），橫跨嬰幼兒到國小中高，每張 3–5 個選項', () => {
-  assert.ok(cards.length >= 8 && cards.length <= 14, String(cards.length));
+test('「父母自己」池：8–20 張卡（rest-parent 校準需要夠多的自我照顧機會；E1 審查後補國中、高中，上限 14 → 20），橫跨嬰幼兒到高中，每張 3–5 個選項', () => {
+  assert.ok(cards.length >= 8 && cards.length <= 20, String(cards.length));
   for (const st of ['嬰幼兒', '幼兒園', '國小低', '國小中高']) assert.ok(cards.filter((c) => (c.stages || [st]).includes(st)).length >= 6, st);
+  // E1 審查：國中、高中不能是空池（休息的機會在青春期不能消失）
+  for (const st of ['國中', '高中']) assert.ok(cards.filter((c) => (c.stages || []).includes(st)).length >= 4, st);
   for (const c of cards) assert.ok(c.choices.length >= 3 && c.choices.length <= 5, c.id);
 });
 
