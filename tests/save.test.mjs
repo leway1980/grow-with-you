@@ -10,6 +10,7 @@ import { botPolicy } from '../tools/simulate.mjs';
 
 const data = loadData();
 const PLAYABLE = data.calendar.playableTurns;
+const V1_END = data.timeline.findIndex((t) => t.stage === '國中'); // v1 存檔的終點：第一個國中回合（E1 之前的可玩範圍）
 function playTurns(st, n) {
   for (let i = 0; i < n && !st.ended; i++) {
     const res = startTurn(st, data);
@@ -158,10 +159,10 @@ test('v1 → v2：手足的 arriveTurn 換成 arriveMonths（舊回合的月齡�
 test('v1 → v2：舊的最後一個可玩回合（國小六年級暑假）夾在新的可玩範圍內，不會被算成國中；已結束的存檔仍是結束', () => {
   const late = m1(); late.turn = 55; late.hist.push({ turn: 55, card: late.hist.at(-1).card, title: 't', ch: 0, label: 'l', tags: [], d: {} });
   const a = migrate(late, data);
-  assert.equal(a.turn, PLAYABLE - 1); assert.equal(a.hist.at(-1).turn, PLAYABLE - 2); assert.equal(data.timeline[a.turn].stage, '國小中高');
+  assert.equal(a.turn, V1_END - 1); assert.equal(a.hist.at(-1).turn, V1_END - 2); assert.equal(data.timeline[a.turn].stage, '國小中高');
   const done = m1(); done.turn = 56; done.ended = true; done.endReason = '待續';
   const b = migrate(done, data);
-  assert.equal(b.turn, PLAYABLE); assert.equal(b.ended, true);
+  assert.equal(b.turn, V1_END); assert.equal(b.ended, true);
 });
 
 test('v1 存檔經 writeSave／readSave 路徑讀得進來（存檔鍵不變）', () => {

@@ -14,7 +14,7 @@ import lintYearly, { EVIDENCE } from '../tools/lint/yearly.mjs';
 const Y = JSON.parse(readFileSync(`${ROOT}/data/yearly.json`, 'utf8'));
 const data = loadData(); data.yearly = Y;
 const newAgeTurns = data.timeline.filter((t) => t.newAge).map((t) => t.turn);
-const fresh = (seed = 1, role = '媽媽') => newState(seed, data, { role, startMode: 'birth', preview: true });
+const fresh = (seed = 1, role = '媽媽') => newState(seed, data, { role, startMode: 'birth' });
 
 test('日曆：1–18 歲各有一個 newAge 回合', () => {
   assert.equal(newAgeTurns.length, 18);

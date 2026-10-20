@@ -1,4 +1,5 @@
-// 預覽（?preview=1）：回合迴圈用 playableEnd 玩到 previewTurns（72，含國中、高中、離家）；CI 與 check-design 仍是 playableTurns（50）。
+// 完整 72 回合（E1 起是預設）：回合迴圈用 playableEnd 玩到 playableTurns（72，含國中、高中、離家）；?preview=1 與舊的預覽旗標都沒有作用。
+// （檔名沿用 P1 預覽的 preview.test.mjs；內容是國中、高中、離家的內容覆蓋、擺幅與結局。）
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadData } from '../tools/data-node.mjs';
@@ -9,15 +10,18 @@ import { botPolicy } from '../tools/bots.mjs';
 
 const data = loadData();
 
-test('playableEnd：預覽是 previewTurns，平常是 playableTurns', () => {
-  assert.equal(playableEnd(data), data.calendar.playableTurns);
-  assert.equal(playableEnd(data, { preview: false }), 50);
+test('playableEnd：就是日曆的 playableTurns（72）；舊的預覽旗標沒有作用', () => {
+  assert.equal(data.calendar.playableTurns, 72);
+  assert.equal(playableEnd(data), 72);
+  assert.equal(playableEnd(data, { preview: false }), 72);
   assert.equal(playableEnd(data, { preview: true }), 72);
-  assert.equal(data.calendar.previewTurns, 72);
+  assert.equal(data.calendar.previewTurns, 72); // 只為相容保留
 });
 
-test('沒開預覽：照舊在 playableTurns 結束', () => {
-  const st = newState(3, data, {});
+test('預設就玩到第 72 回合（離家那天），結局待續；舊的預覽選項與存檔欄位都沒有作用', () => {
+  const st = newState(3, data, { preview: true });
+  assert.equal(st.preview, undefined);
+  assert.equal(JSON.parse(serialize(st)).preview, undefined);
   const pol = botPolicy('random', 3);
   while (!st.ended) {
     const r = startTurn(st, data);
@@ -25,7 +29,8 @@ test('沒開預覽：照舊在 playableTurns 結束', () => {
     if (r.card) { let v = r.card, raw = r.raw; for (let g = 0; g < 3; g++) { const o = chooseCard(st, data, pol.choose(st, v, raw, data)); if (!o.more) break; ({ card: v, raw } = nextCard(st, data)); } }
     finishTurn(st, data);
   }
-  assert.equal(st.turn, data.calendar.playableTurns);
+  assert.equal(st.turn, 72);
+  assert.equal(st.endReason, '待續');
 });
 
 test('每個階段（含國中、高中、離家）都有池和卡', () => {
@@ -39,12 +44,12 @@ test('每個階段（含國中、高中、離家）都有池和卡', () => {
 });
 
 /* ───── 預覽 200 局：每局玩到 72、安靜回合；同時量『單一決定的擺幅』（A2.5 審查 Q7）─────
-   擺幅＝一次選擇之後，隱藏的『親子信任』變了多少（絕對值）。驗收：國中／高中的 P95 ≤ 國小中高的 1.5 倍（預覽的 k 上限 previewKMax 1.5 與疲勞 EMA 修補之後），
+   擺幅＝一次選擇之後，隱藏的『親子信任』變了多少（絕對值）。驗收：國中／高中的 P95 ≤ 國小中高的 1.5 倍（E1 拿掉預覽的 k 上限 previewKMax 之後，α＝1 的完整劑量），
    而且沒有任何一張卡把『還健康的』父母（耐心 ≥ 25）一次壓到 10 以下。耐心本來就低（照顧很吃力的 warmFirm 在國中平均約 30）時再被一張卡壓過 10 是照顧的代價，不是單張卡的問題，只計數印出來。這張擺幅表會印在測試輸出裡。 */
 const q = (a, p) => { const b = [...a].sort((x, y) => x - y); return b.length ? b[Math.min(b.length - 1, Math.floor(p * b.length))] : NaN; };
 
-test('預覽 200 局：每局玩到第 72 回合、沒有例外、安靜回合 ≤ 20%、沒有空池的階段；單一決定的擺幅在範圍內', (t) => {
-  const pd = loadData(); pd.preview = true;
+test('200 局：每局玩到第 72 回合、沒有例外、安靜回合 ≤ 20%、沒有空池的階段；單一決定的擺幅在範圍內', (t) => {
+  const pd = loadData();
   let quiet = 0, turns = 0;
   const quietBy = {}, drawnBy = {};
   let crossings = 0; const swing = {}, hits = [], lows = {}; // swing[stage] = |Δ親子信任| 的清單；lows[card] = 這張卡之後的最低耐心
@@ -86,25 +91,14 @@ test('預覽 200 局：每局玩到第 72 回合、沒有例外、安靜回合 �
   assert.deepEqual(hits, [], `有卡把健康的父母（耐心 ≥ 25）一次壓到 10 以下：${hits.slice(0, 5).join('；')}`);
 });
 
-test('預覽的劑量倍率上限：previewKMax 只在預覽生效，高中 6 個月一回合的倍率 3 被壓到 1.5；一般版不受影響', () => {
+test('劑量倍率沒有上限：高中 6 個月一回合的倍率就是 span / refMonths（E1 拿掉 previewKMax）；scale:false 的卡永遠是 1', () => {
   const hs = data.timeline.find((t) => t.stage === '高中' && t.span >= 5);
   const card = data.cardIndex.sh_scooter; // scale:true
-  assert.equal(data.model.timeScale.previewKMax, 1.5);
-  assert.equal(cardDoseK(data.model, hs.span, card, false), hs.span / 2);
-  assert.equal(cardDoseK(data.model, hs.span, card, true), 1.5);
-  assert.equal(cardDoseK(data.model, 2, card, true), 1); // 國小 2 個月不變
-  assert.equal(cardDoseK(data.model, 6, { scale: false }, true), 1);
-  assert.equal(cardDoseK(data.model, 1, { scale: false }, true), 1);
-});
-
-test('存檔保留預覽旗標：newState({preview}) 的 st.preview 會進存檔，一般局沒有這個欄位；沒有 data.preview 也玩到 72', () => {
-  const st = newState(5, data, { preview: true });
-  assert.equal(st.preview, true);
-  assert.equal(JSON.parse(serialize(st)).preview, true);
-  assert.equal(newState(5, data, {}).preview, undefined);
-  const again = deserialize(serialize(st));
-  assert.equal(again.preview, true);
-  assert.equal(playableEnd({ ...data, preview: false, calendar: data.calendar }, { preview: !!(data.preview || again.preview) }), 72);
+  assert.equal(data.model.timeScale.previewKMax, undefined);
+  assert.equal(cardDoseK(data.model, hs.span, card), hs.span / 2);
+  assert.equal(cardDoseK(data.model, 6, card), 3);
+  assert.equal(cardDoseK(data.model, 2, card), 1);
+  assert.equal(cardDoseK(data.model, 6, { scale: false }), 1);
 });
 
 /* ───── 結局：標題寫最後玩的回合；成就欄的句子依玩到哪裡 ───── */
@@ -114,22 +108,15 @@ import { buildCtx } from '../js/engine/events.js';
 import { albumSpecs } from '../js/engine/scene.js';
 import { periodLabel, doseView } from '../js/engine/dose.js';
 
-test('結局標題與成就句：一般版寫國小六年級與「國小畢業了」；預覽版寫「離家」與離家的句子，不再是「國小畢業了」', () => {
-  const normal = newState(7, data, {});
-  playToEnd(normal, data, botPolicy('warmFirm', 7));
-  const e1 = buildEnding(normal, data);
-  assert.match(e1.to, /^國小六年級/);
-  assert.match(e1.achievement.note, /國小畢業了/);
-  const pd = loadData(); pd.preview = true;
-  const pv = newState(7, pd, { preview: true });
-  playToEnd(pv, pd, botPolicy('warmFirm', 7));
+test('結局標題與成就句：玩到離家（72 回合）寫「離家」與離家的句子，不再是「國小畢業了」；成長相簿有國中、高中、離家', () => {
+  const pv = newState(7, data, {});
+  playToEnd(pv, data, botPolicy('warmFirm', 7));
   assert.equal(pv.turn, 72);
-  const e2 = buildEnding(pv, pd);
+  const e2 = buildEnding(pv, data);
   assert.equal(e2.to, '離家');
   assert.ok(!/國小畢業了/.test(e2.achievement.note));
   assert.match(e2.achievement.note, /離開家了/);
-  assert.equal(albumSpecs(pv, pd).map((a) => a.stage).join(), '嬰兒,幼兒,國小,國中,高中,離家', '預覽版的成長相簿也有國中、高中、離家');
-  assert.equal(albumSpecs(normal, data).map((a) => a.stage).join(), '嬰兒,幼兒,國小');
+  assert.equal(albumSpecs(pv, data).map((a) => a.stage).join(), '嬰兒,幼兒,國小,國中,高中,離家');
 });
 
 test('buildCtx：學制與去向是變數（由 P1 的旗標導出），沒有旗標是空字串', () => {
@@ -151,15 +138,16 @@ test('劑量表的時間標籤：3 個月＝這一季、5–7 個月＝這半年
 });
 
 import { installFakeDom, uninstallFakeDom } from './fake-dom.mjs';
-test('標題頁：有「試玩到 18 歲（開發中）」的連結；預覽開著時顯示試玩模式與回到一般版的連結', async () => {
+test('標題頁：沒有「試玩到 18 歲」的連結，也沒有試玩模式的標記；開始與繼續照舊', async () => {
   const { root } = installFakeDom();
   try {
     const ui = await import('../js/ui.js');
     ui.renderTitle(root, { hasSave: false, onNew() {}, onContinue() {}, preview: false, previewHref: '/?preview=1' });
-    const a = root.querySelector('[data-act="preview-on"]');
-    assert.equal(a.textContent, '試玩到 18 歲（開發中）'); assert.equal(a.attrs.href, '/?preview=1');
-    ui.renderTitle(root, { hasSave: true, onNew() {}, onContinue() {}, preview: true, previewHref: '/' });
-    assert.ok(root.querySelector('[data-act="preview-off"]')); assert.match(root.textContent, /試玩模式/);
+    assert.equal(root.querySelector('[data-act="preview-on"]'), null);
+    assert.ok(!/試玩|開發中/.test(root.textContent));
+    assert.ok(root.querySelector('[data-act="new"]'));
+    ui.renderTitle(root, { hasSave: true, onNew() {}, onContinue() {} });
+    assert.equal(root.querySelector('[data-act="preview-off"]'), null);
     assert.ok(root.querySelector('[data-act="continue"]'));
   } finally { uninstallFakeDom(); }
 });

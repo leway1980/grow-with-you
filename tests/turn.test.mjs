@@ -488,24 +488,25 @@ test('日曆 72：總回合數、各階段回合數、playableTurns 剛好接在
   assert.equal(tl.length, 72); assert.equal(data.calendar.totalTurns, 72);
   const count = (stage) => tl.filter((t) => t.stage === stage).length;
   assert.deepEqual(['嬰幼兒', '幼兒園', '國小低', '國小中高', '國中', '高中', '離家'].map(count), [8, 16, 10, 16, 13, 6, 3]);
-  assert.equal(data.calendar.playableTurns, 50);
-  assert.equal(tl[PLAYABLE - 1].stage, '國小中高'); assert.equal(tl[PLAYABLE - 1].grade, 6); assert.equal(tl[PLAYABLE].stage, '國中');
+  assert.equal(data.calendar.playableTurns, 72); // E1：全部開放
+  const jh = tl.findIndex((t) => t.stage === '國中'); // 國小六年級之後的第一個回合（舊的可玩終點）
+  assert.equal(tl[jh - 1].stage, '國小中高'); assert.equal(tl[jh - 1].grade, 6); assert.equal(jh, 50);
   assert.deepEqual(tl.map((t) => t.ageMonths), [...tl.map((t) => t.ageMonths)].sort((a, b) => a - b), '月齡單調不減');
-  assert.deepEqual(playedStages(data.calendar), ['嬰幼兒', '幼兒園', '國小低', '國小中高']);
+  assert.deepEqual(playedStages(data.calendar), ['嬰幼兒', '幼兒園', '國小低', '國小中高', '國中', '高中', '離家']);
 });
 
 test('日曆 72：起點回合由時間軸算出（從國小開始＝第一個一年級回合），從國小開始玩 PLAYABLE − E 回合', () => {
   assert.equal(startTurnOf(data, 'birth'), 0);
   assert.equal(E, 24); assert.equal(data.timeline[E].grade, 1); assert.equal(data.timeline[E - 1].grade, 0);
   assert.equal(newState(3, data, { startMode: 'elementary' }).turn, E);
-  assert.equal(PLAYABLE - E, 26);
+  assert.equal(PLAYABLE - E, 48); // E1：從國小開始玩 72 − 24 回合
   assert.equal(startTurnOf(buildTimeline(LEGACY_V2) && { timeline: buildTimeline(LEGACY_V2) }, 'elementary'), 20, '舊日曆算出來仍是 20');
 });
 
 test('日曆 72：每個固定事件的月齡和舊 92 回合日曆相差在 ±3 個月內；每個 schoolFixed 都排得進時間軸', () => {
   const oldTl = buildTimeline(LEGACY_V2), newTl = data.timeline;
-  // 預覽用的國中、高中、離家固定事件（第 50 回合以後）在舊日曆沒有對應，不比
-  const evs = new Set(newTl.slice(0, data.calendar.playableTurns).flatMap((t) => t.fixed));
+  // 國中、高中、離家的固定事件（第 50 回合以後）在舊日曆沒有對應，不比
+  const evs = new Set(newTl.slice(0, newTl.findIndex((t) => t.stage === '國中')).flatMap((t) => t.fixed));
   // 例外：fx_choose_jh（國中開學前一週，M3 B4）原本排在國中一年級『開學之後』（舊 92 回合日曆也沒有它），文字寫的是開學前一週，所以搬到國小六年級『期末與暑假』（畢業典禮那一回合的第二張卡）；舊日曆沒有對應，不比月齡，下面另外檢查它排在假期
   const MOVED_IN = new Set(['fx_choose_jh']);
   for (const ev of evs) {

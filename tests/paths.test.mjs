@@ -14,14 +14,13 @@ import lintPaths, { DROP_VALUES, CHAIN } from '../tools/lint/paths.mjs';
 import { lintModel } from '../tools/lint-model.mjs';
 
 const raw = loadRaw(), data = loadData(raw), P = data.paths;
-data.preview = true;
 const DESTS = P.destinations.order, TYPES = Object.keys(P.schoolTypes);
 const T = (stage) => data.timeline.findIndex((t) => t.stage === stage);
 const HS = data.timeline.findIndex((t) => t.fixed.includes('fx_choose_hs')), SH0 = T('高中'), LV0 = T('離家'), GRAD = data.timeline.findIndex((t) => t.fixed.includes('fx_sh_grad'));
 
 /** 玩到第 turn 回合開始（還沒開始那個回合）。policy 是機器人名稱。 */
 function playTo(seed, turn, bot = 'warmFirm') {
-  const st = newState(seed, data, { role: seed % 2 ? '媽媽' : '爸爸', preview: true });
+  const st = newState(seed, data, { role: seed % 2 ? '媽媽' : '爸爸' });
   const pol = botPolicy(bot, seed);
   while (st.turn < turn && !st.ended) {
     const r = startTurn(st, data);
@@ -88,7 +87,6 @@ test('resolveRoute 透過 A3 的 setRouteResolver 登記：選項寫 route 就�
     const st2 = playTo(3, HS), o2 = applyChoice(st2, data, card, 0, data.timeline[st2.turn], () => 0.5);
     assert.equal(st2.vars.學制, ''); assert.ok(!/第一志願/.test(o2.result));
   } finally { loadData(raw); } // prepareData 會重新登記
-  data.preview = true;
 });
 
 test('興趣是主要的驅動力，成績其次：動手做興趣高一個標準差對技高的影響，大於成績低一個標準差；經濟與孩子自己的偏好會調整', () => {
@@ -274,7 +272,7 @@ test('預覽冒煙：每種去向（男女各一）都玩得到離家、第 72 �
   for (const d of DESTS) for (const sexWanted of ['男', '女']) {
     if (sexWanted === '女' && d === '入伍') continue;
     let st = null;
-    for (let seed = 1; seed < 60 && !st; seed++) { const s = newState(seed, data, { preview: true }); if (s.family.child.sex === sexWanted) st = s; }
+    for (let seed = 1; seed < 60 && !st; seed++) { const s = newState(seed, data, {}); if (s.family.child.sex === sexWanted) st = s; }
     const pol = botPolicy('warmFirm', st.seed);
     const legs = [];
     while (!st.ended) {

@@ -6,7 +6,7 @@ import { loadRaw, loadData } from '../tools/data-node.mjs';
 import { newState } from '../js/engine/state.js';
 import { playToEnd } from '../js/engine/turn.js';
 import { applyTags, setTagObserver, recomputeDerived } from '../js/engine/tags.js';
-import { outcomeAxes, wellbeing, opennessOf, comboOf, bandOf, buildEnding, pickLines, lineContradictions, endingContext, chainRecords } from '../js/engine/ending.js';
+import { getEnding, outcomeAxes, wellbeing, opennessOf, comboOf, bandOf, buildEnding, pickLines, lineContradictions, endingContext, chainRecords } from '../js/engine/ending.js';
 import { edgeForTagEffect, outcomeWeights, AXES } from '../js/engine/model.js';
 import { botPolicy, SALT } from '../tools/bots.mjs';
 
@@ -120,7 +120,11 @@ const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
 const clamp = (x) => Math.max(0, Math.min(100, x));
 const last = (st, k, n) => { const L = st.vcurves.at(-1).m; return mean(st.vcurves.filter((c) => c.m > L - 2 * n).map((c) => c[k])); }; // 最近 2n 個月（舊的最後 n 個國小回合）
 
-test('結果軸、孩子幸福、彼此之間、開口度、承受度：和改用因果圖之前寫死的公式一致', () => {
+test('結果軸、孩子幸福、彼此之間、開口度、承受度：和改用因果圖之前寫死的公式一致（關掉「整個童年」混合，只看近期）', () => {
+  const En = getEnding(), keepBlend = En.outcomeBlend; En.outcomeBlend = { recent: 1, whole: 0 }; // E1：混合是預設；這個測試比的是近期公式本身
+  try { formulaCheck(); } finally { En.outcomeBlend = keepBlend; }
+});
+function formulaCheck() {
   for (const seed of [1, 2, 3, 4, 5, 6]) for (const bot of ['random', 'warmFirm', 'permissive']) {
     const st = played(seed, bot), h = st.hidden;
     const ax = outcomeAxes(st), w = wellbeing(st, data.identities.parentModel);
@@ -137,7 +141,7 @@ test('結果軸、孩子幸福、彼此之間、開口度、承受度：和改�
     const tol = 50 + (3 - st.family.child.temperament.敏感度) * 6 + (h.安全感 - 55) * 0.25 + (h.自我效能 - 50) * 0.25 + (h.親子信任 - 55) * 0.2 - (h.期待壓力 - 30) * 0.1;
     assert.ok(Math.abs(h.承受度 - clamp(tol)) < 1e-9);
   }
-});
+}
 
 test('改圖就改結果：把「期待壓力」對親子軸的懲罰權重改掉，引擎的結果跟著變（不是寫死在程式裡）', () => {
   const st = played(4);

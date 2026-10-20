@@ -41,7 +41,7 @@ test('抽「班上常投訴的家長」：0、1、2、3 的比例接近 0.45／0
   C.parentWeights.forEach((w, i) => assert.ok(Math.abs(n[i] / N - w) < 0.03, `${i} 位：${n[i] / N}`));
 });
 
-test('換老師就重置：小一、小三、小五（預覽再加國一、高一）各重置一次，起點由階段基準與家長人數決定', () => {
+test('換老師就重置：小一、小三、小五、國一、高一各重置一次，起點由階段基準與家長人數決定', () => {
   const st = fresh(11, 'birth');
   const seen = [];
   let guard = 0;
@@ -55,8 +55,8 @@ test('換老師就重置：小一、小三、小五（預覽再加國一、高�
     if (res.card) { let v = res.card, raw = res.raw; for (let g = 0; g < 3; g++) { const o = chooseCard(st, data, v.choices.find((c) => !c.disabled).i); if (!o.more) break; ({ card: v, raw } = nextCard(st, data)); } }
     finishTurn(st, data);
   }
-  assert.deepEqual(seen.map((x) => x.grade), [1, 3, 5]);
-  assert.deepEqual(seen.map((x) => x.resets), [1, 2, 3]);
+  assert.deepEqual(seen.map((x) => x.grade), [1, 3, 5, 7, 10]);
+  assert.deepEqual(seen.map((x) => x.resets), [1, 2, 3, 4, 5]);
   for (const x of seen) {
     const stage = data.timeline.find((t) => t.grade === x.grade).stage;
     // 回合開始當下剛重置：起點 = 基準 − 10 × 家長人數（還沒有玩家的選擇）
@@ -64,7 +64,7 @@ test('換老師就重置：小一、小三、小五（預覽再加國一、高�
   }
 });
 
-test('預覽：國一與高一也換老師；國中的起點比國小低（吵鬧是常態）', () => {
+test('國一與高一也換老師；國中的起點比國小低（吵鬧是常態）', () => {
   const st = fresh(3, 'birth');
   for (const g of [7, 10]) {
     const tl = data.timeline.find((t) => t.grade === g);

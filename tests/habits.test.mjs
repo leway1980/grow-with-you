@@ -162,7 +162,7 @@ test('國小選了「替他決定」這一類標籤的玩家：autoLog 裡不會
 
 test('整局：控制型、溫暖型、習慣反應型的機器人，autoLog 的標籤都是玩家真的選過的、不進 hist、同家族的卡出現的回合不自動套用', () => {
   for (const bot of ['controlling', 'warmFirm', 'commonReaction', 'permissive']) for (const seed of [3, 4, 5, 6, 7]) {
-    const { st } = playGame(data, bot, seed, { preview: true, st: true });
+    const { st } = playGame(data, bot, seed, { st: true });
     assert.ok(st.autoLog.length > 0, `${bot}#${seed} 有自動套用的紀錄`);
     const patternTags = new Set(Object.values(H.families).flatMap((f) => Object.values(f.patterns).flatMap((p) => p.tags)));
     for (const e of st.autoLog) {
@@ -179,7 +179,7 @@ test('整局：控制型、溫暖型、習慣反應型的機器人，autoLog 的
 });
 
 test('startTurn：第一個國中回合給一次性的說明並偵測；每個國中、高中回合有 habitLine（以「照平常那樣，」開頭）；說明只出現一次', () => {
-  const st = newState(9, data, { role: '爸爸', preview: true });
+  const st = newState(9, data, { role: '爸爸' });
   st.turn = JH0;
   const first = startTurn(st, data);
   assert.equal(first.habitExplainer, '上了國中，見面的時間少了，很多日常會照你們家平常的樣子過。');
@@ -195,7 +195,7 @@ test('startTurn：第一個國中回合給一次性的說明並偵測；每個�
 test('保證出現：國中一年級第 2 回合一定有 jh_habit_change（日曆 fixed），而且不增加國中有固定事件的回合數', () => {
   assert.equal(data.timeline[JH0 + 1].fixed[0], 'jh_habit_change');
   for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
-    const { st } = playGame(data, seed % 2 ? 'commonReaction' : 'warmFirm', seed, { preview: true, st: true });
+    const { st } = playGame(data, seed % 2 ? 'commonReaction' : 'warmFirm', seed, { st: true });
     assert.ok(st.hist.some((h) => h.card === 'jh_habit_change' && h.turn === JH0 + 1), `seed ${seed}`);
   }
   const fixedJH = data.timeline.filter((t) => t.stage === '國中' && t.fixed.length).length;

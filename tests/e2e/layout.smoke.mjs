@@ -1,5 +1,5 @@
 // 版面煙霧測試（不屬於 npm test）：node tests/e2e/layout.smoke.mjs [截圖資料夾]
-// 檢查：桌面 1366×768、1920×1080 每張卡的最後一個選項底部不超出視窗（含國中回合，?preview=1）；360px 沒有水平捲軸。
+// 檢查：桌面 1366×768、1920×1080 每張卡的最後一個選項底部不超出視窗（含國中回合；E1 起預設就玩到 18 歲）；360px 沒有水平捲軸。
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, extname, dirname } from 'node:path';
@@ -76,7 +76,7 @@ try {
     const page = await browser.newPage({ viewport: { width: w, height: h } });
     page.on('dialog', (d) => d.accept());
     const errs = []; page.on('pageerror', (e) => errs.push(e.message));
-    await page.goto(`http://localhost:${port}/?seed=11&ms=100&preview=1`);
+    await page.goto(`http://localhost:${port}/?seed=11&ms=100`);
     await page.click('[data-act="new"]'); await page.click('[data-act="start"]');
     await page.waitForSelector('#scene svg'); yearlyShot = name; await toCard(page);
     const rows = [], habitLines = []; let junior = false, habitShot = false;
@@ -137,7 +137,7 @@ try {
   }
   { // 手機與平板
     const page = await browser.newPage({ viewport: { width: 360, height: 740 } });
-    await page.goto(`http://localhost:${port}/?seed=11&ms=100&preview=1`);
+    await page.goto(`http://localhost:${port}/?seed=11&ms=100`);
     await page.click('[data-act="new"]'); await page.click('[data-act="start"]'); await page.waitForSelector('#scene svg'); yearlyShot = '360'; await toCard(page);
     for (let n = 0; n < 8; n++) {
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), '360px 沒有水平捲軸');
@@ -154,7 +154,7 @@ try {
   { // 深色模式的小卡（截圖）、「以後都跳過」存在 localStorage 而且之後不再出現、讓他自己過時停 3 秒就繼續
     const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 }, colorScheme: 'dark' });
     const page = await ctx.newPage();
-    await page.goto(`http://localhost:${port}/?seed=11&ms=100&preview=1`);
+    await page.goto(`http://localhost:${port}/?seed=11&ms=100`);
     await page.click('[data-act="new"]'); await page.click('[data-act="start"]'); await page.waitForSelector('#scene svg');
     const toYearly = async () => { for (let i = 0; i < 400 && !(await page.locator('[data-act="yearly-continue"]').count()); i++) { if (await page.locator('[data-act="choice"]:not([disabled])').count()) await page.locator('[data-act="choice"]:not([disabled])').first().click(); else if (await page.locator('[data-act="next"]').count()) await page.click('[data-act="next"]'); else await page.waitForTimeout(20); } };
     await toYearly(); assert.ok(await page.locator('[data-act="yearly-continue"]').count(), '深色：出現小卡');

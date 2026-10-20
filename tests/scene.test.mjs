@@ -96,7 +96,7 @@ test('孩子的階段、寒暑假戶外、身體照顧旗標、生病與工作�
   const st = newState(2, data);
   const stages = new Set();
   data.timeline.slice(0, data.calendar.playableTurns).forEach((tl) => stages.add(childStageOf(tl)));
-  assert.deepEqual([...stages], ['嬰兒', '幼兒', '國小']);
+  assert.deepEqual([...stages], ['嬰兒', '幼兒', '國小', '國中', '高中', '離家']);
   const vac = data.timeline.findIndex((t) => t.vacation);
   st.turn = vac; assert.equal(sceneSpec(st, data, tlAt(vac)).vacation, true);
   st.turn = 0; assert.equal(sceneSpec(st, data, tlAt(0)).vacation, false);
@@ -130,7 +130,7 @@ test('成長相簿：到過的每個階段一張，只畫孩子', () => {
   st.turn = 0; assert.deepEqual(albumSpecs(st, data).map((a) => a.stage), ['嬰兒']);
   st.turn = data.calendar.playableTurns; st.ended = true;
   const al = albumSpecs(st, data);
-  assert.deepEqual(al.map((a) => a.stage), ['嬰兒', '幼兒', '國小']);
+  assert.deepEqual(al.map((a) => a.stage), ['嬰兒', '幼兒', '國小', '國中', '高中', '離家']);
   for (const a of al) { const s = sceneSVG(a); assert.ok(s.includes('viewBox="0 0 24 24"') && s.includes('aria-label')); }
   const full = sceneSVG(sceneSpec(st, data, tlAt(data.calendar.playableTurns - 1), { portrait: true }));
   assert.ok(full.includes('viewBox="0 0 96 44"'));

@@ -57,7 +57,7 @@ test('主題與方向：where 限定範圍、always 不論在哪張卡都算、�
 
 /** 一個國中前就走完的狀態，加上我們偽造的選擇與曲線 */
 function fakeState(hist, autoLog = []) {
-  const st = newState(3, data, { role: '媽媽', preview: true });
+  const st = newState(3, data, { role: '媽媽' });
   const last = Math.max(...hist.map((h) => h.turn), ...autoLog.map((a) => a.turn));
   st.turn = last + 1; st.hist = hist; st.autoLog = autoLog;
   st.curves = []; st.vcurves = [];
@@ -140,7 +140,7 @@ test('這些年，孩子的班上：老師投入度偏低的年級、投訴次�
 });
 
 test('班級紀錄：每個上學的回合寫一筆 classLog，舊存檔補空陣列', async () => {
-  const st = newState(2, data, { role: '媽媽', preview: true });
+  const st = newState(2, data, { role: '媽媽' });
   playToEnd(st, data, botPolicy('random', 3));
   assert.ok(st.classLog.length > 40 && st.classLog.every((r) => r.grade > 0 && typeof r.v === 'number' && r.m != null));
   assert.equal(new Set(st.classLog.map((r) => r.t)).size, st.classLog.length);
@@ -196,23 +196,21 @@ test('整個童年：每條結果軸＝0.6 × 近期＋0.4 × 月份加權平均
   assert.equal(wholeAvg([{ m: 1, x: 0 }, { m: 2, x: 0 }, { m: 3, x: 0 }, { m: 4, x: 0 }, { m: 5, x: 0 }, { m: 6, x: 0 }, { m: 12, x: 60 }], 'x'), 30);
   assert.equal(wholeAvg([], 'x'), null);
   // 早期的陪伴不會被洗掉：終點一樣、早期不同 → 親子軸不同
-  const a = newState(5, data, { role: '媽媽', preview: true }), b = newState(5, data, { role: '媽媽', preview: true });
+  const a = newState(5, data, { role: '媽媽' }), b = newState(5, data, { role: '媽媽' });
   for (const s of [a, b]) { s.curves = []; s.vcurves = []; for (let i = 1; i <= 20; i++) { s.curves.push({ t: i, m: i * 6, ...s.hidden }); s.vcurves.push({ t: i, m: i * 6, ...s.child, ...s.parent }); } }
   for (const c of b.curves.slice(0, 10)) c.親子信任 = 90;
   for (const c of a.curves.slice(0, 10)) c.親子信任 = 20;
   assert.ok(outcomeAxes(b).親子 > outcomeAxes(a).親子 + 3, `${outcomeAxes(b).親子} vs ${outcomeAxes(a).親子}`);
-  // 國小為止的 50 回合版（沒有 preview）維持原本的公式：不混合（appliesTo:'preview'）
-  const c = newState(5, data, { role: '媽媽' }); c.curves = b.curves; c.vcurves = b.vcurves;
-  assert.equal(B.appliesTo, 'preview');
-  assert.equal(outcomeAxes(c).親子, evalRecent(c), '非預覽：只看近期');
-  assert.notEqual(outcomeAxes(c).親子, outcomeAxes(b).親子);
+  // E1：每一局都混合（appliesTo:'all'，72 回合是標準）：混合後的值和只看近期的值不同
+  assert.equal(B.appliesTo, 'all');
+  assert.notEqual(outcomeAxes(b).親子, evalRecent(b), '混合後的值和只看近期不同');
   // whole＝0 時退回只看近期
   const E = getEnding(), keep = E.outcomeBlend;
   try { E.outcomeBlend = { recent: 1, whole: 0 }; assert.equal(outcomeAxes(a).親子, outcomeAxes(b).親子); } finally { E.outcomeBlend = keep; }
 });
 
 test('整局：預覽局的終局有 chains 與 classroom；3–5 條、依年齡排序、每條有 3–5 個選擇與研究小卡', () => {
-  const rec = playGame(data, 'warmFirm', 11, { preview: true, st: true, chains: true });
+  const rec = playGame(data, 'warmFirm', 11, { st: true, chains: true });
   const e = buildEnding(rec.st, data);
   assert.ok(e.chains.length >= 3 && e.chains.length <= 5, String(e.chains.length));
   assert.deepEqual(e.chains.map((c) => c.m0), e.chains.map((c) => c.m0).sort((x, y) => x - y));
@@ -223,7 +221,7 @@ test('整局：預覽局的終局有 chains 與 classroom；3–5 條、依年�
 });
 
 test('畫面：「回頭看」每條鏈一張小卡（年齡、選擇、小曲線、後來、研究怎麼說與證據強度），加上「這些年，孩子的班上」', async () => {
-  const rec = playGame(data, 'warmFirm', 11, { preview: true, st: true });
+  const rec = playGame(data, 'warmFirm', 11, { st: true });
   const e = buildEnding(rec.st, data);
   const { root } = installFakeDom();
   try {
