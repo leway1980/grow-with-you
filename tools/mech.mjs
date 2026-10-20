@@ -26,7 +26,7 @@ export function mechRecord(st, data) {
   const aw = st.curves.filter((c) => c.t < firstAcc).map((c) => c.交通安全認知 ?? 0);
   const relief = hist.filter((h) => (h.tags || []).some((t) => data.tags.tags[t] && data.tags.tags[t].relief)).length;
   return {
-    avoid: { ever: (st.vars.不太來找你_曾 ?? (st.vars.不太來找你 ? 1 : 0)) > 0 ? 1 : 0, end: st.vars.不太來找你 ? 1 : 0, approachSeen },
+    avoid: { ever: (st.vars.不太來找你_曾 ?? (st.vars.不太來找你 ? 1 : 0)) > 0 ? 1 : 0, end: st.vars.不太來找你 ? 1 : 0, approachSeen, exitApproach: st.vars.不太來找你_離開_接住 || 0, exitInitiate: st.vars.不太來找你_離開_主動 || 0, exitAny: (st.vars.不太來找你_離開_接住 || 0) + (st.vars.不太來找你_離開_主動 || 0) > 0 ? 1 : 0 },
     c3: { count: st.tagCounts['3C當保母'] || 0, window: maxInWindow(hist, '3C當保母') },
     acc: { mode, scrape: ids('cm_scrape'), near: ids('cm_near'), hospital: ids('cm_hospital'), any: ids('cm_scrape') + ids('cm_near') + ids('cm_hospital'), any01: accTurns.length ? 1 : 0, awareBefore: aw.length ? aw.reduce((a, b) => a + b, 0) / aw.length : 0 },
     self: { cards: pool('父母自己'), rest: hist.filter((h) => (h.tags || []).includes('父母自己休息')).length, relief },
@@ -67,11 +67,12 @@ export function evaluateMechanisms(recs, targets) {
   const N = recs.length;
   const add = (ok, group, name, value, range, note = '') => rows.push({ ok, group, name, value, range, note });
   for (const m of targets.mechanisms.rates || []) {
-    const pool = m.mode ? recs.filter((r) => r.mech.acc.mode === m.mode) : recs;
+    let pool = m.mode ? recs.filter((r) => r.mech.acc.mode === m.mode) : recs;
+    if (m.where) pool = pool.filter((r) => m.where.every((c) => fired(r, c)));
     if (pool.length < (m.minN ?? 30)) { add(false, '機制', m.name, `樣本只有 ${pool.length} 局`, `至少 ${m.minN ?? 30} 局`, m.note || ''); continue; }
     const v = m.kind === 'mean' ? avg(pool.map((r) => getPath(r, m.path))) : share(pool, (r) => fired(r, m.fired));
     const fmt = m.kind === 'mean' ? f2 : pc;
-    add((m.min == null || v >= m.min) && (m.max == null || v <= m.max), '機制', m.name + (m.mode ? `（${pool.length} 局）` : ''), fmt(v), `${m.min == null ? '' : fmt(m.min)}～${m.max == null ? '' : fmt(m.max)}`, m.note || '');
+    add((m.min == null || v >= m.min) && (m.max == null || v <= m.max), '機制', m.name + (m.mode || m.where ? `（${pool.length} 局）` : ''), fmt(v), `${m.min == null ? '' : fmt(m.min)}～${m.max == null ? '' : fmt(m.max)}`, m.note || '');
   }
   for (const d of targets.mechanisms.directions || []) {
     const scoped = (d.where || []).length ? recs.filter((x) => d.where.every((c) => fired(x, c))) : recs;

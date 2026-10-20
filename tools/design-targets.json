@@ -249,6 +249,54 @@
     "min": 0.1,
     "max": 0.4,
     "note": "§7.3 崩潰的前置訊號（期待壓力 > 承受度）。第一次量測 23%；崩潰事件鏈尚未實作，實作後要補『訊號 → 崩潰』的發生率"
+   },
+   {
+    "name": "不太來找你：進入過的局裡，曾經離開過的比例",
+    "where": [
+     {
+      "path": "mech.avoid.ever",
+      "op": ">=",
+      "value": 1
+     }
+    ],
+    "fired": {
+     "path": "mech.avoid.exitAny",
+     "op": ">=",
+     "value": 1
+    },
+    "min": 0.05,
+    "max": 0.45,
+    "note": "§4.28 離開要連續回來。第一次量測 14%；偏低代表一旦進入就幾乎出不來，待老師複核"
+   },
+   {
+    "name": "不太來找你：進入過的局，靠『接住孩子來找』的卡離開的平均次數",
+    "where": [
+     {
+      "path": "mech.avoid.ever",
+      "op": ">=",
+      "value": 1
+     }
+    ],
+    "kind": "mean",
+    "path": "mech.avoid.exitApproach",
+    "min": 0.01,
+    "max": 0.5,
+    "note": "第一次量測 0.03 次；這是設計上的主要出口（回應孩子的求助）"
+   },
+   {
+    "name": "不太來找你：進入過的局，靠『自己主動』（任何卡上的 initiateTags）離開的平均次數",
+    "where": [
+     {
+      "path": "mech.avoid.ever",
+      "op": ">=",
+      "value": 1
+     }
+    ],
+    "kind": "mean",
+    "path": "mech.avoid.exitInitiate",
+    "min": 0.02,
+    "max": 0.6,
+    "note": "第一次量測 0.11 次；主動出口比接住出口常見是目前的事實，待老師複核是否合設計意圖"
    }
   ],
   "directions": [
@@ -344,5 +392,16 @@
     "note": "§7.3。第一次量測 −3.6"
    }
   ]
+ },
+ "bots": {
+  "_why": "只看字面的機器人（surface）不能比隨機好太多：好選項不能靠長度或好聽的用語認出來（§11 規則）。pendingContentRewrite：已知目前不達標，CI 會報告但不擋；內容改寫（下一個里程碑）完成後移除這個旗標。",
+  "surface": {
+   "baseline": "random",
+   "axis": "ax.0",
+   "axisName": "親子",
+   "maxOver": 8,
+   "games": 240,
+   "pendingContentRewrite": true
+  }
  }
 }

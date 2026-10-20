@@ -5,7 +5,7 @@
 // 有任何 ✗ 時結束碼為 1（CI 會紅燈）。--write-caps：依量測的最大值加餘裕，把上限寫回 data/model.json（設計決定，要寫進 PR 說明）。
 import { fileURLToPath } from 'node:url';
 import { runMix, runBots, BOTS } from './simulate.mjs';
-import { evaluateMechanisms } from './mech.mjs';
+import { evaluateMechanisms, getPath } from './mech.mjs';
 import { TARGETS, evaluateCalibration } from './calibration.mjs';
 import { loadRaw, loadData } from './data-node.mjs';
 import { lintModel } from './lint-model.mjs';
@@ -75,6 +75,14 @@ export async function checkDesign(N = 3000, s0 = 1, opts = {}) {
   }
   add(edgeBad.length === 0, '影響上限', '因果圖每條邊的單回合／整局變動量都在 maxTurn／maxGame 內', edgeBad.length ? `${edgeBad.length} 條超出` : `最高使用率 ${(edgeWorst.r * 100).toFixed(0)}%（${edgeWorst.id}）`, '全部 ≤ 100%', edgeBad.slice(0, 4).join('；'));
 
+  // ── 只看字面的機器人（DESIGN §3.7 第 5 點）──
+  for (const [bot, B] of Object.entries(TARGETS.bots || {})) {
+    if (bot.startsWith('_')) continue;
+    const g = await runBots(B.games ?? 240, s0 + 200000, { bots: [B.baseline, bot] });
+    const ax = (rs) => rs.reduce((a, r) => a + getPath(r, B.axis), 0) / rs.length;
+    const diff = ax(g[bot]) - ax(g[B.baseline]);
+    rows.push({ ok: diff <= B.maxOver, pending: !!B.pendingContentRewrite, group: '字面機器人', name: `${bot} ${B.axisName} − ${B.baseline} ${B.axisName}（各 ${g[bot].length} 局）`, value: (diff >= 0 ? '+' : '') + diff.toFixed(1), range: `≤ +${B.maxOver}`, note: B.pendingContentRewrite ? '已知未達標（pendingContentRewrite）：內容改寫是下一個里程碑；CI 報告但不擋' : '' });
+  }
   if (opts.calibration) {
     const games = await runBots(200, 1);
     for (const r of evaluateCalibration(games)) add(r.ok, '校準', r.desc, r.value, r.target);
@@ -103,9 +111,9 @@ export function writeCaps(res) {
 export function printReport(res, N, s0) {
   const { rows } = res;
   console.log(`設計檢驗：真人混合 ${N} 局（種子 ${s0}–${s0 + N - 1}）＋ 校準策略各 ${res.NX} 局，${(res.ms / 1000).toFixed(0)} 秒\n`);
-  for (const r of rows) console.log(`${r.ok ? '✓' : '✗'} [${r.group}] ${r.name}：${r.value}（預期 ${r.range}）${r.note ? '　' + r.note : ''}`);
-  const bad = rows.filter((r) => !r.ok);
-  console.log(bad.length ? `\n共 ${bad.length} 項 ✗` : '\n全部在設計範圍內 ✓');
+  for (const r of rows) console.log(`${r.ok ? '✓' : r.pending ? '△' : '✗'} [${r.group}] ${r.name}：${r.value}（預期 ${r.range}）${r.note ? '　' + r.note : ''}`);
+  const bad = rows.filter((r) => !r.ok && !r.pending), pend = rows.filter((r) => !r.ok && r.pending);
+  console.log(`${pend.length ? `\n已知待內容改寫（不擋 CI）：${pend.length} 項 △` : ''}${bad.length ? `\n共 ${bad.length} 項 ✗` : '\n全部在設計範圍內 ✓（不含已知待改寫項）'}`);
   return bad.length;
 }
 

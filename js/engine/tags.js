@@ -89,7 +89,7 @@ export function updateApproach(st, tags, T, opts) {
       }
     }
   } else if (v.不太來找你 && has(A.initiateTags)) v.孩子來找_回來連續++;
-  if (v.不太來找你 && v.孩子來找_回來連續 >= (A.exitStreak[opts.stage] ?? 3)) { v.不太來找你 = 0; v.孩子來找_連續錯過 = 0; v.孩子來找_回來連續 = 0; }
+  if (v.不太來找你 && v.孩子來找_回來連續 >= (A.exitStreak[opts.stage] ?? 3)) { const k = opts.approach ? '不太來找你_離開_接住' : '不太來找你_離開_主動'; v[k] = (v[k] || 0) + 1; v.不太來找你 = 0; v.孩子來找_連續錯過 = 0; v.孩子來找_回來連續 = 0; }
 }
 
 export const applyTags = writer((st, tags, T, opts) => {

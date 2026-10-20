@@ -48,11 +48,17 @@ export const HUMAN_BOTS = {
       return o[Math.floor(r() * o.length)].i;
     } },
 };
+/** 只看字面的機器人（§3.7 第 5 點；§11 規則：好選項不能靠字面認出來）：選最長的選項，或含「蹲下來、聽完、說完、再決定、不評論、一起、約好」的選項 */
+export const SURFACE_WORDS = ['蹲下來', '聽完', '說完', '再決定', '不評論', '一起', '約好'];
+export const SURFACE_BOTS = {
+  surface: { desc: '只看字面：選含好聽用語（蹲下來、聽完、一起、約好…）的，否則選最長的', surface: true,
+    pick: (o, { r, raw }) => argmax(o, (k) => { const l = raw.choices[k.i].label || ''; return SURFACE_WORDS.filter((w) => l.includes(w)).length * 1000 + l.length + r() * 1e-6; }).i },
+};
 /** 「真人混合」：每 9 局循環（累了偷懶 3、照習慣 3、偶爾查研究 2、隨機 1） */
 export const HUMAN_MIX = ['tiredLazy', 'commonReaction', 'occasionalResearch', 'tiredLazy', 'commonReaction', 'random', 'occasionalResearch', 'commonReaction', 'tiredLazy'];
 /** 機器人亂數的種子偏移（所有工具共用，同一個種子＋同一個策略＝同一局） */
 export const SALT = 0x9e3779b1;
-export const ALL_BOTS = { ...BOTS, ...HUMAN_BOTS };
+export const ALL_BOTS = { ...BOTS, ...HUMAN_BOTS, ...SURFACE_BOTS };
 
 export function botPolicy(botName, seedSalt) {
   const bot = ALL_BOTS[botName];
