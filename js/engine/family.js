@@ -265,7 +265,7 @@ export function familyCtx(fam, role, ageMonths, turnsUntil = null) {
     // 特殊需求：各類各一個旗標（卡片的訊號與修正用精確的這幾個）；有特殊需求ADHD 沿用舊名
     背景: fam.background || '無', 有同住的另一半: !!fam.partner.present && fam.partner.status === '同住',
     有ADHD: has('ADHD'), 有學習障礙: has('學習障礙'), 有自閉症類群: has('自閉症'), 有發展遲緩: has('發展遲緩'),
-    有特殊需求ADHD: has('ADHD'), 有情緒行為障礙: has('情緒行為障礙'), 有特殊需求: fam.child.needs.some((n) => n.kind !== '資優'),
+    有特殊需求ADHD: has('ADHD'), 有情緒行為障礙: has('情緒行為障礙'), 有特殊需求: fam.child.needs.some((n) => n.kind !== '資優'), 有資優: has('資優'),
     偏鄉: fam.urban === '偏鄉' || fam.urban === '離島', 都會: fam.urban === '都會核心' || fam.urban === '都會外圍',
   };
 }

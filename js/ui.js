@@ -140,13 +140,14 @@ const doseRow = (r) => h('div', { class: 'dose ' + (r.good ? 'good' : 'bad') },
   h('span', { class: 'dl' }, r.label),
   h('span', { class: 'dbar', 'aria-hidden': 'true' }, [1, 2, 3].map((n) => h('i', { class: n <= r.level ? 'on' : '' }))),
   h('span', { class: 'sr' }, `${r.dir > 0 ? '上升' : '下降'}${r.level === 3 ? '很多' : r.level === 2 ? '一些' : '一點'}`));
-export function showResult(refs, { title, label, result, dose }, onNext, nextLabel = '繼續') {
+export function showResult(refs, { title, label, result, dose, note }, onNext, nextLabel = '繼續') {
   // dose 為 null：固定事件的回合還有第二張卡，劑量表要等第二張選完才合計
   const any = dose && dose.parent.length + dose.child.length > 0;
   refs.panel.replaceChildren(
     h('div', { class: 'eyebrow' }, title),
     h('p', { class: 'picked-label' }, `你選了：${label}`),
     result && h('p', { class: 'body' }, result),
+    note ? h('aside', { class: 'note small', 'aria-label': '研究小卡' }, h('b', null, '研究小卡'), h('span', null, note)) : null,
     dose && h('div', { class: 'dosebox', 'aria-label': dose.period ? `${dose.period}的變化` : '這次的變化' },
       dose.period && any && h('div', { class: 'dperiod small muted' }, `${dose.period}的變化`),
       any ? [

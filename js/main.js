@@ -144,7 +144,7 @@ function pick(c) {
   ui.renderMeters(refs, meterView(st, tl.stage));
   ui.setScene(refs, sceneSpec(st, data, tl));
   const next = out.more ? continueTurn : endTurn;
-  ui.showResult(refs, { title: view.title, label: c.label, result: out.result, dose: out.dose }, next, out.more ? '繼續（還有一件事）' : '繼續');
+  ui.showResult(refs, { title: view.title, label: c.label, result: out.result, dose: out.dose, note: out.note }, next, out.more ? '繼續（還有一件事）' : '繼續');
   ui.appendLog(refs, `${tl.label}・${view.title}：${c.label}`);
   if (auto) schedule(2400, next);
 }

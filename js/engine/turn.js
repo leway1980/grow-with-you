@@ -211,9 +211,9 @@ export function chooseCard(st, data, idx) {
     const ctx = buildCtx(st, tl);
     const d = pickDelayed(st, data, tl, ctx, card.id);
     const c2 = d ? d.card : drawCard(st, data, ctx, tl, r, card.id);
-    if (c2) { cur.next = { id: c2.id, fu: d ? d.delay : null }; return { result: out.result, dose: null, more: true }; }
+    if (c2) { cur.next = { id: c2.id, fu: d ? d.delay : null }; return { result: out.result, note: out.note, dose: null, more: true }; }
   }
-  return { result: out.result, dose: doseView(cur.acc, st, tl.stage, tl.span), more: false };
+  return { result: out.result, note: out.note, dose: doseView(cur.acc, st, tl.stage, tl.span), more: false };
 }
 
 /** 固定事件回合的第二張卡 */

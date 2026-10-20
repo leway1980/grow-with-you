@@ -117,6 +117,8 @@
 
 - 國中、高中與離家的制度、盛行率與教養研究：見 [research/teen.md](research/teen.md)（2026-10-20 整理；政府數字多經新聞轉載，正式引用前核對原文）。
 
+- 升學與教育路徑（自學、提早入學、跳級、會考、免試比序、升大學）：見 [research/pathways.md](research/pathways.md)；特殊教育現況與人數：見 [research/special-ed.md](research/special-ed.md)。卡在 data/events/pathways.json，每張卡的 `note`（研究小卡）附出處、年份與「以當年度簡章為準」；特教事實的 stub 在 data/yearly.json（2026-10-20，只收標【已核】的句子）。
+
 - 疫苗與傳染病：見 [research/vaccines.md](research/vaccines.md)（2026-10-20 整理；本環境無法開啟原始頁面，數字皆來自搜尋摘要，待核）。
 
 - 校外考試與競賽（DESIGN §4.36）：國小常見的校外檢定與比賽名稱、舉辦時間與參加人數（數學能力檢定、作文比賽、英語檢定、珠心算檢定、美術比賽等），待查；賽事名稱核對後才放進變數槽。

@@ -132,6 +132,8 @@ ul, ol { padding-left: 20px; }
 .panel .body { margin-bottom: 14px; }
 .panel .time { font-size: 18px; font-weight: 700; }
 .picked-label { font-weight: 700; margin: 4px 0 8px; }
+.panel .note { margin: 0 0 14px; padding: 10px 12px; border-left: 3px solid var(--line); background: var(--bg); border-radius: 0 10px 10px 0; color: var(--muted); display: grid; gap: 2px; }
+.panel .note b { font-size: 12px; letter-spacing: .06em; }
 .choices { display: grid; gap: 8px; }
 .choice { text-align: left; border: 1px solid var(--line); background: var(--bg); border-radius: 12px; padding: 10px 14px; min-height: 48px; display: grid; gap: 2px; }
 .choice:hover:not([disabled]) { border-color: var(--accent); }

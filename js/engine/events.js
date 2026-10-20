@@ -454,5 +454,6 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
   const entry = { turn: st.turn, m: tl.ageMonths, k, card: card.id, title: fill(card.title, st, ctx, scope), ch: idx, label: fill(ch.label, st, ctx, scope), tags: allTags, d };
   if (extra.fu != null) entry.fu = extra.fu;
   st.hist.push(entry);
-  return { result: parts.filter(Boolean).join(' '), acc, entry };
+  // 研究小卡（card.note）：選完之後顯示在結果下面的一段事實（規則的細節、出處與年份）；純文字，不含任何隱藏數值
+  return { result: parts.filter(Boolean).join(' '), acc, entry, note: card.note ? fill(card.note, st, ctx, scope) : '' };
 }

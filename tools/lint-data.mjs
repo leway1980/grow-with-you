@@ -158,7 +158,7 @@ export function lintData(raw = loadRaw()) {
   // ── 事件卡 ──
   const leakRe = new RegExp(hiddenKeys.join('|'));
   const allowedChoiceKeys = new Set(['label', 'effects', 'tags', 'result', 'showIf', 'grayIf', 'opens', 'followUp', 'chance', 'setFlags', 'clearFlags', 'setVars', 'incVars', 'direction', 'topic', 'needs', 'labelIf', 'resultIf', 'tagsIf', 'effectsIf', 'toward', 'classroom', 'flagMonths']);
-  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldownMonths', 'scale', 'requires', 'excludes', 'modifiers', 'stages', 'topic', 'direction', 'approach', 'initiate', 'toward', '_variantOf', '_variantIf']);
+  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldownMonths', 'scale', 'requires', 'excludes', 'modifiers', 'stages', 'topic', 'direction', 'approach', 'initiate', 'toward', 'note', '_variantOf', '_variantIf']);
   const gateVars = new Set(gateNames());
   const seeds = [1, 2, 3, 4, 5, 6, 7, 8].map((sd) => newState(sd, data, {}));
   const dirSlotOk = (d) => d[0] !== '@' || (slots[d.slice(1)] && slots[d.slice(1)].every((v) => v.dir));
@@ -173,6 +173,8 @@ export function lintData(raw = loadRaw()) {
     if (seen.has(c.id)) errors.push(`${W}：id 重複`);
     seen.add(c.id);
     for (const k of Object.keys(c)) if (!allowedCardKeys.has(k)) errors.push(`${W}：不認得的欄位「${k}」`);
+    if ('note' in c && !(typeof c.note === 'string' && c.note.trim())) errors.push(`${W}：note（研究小卡）要是非空字串`);
+    if (c.note) { checkTokens(c.note, W + '研究小卡'); if (leakRe.test(c.note)) errors.push(`${W}：研究小卡出現隱藏數值的名稱`); }
     if (!pools[c.pool]) errors.push(`${W}：池「${c.pool}」不存在`);
     // 時間單位（A2.5）：冷卻是『月』；scale:false＝一次性的固定事件，劑量不隨回合長度放大
     if ('cooldownMonths' in c && !(Number.isInteger(c.cooldownMonths) && c.cooldownMonths >= 0)) errors.push(`${W}：cooldownMonths 要是 ≥ 0 的整數（月）`);
