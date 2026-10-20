@@ -60,7 +60,8 @@ export const HUMAN_MIX = ['tiredLazy', 'commonReaction', 'occasionalResearch', '
 export const SALT = 0x9e3779b1;
 export const ALL_BOTS = { ...BOTS, ...HUMAN_BOTS, ...SURFACE_BOTS };
 
-export function botPolicy(botName, seedSalt) {
+/** only：選填，卡片 id 的集合——只在這些卡上照 bot 的做法選，其他卡隨機（tools/surface.mjs 逐檔量字面機器人用） */
+export function botPolicy(botName, seedSalt, only = null) {
   const bot = ALL_BOTS[botName];
   let holder = null;
   return {
@@ -68,7 +69,7 @@ export function botPolicy(botName, seedSalt) {
       holder ??= { r: (st.seed ^ seedSalt) >>> 0 };
       const r = stateRng(holder, 'r');
       const opts = view.choices.filter((c) => !c.disabled);
-      if (botName === 'random') return opts[Math.floor(r() * opts.length)].i;
+      if (botName === 'random' || (only && !only.has(raw.id))) return opts[Math.floor(r() * opts.length)].i;
       if (bot.pick) return bot.pick(opts, { r, st, raw, data });
       const selfCare = (o) => (raw.choices[o.i].tags || []).some((t) => data.tags.tags[t]?.relief);
       if (botName === 'warmFirmRest') {

@@ -48,7 +48,7 @@ export function influenceMeter(st, data) {
 export function playGame(data, bot, seed, opts = {}) {
   const st = newState(seed, data, { role: opts.role || (seed % 2 ? '媽媽' : '爸爸'), startMode: opts.startMode || 'birth' });
   const meter = opts.influence ? influenceMeter(st, data) : null;
-  try { playToEnd(st, data, botPolicy(bot, SALT)); } finally { if (meter) meter.stop(); }
+  try { playToEnd(st, data, botPolicy(bot, SALT, opts.only ? new Set(opts.only) : null)); } finally { if (meter) meter.stop(); }
   const ax = outcomeAxes(st), w = wellbeing(st, data.identities.parentModel), rp = routePosition(st);
   const f = st.family;
   const e = (st.startMode === 'birth' ? 20 : 0);
@@ -110,7 +110,7 @@ export async function execute(tasks, opts) {
   }
   const url = new URL(import.meta.url);
   const parts = await Promise.all(chunk(tasks, nw).map((ts) => new Promise((res, rej) => {
-    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, mech: opts.mech, influence: opts.influence, role: opts.role } });
+    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, mech: opts.mech, influence: opts.influence, role: opts.role, only: opts.only } });
     w.once('message', res); w.once('error', rej);
   })));
   return parts.flat();

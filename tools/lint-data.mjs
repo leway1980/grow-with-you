@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { loadRaw, loadData, ROOT } from './data-node.mjs';
 import { lintModel } from './lint-model.mjs';
 import { lintContent } from './lint-content.mjs';
+import { rule11, cardFileMap } from './rule11.mjs';
 import { VISIBLE_KEYS, BAD_WHEN_UP, PLAYED_STAGES, CORRELATION_BOUND, tagVec, hiddenScore, doseScore, costOf, cardCorrelation, meanCorrelation } from './metrics.mjs';
 
 const STYLE_PHRASES = [/開明/, /民主式/, /權威式/, /威權/, /放任式/, /我是.{0,6}的(父母|爸爸|媽媽)/, /尊重孩子的教養/, /當個.{0,4}的父母/, /採(用)?.{0,3}(式|型)(教養|溝通)/];
@@ -347,13 +348,19 @@ export function lintData(raw = loadRaw()) {
   errors.push(...lm.errors); warns.push(...lm.warns);
   const lc = lintContent(raw, data, cards, ctxKeys, st);
   errors.push(...lc.errors); warns.push(...lc.warns);
-  return { errors, warns, stats: { cards: cards.length, choices: nChoices, exposure, ...stats0, model: lm.stats } };
+  const r11 = rule11(cards, T, cardFileMap());
+  if (R.rule11Enforce) errors.push(...r11.errors);
+  return { errors, warns, rule11: r11, stats: { cards: cards.length, choices: nChoices, exposure, ...stats0, model: lm.stats } };
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const { errors, warns, stats } = lintData();
+  const { errors, warns, stats, rule11: r11 } = lintData();
   for (const e of errors) console.log('✗ ' + e);
   for (const w of warns) console.log('△ ' + w);
+  const enforce = loadRaw().tags.cardRules.rule11Enforce;
+  console.log(`\n[rule 11 表面對等${enforce ? '（強制，計入錯誤）' : '（尚未強制，不擋 CI）'}] 有研究選項的卡 ${r11.total.cards} 張：研究選項嚴格最長 ${r11.total.strictly}、扣除『非研究只短 1 字內』後違規 ${r11.total.longFail}（${(r11.total.longShare * 100).toFixed(1)}%）、標記詞不對等 ${r11.total.markFail}`);
+  for (const [f, p] of Object.entries(r11.perFile)) console.log(`  ${f}: 卡 ${p.cards}，最長違規 ${(p.longShare * 100).toFixed(0)}%（${p.longFail}），標記詞違規 ${p.markFail}`);
+  if (!enforce) { const all = process.argv.includes('--rule11'); const shown = all ? r11.errors : r11.errors.slice(0, 4); for (const e of shown) console.log('⚑ rule 11：' + e); if (shown.length < r11.errors.length) console.log(`⚑ rule 11：…另 ${r11.errors.length - shown.length} 項（node tools/lint-data.mjs --rule11 列全部）`); }
   console.log(`\n${stats.cards} 張卡、${stats.choices} 個選項；錯誤 ${errors.length}、提醒 ${warns.length}`);
   process.exit(errors.length ? 1 : 0);
 }
