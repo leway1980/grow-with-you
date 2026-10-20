@@ -81,7 +81,7 @@ export async function checkDesign(N = 3000, s0 = 1, opts = {}) {
     const g = await runBots(B.games ?? 240, s0 + 200000, { bots: [B.baseline, bot] });
     const ax = (rs) => rs.reduce((a, r) => a + getPath(r, B.axis), 0) / rs.length;
     const diff = ax(g[bot]) - ax(g[B.baseline]);
-    rows.push({ ok: diff <= B.maxOver, pending: !!B.pendingContentRewrite, group: '字面機器人', name: `${bot} ${B.axisName} − ${B.baseline} ${B.axisName}（各 ${g[bot].length} 局）`, value: (diff >= 0 ? '+' : '') + diff.toFixed(1), range: `≤ +${B.maxOver}`, note: B.pendingContentRewrite ? '已知未達標（pendingContentRewrite）：內容改寫是下一個里程碑；CI 報告但不擋' : '' });
+    rows.push({ ok: B.maxAbs != null ? Math.abs(diff) <= B.maxAbs : diff <= B.maxOver, pending: !!B.pendingContentRewrite, group: '字面機器人', name: `${bot} ${B.axisName} − ${B.baseline} ${B.axisName}（各 ${g[bot].length} 局）`, value: (diff >= 0 ? '+' : '') + diff.toFixed(1), range: B.maxAbs != null ? `|差| ≤ ${B.maxAbs}` : `≤ +${B.maxOver}`, note: B.pendingContentRewrite ? '已知未達標（pendingContentRewrite）：內容改寫是下一個里程碑；CI 報告但不擋' : '' });
   }
   if (opts.calibration) {
     const games = await runBots(200, 1);

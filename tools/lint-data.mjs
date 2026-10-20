@@ -350,6 +350,7 @@ export function lintData(raw = loadRaw()) {
   errors.push(...lc.errors); warns.push(...lc.warns);
   const r11 = rule11(cards, T, cardFileMap());
   if (R.rule11Enforce) errors.push(...r11.errors);
+  warns.push(...r11.warns);
   return { errors, warns, rule11: r11, stats: { cards: cards.length, choices: nChoices, exposure, ...stats0, model: lm.stats } };
 }
 
@@ -358,7 +359,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   for (const e of errors) console.log('✗ ' + e);
   for (const w of warns) console.log('△ ' + w);
   const enforce = loadRaw().tags.cardRules.rule11Enforce;
-  console.log(`\n[rule 11 表面對等${enforce ? '（強制，計入錯誤）' : '（尚未強制，不擋 CI）'}] 有研究選項的卡 ${r11.total.cards} 張：研究選項嚴格最長 ${r11.total.strictly}、扣除『非研究只短 1 字內』後違規 ${r11.total.longFail}（${(r11.total.longShare * 100).toFixed(1)}%）、標記詞不對等 ${r11.total.markFail}`);
+  console.log(`\n[rule 11 表面對等${enforce ? '（強制，計入錯誤）' : '（尚未強制，不擋 CI）'}] 有研究選項的卡 ${r11.total.cards} 張：研究選項嚴格最長 ${r11.total.strictly}、扣除『非研究只短 1 字內』後違規 ${r11.total.longFail}（${(r11.total.longShare * 100).toFixed(1)}%）、標記詞不對等 ${r11.total.markFail}\n  研究選項『嚴格最短』${r11.total.shortest} 張（${(r11.total.shortestShare * 100).toFixed(1)}%，警告線 ${((loadRaw().tags.cardRules.researchShortestWarn ?? 0.4) * 100).toFixed(0)}%）；陷阱（非研究）『嚴格最長』${r11.total.trapLongest} 張（${(r11.total.trapLongestShare * 100).toFixed(1)}%）`);
   for (const [f, p] of Object.entries(r11.perFile)) console.log(`  ${f}: 卡 ${p.cards}，最長違規 ${(p.longShare * 100).toFixed(0)}%（${p.longFail}），標記詞違規 ${p.markFail}`);
   if (!enforce) { const all = process.argv.includes('--rule11'); const shown = all ? r11.errors : r11.errors.slice(0, 4); for (const e of shown) console.log('⚑ rule 11：' + e); if (shown.length < r11.errors.length) console.log(`⚑ rule 11：…另 ${r11.errors.length - shown.length} 項（node tools/lint-data.mjs --rule11 列全部）`); }
   console.log(`\n${stats.cards} 張卡、${stats.choices} 個選項；錯誤 ${errors.length}、提醒 ${warns.length}`);

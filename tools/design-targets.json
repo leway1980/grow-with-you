@@ -411,13 +411,28 @@
   ]
  },
  "bots": {
-  "_why": "只看字面的機器人（surface）不能比隨機好太多：好選項不能靠長度或好聽的用語認出來（§11 規則）。pendingContentRewrite：已知目前不達標，CI 會報告但不擋；內容改寫（下一個里程碑）完成後移除這個旗標。",
+  "_why": "只看表面的機器人（surface 字面、shortest 永遠最短、warmest 語氣最暖）不能和隨機差太多，兩個方向都一樣（|差| ≤ maxAbs）：好選項不能靠長度、好聽的用語或暖語氣認出來，最短的也不能是答案（§11 規則 11、§3.6 難度從哪裡來）。pendingContentRewrite：已知目前不達標，CI 會報告但不擋；內容改寫完成後移除這個旗標。",
   "surface": {
    "baseline": "random",
    "axis": "ax.0",
    "axisName": "親子",
-   "maxOver": 8,
+   "maxAbs": 8,
    "games": 240
+  },
+  "shortest": {
+   "baseline": "random",
+   "axis": "ax.0",
+   "axisName": "親子",
+   "maxAbs": 8,
+   "games": 240
+  },
+  "warmest": {
+   "baseline": "random",
+   "axis": "ax.0",
+   "axisName": "親子",
+   "maxAbs": 8,
+   "games": 240,
+   "pendingContentRewrite": true
   }
  }
 }

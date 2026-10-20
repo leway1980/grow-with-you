@@ -27,27 +27,32 @@ export function analyzeCard(c, T) {
   const L = chs.map((ch) => len(ch.label)), max = Math.max(...L);
   const rLong = rs.filter((ch) => len(ch.label) === max && L.filter((x) => x === max).length === 1);
   const strictlyLongest = rLong.length > 0;
+  const min = Math.min(...L), strictlyShortest = rs.some((ch) => len(ch.label) === min) && L.filter((x) => x === min).length === 1;
+  const trapLongest = !strictlyLongest && nr.some((ch) => len(ch.label) === max) && L.filter((x) => x === max).length === 1;
   const nrMax = Math.max(...nr.map((ch) => len(ch.label)));
   const longFail = strictlyLongest && nrMax < max - 1;
   const rMarks = [...new Set(rs.flatMap(has))];
   const markFail = rMarks.length > 0 && !nr.some((ch) => has(ch).length);
-  return { id: c.id, strictlyLongest, longFail, markFail, rMarks };
+  return { id: c.id, strictlyLongest, strictlyShortest, trapLongest, longFail, markFail, rMarks };
 }
 
 /** { perFile: {file: {cards, strictly, longFail, longShare, markFail}}, total, errors:[], longShare } */
 export function rule11(cards, T, fileOf = {}) {
   const R = T.cardRules, max = R.researchLongestMax ?? 0.3;
-  const perFile = {}, errors = [], total = { cards: 0, strictly: 0, longFail: 0, markFail: 0 };
+  const perFile = {}, errors = [], total = { cards: 0, strictly: 0, longFail: 0, markFail: 0, shortest: 0, trapLongest: 0 };
   const failCards = [];
   for (const c of cards) {
     const a = analyzeCard(c, T);
     if (!a) continue;
-    const f = fileOf[c.id] || '(?)', p = (perFile[f] ||= { cards: 0, strictly: 0, longFail: 0, markFail: 0 });
-    for (const o of [p, total]) { o.cards++; o.strictly += a.strictlyLongest; o.longFail += a.longFail; o.markFail += a.markFail; }
+    const f = fileOf[c.id] || '(?)', p = (perFile[f] ||= { cards: 0, strictly: 0, longFail: 0, markFail: 0, shortest: 0, trapLongest: 0 });
+    for (const o of [p, total]) { o.cards++; o.strictly += a.strictlyLongest; o.longFail += a.longFail; o.markFail += a.markFail; o.shortest += a.strictlyShortest; o.trapLongest += a.trapLongest; }
     if (a.markFail) { errors.push(`卡片 ${c.id}：規則 11(b)：研究選項用了「${a.rMarks.join('、')}」，同一張卡的非研究選項都沒有標記詞`); failCards.push(c.id); }
     if (a.longFail) failCards.push(c.id);
   }
-  for (const p of [...Object.values(perFile), total]) p.longShare = p.cards ? p.longFail / p.cards : 0;
+  for (const p of [...Object.values(perFile), total]) { p.longShare = p.cards ? p.longFail / p.cards : 0; p.shortestShare = p.cards ? p.shortest / p.cards : 0; p.trapLongestShare = p.cards ? p.trapLongest / p.cards : 0; }
   if (total.longShare > max) errors.unshift(`規則 11(a)：研究選項是『嚴格最長』（且沒有非研究選項只短 1 字內）的卡占 ${(total.longShare * 100).toFixed(1)}%（${total.longFail}/${total.cards}），上限 ${(max * 100).toFixed(0)}%`);
-  return { perFile, total, errors, failCards };
+  const warns = [];
+  const sMax = R.researchShortestWarn ?? 0.4;
+  if (total.shortestShare > sMax) warns.push(`規則 11：研究選項是『嚴格最短』的卡占 ${(total.shortestShare * 100).toFixed(1)}%（${total.shortest}/${total.cards}），超過 ${(sMax * 100).toFixed(0)}%：最短的選項會變成線索`);
+  return { perFile, total, errors, warns, failCards };
 }

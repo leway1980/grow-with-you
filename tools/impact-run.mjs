@@ -38,7 +38,7 @@ if (!isMainThread && workerData && workerData.__impact) {
   const NX = Math.max(60, Math.floor(N / 12));
   const tasks = [];
   for (let i = 0; i < N; i++) tasks.push([HUMAN_MIX[i % HUMAN_MIX.length], s0 + i]);
-  const extra = Object.keys(ALL_BOTS).filter((b) => b in BOTS || b === 'surface');
+  const extra = Object.keys(ALL_BOTS).filter((b) => b in BOTS || ['surface', 'shortest', 'warmest'].includes(b));
   for (let i = 0; i < NX; i++) for (const b of extra) tasks.push([b, s0 + 100000 + i]);
   const nw = Math.min(availableParallelism(), 8);
   const parts = Array.from({ length: nw }, () => []);

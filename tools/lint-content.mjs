@@ -145,6 +145,18 @@ export function lintContent(raw, data, cards, ctxKeys, st0) {
     }
   }
 
+  // ── 規則 20：結果文字不跳時間、不預告之後的後果（資料驅動：cardRules.resultForbidden）──
+  {
+    const res = (R.resultForbidden || []).map((p) => new RegExp(p));
+    for (const c of cards) for (const [i, ch] of (c.choices || []).entries()) {
+      const outs = [['result', ch.result], ['chance.win', ch.chance?.win?.result], ['chance.lose', ch.chance?.lose?.result], ...(ch.resultIf || []).map((v, k) => [`resultIf[${k}]`, v.value])];
+      for (const [where, t] of outs) {
+        if (!t) continue;
+        for (const re of res) { const m = re.exec(String(t)); if (m) errors.push(`卡片 ${c.id} 選項 ${i} ${where}：規則 20：結果文字不寫「${m[0]}」（跳時間或預告之後的後果）——只寫這一刻看得到的場面`); }
+      }
+    }
+  }
+
   // ── 規則 15：稱謂與代名詞用依角色切換的槽 ──
   {
     const words = R.hardcodedWords || [];

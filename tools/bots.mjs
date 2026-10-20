@@ -48,11 +48,28 @@ export const HUMAN_BOTS = {
       return o[Math.floor(r() * o.length)].i;
     } },
 };
-/** 只看字面的機器人（§3.7 第 5 點；§11 規則：好選項不能靠字面認出來）：選最長的選項，或含「蹲下來、聽完、說完、再決定、不評論、一起、約好」的選項 */
-export const SURFACE_WORDS = ['蹲下來', '聽完', '說完', '再決定', '不評論', '一起', '約好'];
+/** 只看字面的機器人（§3.7 第 5 點；§11 規則：好選項不能靠字面認出來）。標記詞與暖語線索的唯一來源是 data/tags.json 的 cardRules（markerWords／warmCues）；
+ *  下面的預設值只給 tools/impact.mjs 在舊版資料（沒有這些欄位）上跑時用。 */
+const DEFAULT_MARKERS = ['蹲下來', '聽完', '說完', '再決定', '不評論', '一起', '約好', '說好', '問他'];
+const DEFAULT_WARM = { pos: ['問', '聽', '等{他}', '等他', '蹲下來', '陪', '一起', '說完'], neg: ['！', '一定', '直接', '算了', '不准', '不行', '你怎麼', '不要再', '絕對', '永遠'], pair: [['先', '再']] };
+export const markerWords = (data) => data?.tags?.cardRules?.markerWords || DEFAULT_MARKERS;
+/** 溫暖／先聽的語氣分數：暖語線索每個 +1（先…再… 成對也 +1），否定線索（驚嘆號、斥責與絕對語）每個 −1 */
+export function warmScore(label, data) {
+  const W = data?.tags?.cardRules?.warmCues || DEFAULT_WARM, l = String(label || '');
+  let sc = 0;
+  for (const w of W.pos || []) if (l.includes(w)) sc++;
+  for (const [x, y] of W.pair || []) { const i = l.indexOf(x); if (i >= 0 && l.indexOf(y, i + 1) > i) sc++; }
+  for (const w of W.neg || []) if (l.includes(w)) sc--;
+  return sc;
+}
+const lenOf = (l) => [...String(l || '')].length;
 export const SURFACE_BOTS = {
   surface: { desc: '只看字面：選含好聽用語（蹲下來、聽完、一起、約好…）的，否則選最長的', surface: true,
-    pick: (o, { r, raw }) => argmax(o, (k) => { const l = raw.choices[k.i].label || ''; return SURFACE_WORDS.filter((w) => l.includes(w)).length * 1000 + l.length + r() * 1e-6; }).i },
+    pick: (o, { r, raw, data }) => { const M = markerWords(data); return argmax(o, (k) => { const l = raw.choices[k.i].label || ''; return M.filter((w) => l.includes(w)).length * 1000 + lenOf(l) + r() * 1e-6; }).i; } },
+  shortest: { desc: '永遠選最短的選項（長度不能是線索，兩個方向都一樣）', surface: true,
+    pick: (o, { r, raw }) => argmax(o, (k) => -lenOf(raw.choices[k.i].label) + r() * 1e-6).i },
+  warmest: { desc: '只看語氣：選暖語線索（問、聽、等他、蹲下來、陪、先…再…）最多、斥責與絕對語最少的', surface: true,
+    pick: (o, { r, raw, data }) => argmax(o, (k) => warmScore(raw.choices[k.i].label, data) + r() * 1e-6).i },
 };
 /** 「真人混合」：每 9 局循環（累了偷懶 3、照習慣 3、偶爾查研究 2、隨機 1） */
 export const HUMAN_MIX = ['tiredLazy', 'commonReaction', 'occasionalResearch', 'tiredLazy', 'commonReaction', 'random', 'occasionalResearch', 'commonReaction', 'tiredLazy'];

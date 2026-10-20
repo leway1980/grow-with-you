@@ -136,7 +136,16 @@
   "signalCards": {"lo_signal_adhd": "lo_signal_adhd_gen", "hi_signal_attention": "hi_signal_attention_gen", "hi_signal_reading": "hi_signal_reading_gen", "kid_unclear": "kid_unclear_gen", "kid_route": "kid_route_gen", "inf_late_talk": "inf_late_talk_gen"},
   "signalCards_why": "規則 16：訊號卡（孩子有某種特殊需求才會出現的行為）要有『一般孩子版』（_gen），因為沒有特殊需求的孩子也會有類似的一天；一般版不提供申請評估或鑑定的選項，研究支持的選項是『兩週各自觀察再一起看』。訊號卡要有條件旗標才能出現（機制檢驗：出現在有該狀況孩子身上的比例 ≥ 60%）。",
   "researchLongestMax": 0.3,
+  "researchShortestWarn": 0.4,
   "markerWords": ["蹲下來", "聽完", "說完", "再決定", "不評論", "一起", "約好", "說好", "問他"],
+  "resultForbidden": ["之後", "再也", "越來越", "眼神變了", "隔天", "第[一二三四五六七八九十0-9]+天", "[0-9一二兩三四五六七八九十]+個?(禮拜|週|星期)後", "[0-9一二兩三四五六七八九十]+個?(月|年)後", "下一場", "從此", "後來"],
+  "resultForbidden_why": "規則 20：結果文字（result、chance 的 win／lose、resultIf 的每個版本）只寫『這一刻』看得到的場面：不跳時間（隔天、第N天、N週後）、不寫之後才顯現的後果（之後、再也、越來越、眼神變了、從此、後來、下一場）。後果由下一張卡與隱藏數值承擔，不在結果文字裡預告好壞。資料驅動的正規表示式；選項標籤不受此限（標籤可以是『隔天陪他去看路口』這類計畫）。",
+  "warmCues": {
+    "pos": ["問", "聽", "等{他}", "等他", "蹲下來", "陪", "一起", "說完"],
+    "pair": [["先", "再"]],
+    "neg": ["！", "一定", "直接", "算了", "不准", "不行", "你怎麼", "不要再", "絕對", "永遠"]
+  },
+  "warmCues_why": "tools/bots.mjs 的 warmest 機器人讀這份（markerWords 也是 bots 的唯一來源）：暖語線索（問、聽、等他、蹲下來、陪、先…再…）每個 +1，斥責與絕對語（驚嘆號、一定、直接、算了…）每個 −1，選最高分。warmest 親子 − 隨機要 ≤ 8（tools/design-targets.json）。",
   "rule11Enforce": true,
   "rule11_why": "規則 11（表面對等）：帶 research:true 標籤的選項＝研究支持的選項。(a) 一張卡裡研究選項不能是嚴格最長（除非有非研究選項只短 1 字內），這種卡占全體 ≤ researchLongestMax；(b) 研究選項含 markerWords 時，同卡至少一個非研究選項也要含。rule11Enforce=false 時只報告（獨立的『rule 11』類別，不擋 CI）；內容改寫完成後改成 true。tools/surface.mjs 逐檔報告。",
   "restTag": "父母自己休息",
