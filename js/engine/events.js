@@ -243,12 +243,13 @@ export function poolWeight(st, data, name, ctx) {
   return ((def.base ?? 0) + (open ? def.follow ?? 0 : 0)) * mulMods(def.mods, ctx) * (open ? op.x : 1);
 }
 /** 兩段式抽卡（沿用 47wan）：先抽池（被選項打開或加重的池權重較高），再抽卡。卡片依「階段 × 池」建好索引，不必每回合掃全部。 */
-export function drawCard(st, data, ctx, tl, r, excludeId = null) {
+/** excludeHabit：這個回合已經自動帶入的習慣家族（M3 B2）；同家族的卡這回合不再抽 */
+export function drawCard(st, data, ctx, tl, r, excludeId = null, excludeHabit = null) {
   const idx = data.index[tl.stage] || {};
   const pools = [];
   const live = {};
   for (const name of Object.keys(idx)) {
-    const cs = idx[name].filter((c) => c.id !== excludeId && eligible(c, st, ctx));
+    const cs = idx[name].filter((c) => c.id !== excludeId && !(excludeHabit && c.habit === excludeHabit) && eligible(c, st, ctx));
     if (!cs.length) continue;
     const w = poolWeight(st, data, name, ctx);
     if (w > 0) { pools.push({ name, w }); live[name] = cs; }

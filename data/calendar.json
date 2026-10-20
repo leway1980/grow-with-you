@@ -224,6 +224,13 @@
   },
   {
    "at": {
+    "stage": "國中",
+    "i": 1
+   },
+   "event": "jh_habit_change"
+  },
+  {
+   "at": {
     "stage": "離家",
     "i": 0
    },

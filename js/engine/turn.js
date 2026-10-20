@@ -5,6 +5,7 @@ import { stateRng, rngAt } from './rng.js';
 import { setSlotData } from './slots.js';
 import { buildCtx, passes, pickFixed, pickDelayed, drawCard, describeCard, applyChoice, applyEffects, rollLoads, fill, cardById, setGates } from './events.js';
 import { driftHidden } from './tags.js';
+import { detectHabits, autoHabit, explainerOf, familyOf } from './habits.js';
 import { doseView } from './dose.js';
 import { setModel } from './model.js';
 import { setEnding } from './ending.js';
@@ -140,7 +141,7 @@ export function prepareData(raw) {
   setModel(raw.model); setEnding(raw.ending);
   const tags = raw.model ? { ...raw.tags, model: raw.model } : raw.tags;
   const data = {
-    identities: raw.identities, tags, model: raw.model, ending: raw.ending, events, pools: raw.pools.pools, loads: raw.pools.loads || [], calendar: raw.calendar,
+    identities: raw.identities, tags, model: raw.model, ending: raw.ending, habits: raw.habits || null, events, pools: raw.pools.pools, loads: raw.pools.loads || [], calendar: raw.calendar,
     cardIndex: Object.fromEntries(events.cards.map((c) => [c.id, c])), index,
     timeline: buildTimeline(raw.calendar),
   };
@@ -159,6 +160,17 @@ function quietLine(st, data, tl, ctx) {
 export function expireFlags(st, ageMonths) {
   if (!st.flagExpiry) return;
   for (const [f, until] of Object.entries(st.flagExpiry)) if (ageMonths >= until) { delete st.flags[f]; delete st.flagExpiry[f]; }
+}
+
+/** 習慣步驟：回傳 { habitLine?, habitExplainer? }。skip＝這個回合出現的卡片所屬的習慣家族（抽到的那張、固定事件的每一張） */
+function habitStep(st, data, tl, ctx, card) {
+  if (!data.habits) return {};
+  const out = {};
+  if (tl.stage === '國中' && !Object.keys(st.habits).length) { detectHabits(st, data); out.habitExplainer = explainerOf(data); }
+  const skip = new Set([card && card.habit, ...(tl.fixed || []).map((id) => familyOf(data, id))].filter(Boolean));
+  const r = autoHabit(st, data, tl, ctx, skip);
+  if (r) out.habitLine = r.line;
+  return out;
 }
 
 /**
@@ -184,12 +196,16 @@ export function startTurn(st, data) {
     const d = pickDelayed(st, data, tl, ctx);
     if (d) { card = d.card; fu = d.delay; } else card = drawCard(st, data, ctx, tl, r);
   }
-  if (!card) { st.cur = { quiet: true }; return { tl, card: null, quiet: quietLine(st, data, tl, ctx) }; }
+  // 習慣（M3 B2）：第一個國中回合偵測；國中、高中每個回合自動帶入一個家族（同家族的卡出現就跳過）
+  const habit = habitStep(st, data, tl, ctx, card);
+  if (!card) { st.cur = { quiet: true }; return { tl, card: null, quiet: quietLine(st, data, tl, ctx), ...habit }; }
   const loads = rollLoads(st, data, ctx);
   st.cur = { cardId: card.id, slot: 0, twoSlot, fu, acc: {}, loads };
   const view = describeCard(card, st, data, tl);
   view.loads = loads.map((l) => fill(l.text, st, ctx, {}));
-  return { tl, card: view, raw: card, twoSlot };
+  if (habit.habitLine) view.habitLine = habit.habitLine;
+  if (habit.habitExplainer) view.habitExplainer = habit.habitExplainer;
+  return { tl, card: view, raw: card, twoSlot, ...habit };
 }
 
 /**
@@ -210,7 +226,8 @@ export function chooseCard(st, data, idx) {
   if (cur.twoSlot && cur.slot === 0) {
     const ctx = buildCtx(st, tl);
     const d = pickDelayed(st, data, tl, ctx, card.id);
-    const c2 = d ? d.card : drawCard(st, data, ctx, tl, r, card.id);
+    const auto = st.autoLog.length ? st.autoLog[st.autoLog.length - 1] : null; // 這個回合已經自動帶入的習慣家族：第二張卡不再抽同家族的（M3 B2）
+    const c2 = d ? d.card : drawCard(st, data, ctx, tl, r, card.id, auto && auto.turn === st.turn && auto.tags.length ? auto.family : null);
     if (c2) { cur.next = { id: c2.id, fu: d ? d.delay : null }; return { result: out.result, note: out.note, dose: null, more: true }; }
   }
   return { result: out.result, note: out.note, dose: doseView(cur.acc, st, tl.stage, tl.span), more: false };

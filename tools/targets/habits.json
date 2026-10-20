@@ -1,0 +1,15 @@
+{
+  "habits": {
+    "_why": "M3 B2 習慣的目標（計畫 §2.2、§8 第 5、6 項；規劃者決定 2026-10-20）。預覽內容（國中以後）還薄，E1 把國中以後補滿並強制這些目標，所以先 pending（只報告、不擋 CI）。局數＝每個機器人在預覽（玩到第 72 回合）各玩幾局。『想改變的機器人』＝lateStarter（國中前照習慣反應、國中起溫暖＋堅定）與 veryLateStarter（高中起）。",
+    "pending": true,
+    "games": 300,
+    "bots": ["random", "permissive", "controlling", "warmFirm", "doseGreedy", "antiDose", "warmFirmRest", "tiredLazy", "commonReaction", "occasionalResearch", "lateStarter", "veryLateStarter"],
+    "warmPatterns": ["先抱一下", "問好玩的"],
+    "flipJH": { "min": 0.6, "note": "國中：想改變的機器人（lateStarter），第一個國中回合偵測到的『回家第一句』不是溫暖模式的局，到國中結束（進高中時）已經翻成溫暖模式的比例" },
+    "flipSH": { "min": 0.3, "note": "高中：veryLateStarter，進高中時的『回家第一句』不是溫暖模式的局，到遊戲結束已經翻成溫暖模式的比例" },
+    "detectFirstWords": { "min": 0.5, "note": "回家第一句偵測為非混合的比例，每個機器人都要達到（取最低的）" },
+    "approachExitJH": { "min": 0.2, "note": "lateStarter 在第 50 回合（進國中）時在『不太來找你』的局，國中結束前離開的比例" },
+    "approachExitSH": { "min": 0.1, "note": "veryLateStarter 在第 63 回合（進高中）時在『不太來找你』的局，遊戲結束前離開的比例" },
+    "autoShareMax": { "max": 0.35, "note": "第 50–71 回合，自動套用造成的隱藏數值變動（|Δ| 合計）占全部 applyTags 的 |Δ| 合計的比例，取各機器人最高的" }
+  }
+}
