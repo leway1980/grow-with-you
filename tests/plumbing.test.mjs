@@ -59,3 +59,17 @@ test('外掛載入器：目標逐層合併；design-targets.json 的每個鍵都
   const merged = loadTargets();
   for (const k of Object.keys(base)) assert.ok(k in merged, k);
 });
+
+test('A4：親子信任高／低門檻（低＝小於）；為孩子隱忍沒有隱藏效果、要孩子保密是負向、打手心短期順從長期傷', () => {
+  const T = data.tags, st = newState(5, data, {});
+  assert.ok(T.gates.親子信任.高 > T.gates.親子信任.低);
+  st.hidden.親子信任 = T.gates.親子信任.低 - 0.1;
+  let c = buildCtx(st, tl); assert.equal(c.親子信任低, true); assert.equal(c.親子信任高, false);
+  st.hidden.親子信任 = T.gates.親子信任.低; c = buildCtx(st, tl); assert.equal(c.親子信任低, false);
+  st.hidden.親子信任 = T.gates.親子信任.高; c = buildCtx(st, tl); assert.equal(c.親子信任高, true);
+  assert.deepEqual(T.tags.為孩子隱忍.d, {});
+  assert.ok(Object.values(T.tags.要孩子保密.d).every((v) => v < 0));
+  const h = T.tags.打手心;
+  assert.equal(h.now.作業, '+0'); assert.equal(h.now.心情, '-0');
+  assert.ok(h.d.親子信任 < 0 && h.d.安全感 < 0 && h.d.試探度 > 0 && h.accel);
+});

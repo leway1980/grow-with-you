@@ -121,7 +121,7 @@ export const evalCond = (expr, ctx) => !!compile(expr)(ctx);
 export const PING_BIG_ID = 'ping_big';
 export const PING_BIG_P = 0.3;
 
-/** 具名門檻（tags.json 的 gates）：卡片寫「了解度高」，不寫 55，全遊戲只有一個地方改門檻 */
+/** 具名門檻（tags.json 的 gates）：卡片寫「了解度高」，不寫 55，全遊戲只有一個地方改門檻。名字叫『低』的門檻是『小於』（親子信任低），其餘是『大於等於』 */
 let GATES = {};
 export function setGates(g) { GATES = g || {}; }
 export const gateNames = () => Object.entries(GATES).flatMap(([k, m]) => Object.keys(m).map((n) => k + n));
@@ -182,7 +182,7 @@ export function buildCtx(st, tl, extra = {}) {
     腳骰: rngAt(st.seed, st.turn, 'hl_foot'), 過敏骰: rngAt(st.seed, st.turn, 'hl_allergy'), 摔傷骰: rngAt(st.seed, st.turn, 'hl_fall'),
     疲勞: Math.round(((st.costEMA && st.costEMA.體力) || 0) + ((st.costEMA && st.costEMA.耐心) || 0)), // 最近幾回合體力與耐心花費的累積（「父母自己」池的權重用）
   };
-  for (const [k, m] of Object.entries(GATES)) for (const [n, thr] of Object.entries(m)) ctx[k + n] = st.hidden[k] >= thr;
+  for (const [k, m] of Object.entries(GATES)) for (const [n, thr] of Object.entries(m)) ctx[k + n] = n === '低' ? st.hidden[k] < thr : st.hidden[k] >= thr; // 『低』＝小於門檻，其他（高、中）＝大於等於
   return ctx;
 }
 
