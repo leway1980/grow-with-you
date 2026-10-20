@@ -106,10 +106,13 @@ test('資料：initiate 的卡都是父母主動去找孩子；固定事件、�
   const A = T.approach;
   for (const id of ['wp_kg_call', 'wp_kg_bath', 'lo_interrupt', 'wp_lo_weekend', 'hi_work_ping', 'wp_hi_table', 'wp_hi_car']) {
     const c = data.cardIndex[id];
-    const self = c.choices.find((o) => /自己(先)?(想想看|玩一下)/.test(o.label)), ten = c.choices.find((o) => /十分鐘後我去找你/.test(o.label));
-    assert.ok(self && self.tags.includes('敷衍帶過') && A.missTags.includes('敷衍帶過'), id);
-    assert.ok(ten, id + ' 沒有「說好十分鐘後去找你」');
-    assert.ok(ten.tags.every((t) => !A.missTags.includes(t) && !A.attendTags.includes(t)), id + '：說好十分鐘當下不算錯過也不算接住');
+    // 看機制與標籤，不看措辭：『先自己玩／想想看』＝帶 敷衍帶過；『說好稍後去找你』＝排了 lo_interrupt_back 的後續卡；『看起來在聽』＝帶 假裝聽（也是錯過）
+    const self = c.choices.find((o) => (o.tags || []).includes('敷衍帶過')), ten = c.choices.find((o) => (o.followUp || []).some((f) => f.card === 'lo_interrupt_back'));
+    const fake = c.choices.find((o) => (o.tags || []).includes('假裝聽'));
+    assert.ok(self && A.missTags.includes('敷衍帶過'), id);
+    assert.ok(fake && A.missTags.includes('假裝聽'), id + ' 沒有「假裝聽」的選項');
+    assert.ok(ten, id + ' 沒有「說好稍後去找你」');
+    assert.ok(ten.tags.every((t) => !A.missTags.includes(t) && !A.attendTags.includes(t)), id + '：說好稍後當下不算錯過也不算接住');
     assert.equal(ten.followUp[0].card, 'lo_interrupt_back');
   }
   const back = data.cardIndex.lo_interrupt_back;
@@ -126,4 +129,13 @@ test('主動找他池：進入「不太來找你」時權重 ×repairBoost（2.5
   assert.ok(cards.length >= 4 && cards.length <= 6);
   for (const c of cards) { assert.equal(c.initiate, true); assert.equal(c.requires.expr, '不太來找你'); }
   assert.equal(A.approachCredit, 1);
+});
+
+test('假裝聽：和敷衍帶過一樣算錯過（連續錯過進入不太來找你），但標籤的影響不同', () => {
+  const A = T.approach;
+  assert.ok(A.missTags.includes('假裝聽') && !A.attendTags.includes('假裝聽'));
+  const st = fresh();
+  for (let i = 0; i < A.enterAt; i++) applyTags(st, ['假裝聽'], T, { turn: st.turn, stage, ctx: {}, approach: true });
+  assert.equal(st.vars.不太來找你, 1);
+  assert.notDeepEqual(T.tags['假裝聽'].d, T.tags['敷衍帶過'].d);
 });
