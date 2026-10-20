@@ -9,7 +9,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadData } from './data-node.mjs';
-import { newState } from '../js/engine/state.js';
+import { newState, startTurnOf } from '../js/engine/state.js';
 import { shuffleOrder } from '../js/engine/rng.js';
 import { buildCtx, passes, fill, pickText, cardScope, choiceCtx, choiceState, resolveChoice, scaleCosts, evalCond, VARIANT_FIELDS } from '../js/engine/events.js';
 import { mulberry32, hashStr } from '../js/engine/rng.js';
@@ -24,7 +24,7 @@ export function exportBlind(data = loadData(), seed = 1) {
   for (const card of data.events.cards) {
     const stage = (card.stages || ['國小中高'])[0];
     const tl = data.timeline.find((t) => t.stage === stage) || data.timeline[data.timeline.length - 1];
-    const st = newState(seed, data, { role: '媽媽', startMode: stage === '國小低' || stage === '國小中高' ? 'elementary' : 'birth' });
+    const st = newState(seed, data, { role: '媽媽', startMode: tl.turn >= startTurnOf(data, 'elementary') ? 'elementary' : 'birth' });
     st.turn = tl.turn;
     const ctx = buildCtx(st, tl, { topic: card.topic });
     const scope = cardScope(st, card.id);
@@ -101,7 +101,7 @@ function makeCandidate(data, card, r, seed) {
   const stages = card.stages || ['國小中高'];
   const turns = data.timeline.filter((t) => stages.includes(t.stage));
   const tl = turns[Math.floor(r() * turns.length)] || data.timeline[data.timeline.length - 1];
-  const st = newState(seed, data, { role: r() < 0.5 ? '媽媽' : '爸爸', startMode: tl.stage === '國小低' || tl.stage === '國小中高' ? 'elementary' : 'birth' });
+  const st = newState(seed, data, { role: r() < 0.5 ? '媽媽' : '爸爸', startMode: tl.turn >= startTurnOf(data, 'elementary') ? 'elementary' : 'birth' });
   st.turn = tl.turn;
   // 要前面某個選擇才會出現的卡：把它 requires 裡提到的旗標補上（內容照常出題；其他前置條件拿不到就略過，見 stats.relaxed）
   const rq = card.requires || {};
@@ -154,7 +154,7 @@ export function exportContext(data = loadData(), seed = 1) {
       cands.push(it);
     }
     // 優先用『這張卡真的會出現』的情境；一個都沒有（前置條件是前面的歷史）就放寬，並記下
-    const okc = cands.filter((c) => c.ok);
+    const all = cands.slice(), okc = cands.filter((c) => c.ok);
     const relaxed = !okc.length;
     if (okc.length) cands.splice(0, cands.length, ...okc);
     if (!cands.length) return;
@@ -166,6 +166,7 @@ export function exportContext(data = loadData(), seed = 1) {
       const alt = cands.find((c) => c !== def && sameOrig(c, def) && disjoint(ba, bestOf(c.opts))) || cands.find((c) => c !== def && disjoint(ba, bestOf(c.opts)));
       a = def; b = alt || cands.find((c) => c !== def && c.ifs !== def.ifs && c.child !== def.child) || cands.find((c) => c !== def && c.child !== def.child) || cands.find((c) => c !== def);
       sw = !!alt; kind = ['default', alt ? 'switch' : 'other'];
+      if (!b) b = all.find((c) => c !== def && c.child !== def.child) || all.find((c) => c !== def); // 只有一個會出現的情境（例如『下一胎』只在手足出生前 1–2 回合）：第二題退而用不一定會出現的情境
       if (!b) return;
     } else b = cands.find((c) => c !== a && c.child !== a.child) || cands.find((c) => c !== a) || a;
     [[a, kind[0]], [b, kind[1]]].forEach(([it, kd], k) => items.push({ ci, k, card, it, kind: kd, variant, sw }));

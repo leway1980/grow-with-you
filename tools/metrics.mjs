@@ -1,5 +1,6 @@
 import { outcomeWeights } from '../js/engine/model.js';
 import { readFileSync } from 'node:fs';
+import { playedStages } from '../js/engine/turn.js';
 // 卡片選項的「可見分數」與「隱藏分數」（資料檢查與策略機器人共用）。
 // 可見分數＝劑量表上看起來多好；隱藏分數＝標籤對照表（未含情境調整）累積起來多好。兩者拉開，就是 DESIGN §3.6 要的「陷阱」。
 export const VISIBLE_KEYS = ['體力', '耐心', '錢', '工作表現', '夫妻關係', '心情', '成績', '作業', '3C時間', '睡眠', '同學往來'];
@@ -9,8 +10,8 @@ export const PARENT_W = 0.5;
 export const BAD_WHEN_UP = new Set(['期待壓力', '試探度', '替他做主']);
 
 const cache = new WeakMap();
-/** 遊戲目前做到的階段（M1）：沒寫 stages 的卡片出現在這些階段 */
-export const PLAYED_STAGES = ['嬰幼兒', '幼兒園', '國小低', '國小中高'];
+/** 遊戲目前開放的階段（由日曆的 playableTurns 算出）：沒寫 stages 的卡片出現在這些階段 */
+export const PLAYED_STAGES = playedStages(JSON.parse(readFileSync(new URL('../data/calendar.json', import.meta.url), 'utf8')));
 /**
  * 一個選項的標籤合計（不含情境調整）。stages 給了就乘上這些階段的平均倍率：
  * 嬰幼兒的「替他決定」倍率是 0，在只出現在嬰幼兒的卡片上就不該算進去。

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { availableParallelism } from 'node:os';
 import { stateRng } from '../js/engine/rng.js';
-import { newState } from '../js/engine/state.js';
+import { newState, startTurnOf } from '../js/engine/state.js';
 import { playToEnd } from '../js/engine/turn.js';
 import { outcomeAxes, wellbeing, routePosition, comboOf, COMBOS, estimateDeltas, chainRecords, endingContext, pickLines, lineContradictions } from '../js/engine/ending.js';
 import { setTagObserver } from '../js/engine/tags.js';
@@ -51,14 +51,14 @@ export function playGame(data, bot, seed, opts = {}) {
   try { playToEnd(st, data, botPolicy(bot, SALT, opts.only ? new Set(opts.only) : null)); } finally { if (meter) meter.stop(); }
   const ax = outcomeAxes(st), w = wellbeing(st, data.identities.parentModel), rp = routePosition(st);
   const f = st.family;
-  const e = (st.startMode === 'birth' ? 20 : 0);
+  const e = startTurnOf(data, 'elementary'); // 國小開始的回合（由日曆算出）
   const elemTurns = st.hist.filter((h) => h.turn >= e).length;
   const elemNonFixed = st.hist.filter((h) => h.turn >= e && !data.cardIndex[h.card].pool.startsWith('_')).length;
   const nTurnsElem = Math.max(1, st.curves.filter((c) => c.t >= e).length);
   const rec = {
     bot, seed, partner: f.partner.attitude || '無', econ: f.econ, pattern: f.pattern, support: f.support, struct: f.structure,
     ax: [ax.親子, ax.人際, ax.學習], w: [w.child, w.parent, w.between], route: rp.kind, combo: comboOf(ax),
-    hid: { ...st.hidden }, money30: st.vcurves[30]?.錢 ?? null, lowBody: st.vcurves.filter((c) => c.體力 < 35).length / st.vcurves.length,
+    hid: { ...st.hidden }, money30: st.vcurves[e + 6]?.錢 ?? null, lowBody: st.vcurves.filter((c) => c.體力 < 35).length / st.vcurves.length,
     elemTurns, elemNonFixed, nTurnsElem, fu: st.hist.filter((h) => h.fu != null).map((h) => h.fu), cards: st.hist.length,
   };
   if (opts.mech) {

@@ -2,6 +2,8 @@
 // 每條規則都是資料驅動：要改禁用詞、時間詞，改 data/tags.json 的 cardRules，不改這裡。
 // errors＝擋 CI；warns＝提醒（時間詞等規則先警告，內容改完再升級成錯誤）。
 
+import { playedStages } from '../js/engine/turn.js';
+
 const ZH = { 零: 0, 〇: 0, 一: 1, 二: 2, 兩: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10 };
 /** 中文數字（到 99）或阿拉伯數字 → 整數；不認得回傳 NaN */
 export function zhNum(s) {
@@ -73,7 +75,7 @@ const TOL = 3;
 export function lintContent(raw, data, cards, ctxKeys, st0) {
   const errors = [], warns = [];
   const T = raw.tags, R = T.cardRules;
-  const stageNames = ['嬰幼兒', '幼兒園', '國小低', '國小中高'];
+  const stageNames = playedStages(raw.calendar);
   const playable = data.timeline.slice(0, raw.calendar.playableTurns);
 
   // ── 規則 18：情境負荷（命運事件）不帶任何家長行為標籤 ──
