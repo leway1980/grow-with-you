@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadData } from '../tools/data-node.mjs';
 import { newState } from '../js/engine/state.js';
-import { startTurn, chooseCard, finishTurn } from '../js/engine/turn.js';
+import { startTurn, chooseCard, nextCard, finishTurn } from '../js/engine/turn.js';
 import { selfChoice } from '../js/engine/auto.js';
 import { doseView, meterView, levelOf, visibleKeys } from '../js/engine/dose.js';
 
@@ -12,10 +12,9 @@ const NAMES = [...HIDDEN, 'hidden', 'tags', '隱藏', '？後續']; // 隱藏數
 const leak = (obj) => { const s = JSON.stringify(obj); return NAMES.filter((n) => s.includes(n)); };
 
 test('劑量表：只有看得到的數值，用方向與格數，不含精確數字或隱藏數值名稱', () => {
-  const before = { 體力: 70, 耐心: 60, 錢: 50, 工作表現: 60, 夫妻關係: 60, 心情: 60, 成績: 50, 作業: 50, '3C時間': 20, 睡眠: 60, 同學往來: 50 };
-  const after = { ...before, 體力: 62, 心情: 65, '3C時間': 29.5, 睡眠: 60.4 };
+  const acc = { 體力: -8, 心情: 5, '3C時間': 9.5, 睡眠: 0.4, 錢: 0 };
   const st = newState(1, data, {});
-  const v = doseView(before, after, st, '國小中高');
+  const v = doseView(acc, st, '國小中高');
   assert.deepEqual(v.parent.map((r) => [r.key, r.dir, r.level]), [['體力', -1, 2]]);
   assert.deepEqual(v.child.map((r) => [r.key, r.dir, r.level, r.good]), [['心情', 1, 2, true], ['3C時間', 1, 3, false]]); // 3C 往上是壞事
   for (const r of [...v.parent, ...v.child]) assert.deepEqual(Object.keys(r).sort(), ['dir', 'good', 'key', 'label', 'level']);
@@ -40,21 +39,26 @@ test('整局玩下來：每張卡的畫面資料、劑量表、數值條都不�
       if (res.ended) break;
       assert.deepEqual(leak(meterView(st, res.tl.stage)), []);
       if (res.card) {
-        cards++;
-        assert.deepEqual(leak(res.card), [], res.card.id);
-        const out = chooseCard(st, data, selfChoice(st, res.card));
-        assert.deepEqual(leak(out), [], res.card.id);
-        assert.deepEqual(leak(meterView(st, res.tl.stage)), []);
+        let view = res.card;
+        for (let k = 0; k < 3; k++) {
+          cards++;
+          assert.deepEqual(leak(view), [], view.id);
+          const out = chooseCard(st, data, selfChoice(st, view));
+          assert.deepEqual(leak(out), [], view.id);
+          assert.deepEqual(leak(meterView(st, res.tl.stage)), []);
+          if (!out.more) break;
+          view = nextCard(st, data).card;
+        }
       } else assert.deepEqual(leak(res.quiet), []);
       finishTurn(st, data);
     }
   }
-  assert.ok(cards > 150);
+  assert.ok(cards > 300);
 });
 
-test('卡片畫面資料裡沒有標籤與數值：選項只有編號、文字、是否可選', () => {
+test('卡片畫面資料裡沒有標籤與數值：選項只有編號、顯示位置、文字、是否可選', () => {
   const st = newState(3, data, {});
   const res = startTurn(st, data);
   const c = res.card || { choices: [] };
-  for (const ch of c.choices) assert.deepEqual(Object.keys(ch).sort(), ['disabled', 'i', 'label', 'reason']);
+  for (const ch of c.choices) assert.deepEqual(Object.keys(ch).sort(), ['disabled', 'i', 'label', 'pos', 'reason']);
 });
