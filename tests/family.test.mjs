@@ -34,10 +34,36 @@ test('ADHD 的「有」和「被診斷」分開：有的人只有一部分會被
   let has = 0, dx = 0;
   for (let s = 1; s <= 3000; s++) {
     const n = generateFamily(s, idn()).child.needs.find((x) => x.kind === 'ADHD');
-    if (n) { has++; if (n.dxTurn != null) dx++; assert.equal(n.diagnosed, false); }
+    if (n) { has++; if (n.dxMonths != null) dx++; assert.equal(n.diagnosed, false); assert.ok(n.dxMonths == null || n.dxMonths > n.onsetMonths); }
   }
   assert.ok(has / 3000 > 0.05 && has / 3000 < 0.11, `ADHD 比例 ${has / 3000}`);
   assert.ok(dx / has > 0.15 && dx / has < 0.45, `被診斷的比例 ${dx / has}`);
+});
+
+// A0（92 回合日曆）的回合序號 → 月齡：獨立寫一份，才測得出資料裡的 onsetMonths 清單對不對
+const a0Months = (t) => (t < 8 ? t * 3 : t < 20 ? 24 + (t - 8) * 4 : 72 + (t - 20) * 2);
+const A0_ONSET_TURNS = { ADHD: [14, 30], 學習障礙: [22, 34], 自閉症: [8, 24], 發展遲緩: [3, 14], 情緒行為障礙: [26, 40], 其他身心障礙: [0, 6], 資優: [20, 40] };
+test('特殊需求的發作月齡：分布與 A0 相同（平均與分位數差在 ±3 個月內），確診延遲以月計且發作之後才確診', () => {
+  const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+  const got = {};
+  for (let s = 1; s <= 20000; s++) for (const n of generateFamily(s, idn()).child.needs) {
+    (got[n.kind] ||= []).push(n.onsetMonths);
+    assert.ok(Number.isInteger(n.onsetMonths) && !('onset' in n) && !('dxTurn' in n));
+    if (n.dxMonths != null) assert.ok(n.dxMonths >= n.onsetMonths && n.dxMonths <= n.onsetMonths + 40, `${n.kind} ${n.onsetMonths} → ${n.dxMonths}`);
+  }
+  for (const [kind, [lo, hi]] of Object.entries(A0_ONSET_TURNS)) {
+    const a0 = []; for (let t = lo; t <= hi; t++) a0.push(a0Months(t)); // A0：回合序號均勻抽
+    const g = got[kind];
+    assert.ok(g && g.length > 30, kind);
+    assert.ok(Math.abs(mean(g) - mean(a0)) <= 3, `${kind} 平均 ${mean(g).toFixed(1)} vs A0 ${mean(a0).toFixed(1)}`);
+    // 分位數在離散清單的邊界上會跳一格，所以改比累積分布：A0 的每個月齡，抽出來的 ≤ 該月齡的比例差在 3 個百分點內（樣本夠多的類型）
+    const cdf = (arr, v) => arr.filter((x) => x <= v).length / arr.length;
+    if (g.length > 200) for (const v of a0) assert.ok(Math.abs(cdf(g, v) - cdf(a0, v)) < 0.06, `${kind} ≤${v} 個月：${cdf(g, v).toFixed(2)} vs A0 ${cdf(a0, v).toFixed(2)}`);
+    const med = (arr) => { const b = [...arr].sort((x, y) => x - y); return (b[Math.floor((b.length - 1) / 2)] + b[Math.ceil((b.length - 1) / 2)]) / 2; };
+    assert.ok(Math.abs(med(g) - med(a0)) <= 4, `${kind} 中位數 ${med(g)} vs A0 ${med(a0)}`);
+    assert.ok(Math.min(...g) >= a0Months(lo) && Math.max(...g) <= a0Months(hi), `${kind} 範圍`);
+  }
+  // ADHD：發作月齡 → 回合：turn.js 以月齡比較（ageMonths ≥ onsetMonths）
 });
 
 test('每一步是獨立的亂數流：改某張表只改變那一步', () => {

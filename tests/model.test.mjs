@@ -98,22 +98,27 @@ test('buildEnding：lines 有四個 facet、home 那句就是 line、不含隱�
   }
 });
 
-test('決定鏈紀錄：進入過「不太來找你」之後離開，紀錄還在；3C 連用要在 6 回合內 ≥ 3 次', () => {
+test('決定鏈紀錄：進入過「不太來找你」之後離開，紀錄還在；3C 連用要在 12 個月內 ≥ 3 次', () => {
   const st = played(3);
   assert.deepEqual(Object.keys(chainRecords(st, E)).sort(), E.records.map((r) => r.name).sort());
   const s2 = newState(5, data, {});
   s2.vars.不太來找你_曾 = 1; s2.vars.不太來找你 = 0;
   assert.equal(chainRecords(s2, E).曾不太來找你, 1); assert.equal(chainRecords(s2, E).現在不太來找你, 0);
-  s2.hist = [10, 11, 12].map((turn) => ({ turn, tags: ['3C當保母'] }));
+  const at = (turns) => turns.map((turn) => ({ turn, m: data.timeline[turn].ageMonths, tags: ['3C當保母'] }));
+  s2.hist = at([34, 35, 36]); // 國小中高：3 個月一回合，9 個月內三次
   assert.equal(chainRecords(s2, E).三C連用, 1);
-  s2.hist = [10, 20, 30].map((turn) => ({ turn, tags: ['3C當保母'] }));
+  s2.hist = at([34, 36, 38]); // 6 個月一次，第一與第三次差 12 個月（窗口是『小於 12 個月』）
+  assert.equal(chainRecords(s2, E).三C連用, 0);
+  s2.hist = at([24, 25, 26]); // 國小低：2 個月一回合，4 個月內三次
+  assert.equal(chainRecords(s2, E).三C連用, 1);
+  s2.hist = at([24, 30, 40]);
   assert.equal(chainRecords(s2, E).三C連用, 0);
 });
 
 /* ───── 引擎真的在讀圖：和改圖之前寫死的公式逐項對照 ───── */
 const mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
 const clamp = (x) => Math.max(0, Math.min(100, x));
-const last = (st, k, n) => mean(st.vcurves.slice(-n).map((c) => c[k]));
+const last = (st, k, n) => { const L = st.vcurves.at(-1).m; return mean(st.vcurves.filter((c) => c.m > L - 2 * n).map((c) => c[k])); }; // 最近 2n 個月（舊的最後 n 個國小回合）
 
 test('結果軸、孩子幸福、彼此之間、開口度、承受度：和改用因果圖之前寫死的公式一致', () => {
   for (const seed of [1, 2, 3, 4, 5, 6]) for (const bot of ['random', 'warmFirm', 'permissive']) {
@@ -151,7 +156,8 @@ test('改圖就改結果：把「期待壓力」對親子軸的懲罰權重改�
   assert.ok(st.hidden.承受度 < t0 - 5);
   recomputeDerived(st, data.tags);
   // 規則式漂移的幅度來自圖
-  assert.equal(M.rules[0].d.父母情緒穩定度, -0.5);
+  assert.equal(M.rules[0].d.父母情緒穩定度, -0.25); // 每月；2 個月的回合＝舊的每回合 −0.5
+  assert.equal(M.rules[0].months, 4);
 });
 
 test('結果軸的權重表和因果圖一致：越高越糟的節點權重為負，其餘為正', () => {

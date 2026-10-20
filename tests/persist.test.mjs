@@ -6,6 +6,7 @@ import { newState } from '../js/engine/state.js';
 import { stateRng } from '../js/engine/rng.js';
 import { buildCtx, applyChoice, fill, cardById, describeCard, cardScope, pickDelayed } from '../js/engine/events.js';
 import { generateFamily, siblingRelations } from '../js/engine/family.js';
+import { turnAtOrAfter } from '../js/engine/timescale.js';
 
 const data = loadData();
 const at = (turn) => data.timeline[turn];
@@ -115,7 +116,11 @@ test('cm_car：停才藝課的選項只給有在學才藝的孩子，沒有寫�
 test('手足：手足數是目前已經在的全部（含弟弟妹妹出生之後）、年長手足／年幼手足／下一胎回合差', () => {
   const idn = data.identities;
   let seen = { younger: 0, older: 0 };
-  const STEP = 3, due = (m, ys) => { const d = ys.filter((q) => q.arriveMonths > m).map((q) => Math.ceil((q.arriveMonths - m) / STEP)); return d.length ? Math.min(...d) : 99; };
+  // 下一胎回合差＝時間軸上第一個月齡 ≥ 出生月齡的回合 − 現在的回合（A2.5：由時間軸算，不再假設每回合 3 個月）
+  const tlOf = (m) => data.timeline.filter((t) => t.ageMonths <= m).at(-1); // 月齡 m 所在的回合
+  const tu = (tl) => (mm) => turnAtOrAfter(tl.ages, mm) - tl.turn;
+  const rel = (fam, m) => { const tl = tlOf(m); return siblingRelations(fam, tl.ageMonths, tu(tl)); };
+  const due = (m, ys) => { const tl = tlOf(m); const d = ys.filter((q) => q.arriveMonths > tl.ageMonths).map((q) => tu(tl)(q.arriveMonths)); return d.length ? Math.min(...d) : 99; };
   for (let seed = 1; seed <= 400; seed++) {
     const fam = generateFamily(seed, idn);
     const ys = fam.siblings.filter((s) => !s.older);
@@ -124,14 +129,15 @@ test('手足：手足數是目前已經在的全部（含弟弟妹妹出生之�
     if (!ys.length) continue;
     seen.younger++;
     const y = ys[0], m = y.arriveMonths;
-    const before = siblingRelations(fam, m - 1), after = siblingRelations(fam, m);
-    assert.equal(before.下一胎回合差, due(m - 1, ys)); assert.equal(siblingRelations(fam, m - 6).下一胎回合差, due(m - 6, ys));
+    const tlM = data.timeline.find((t) => t.ageMonths >= m); // 這一胎出生那個回合
+    const before = rel(fam, tlM.ageMonths - 1), after = siblingRelations(fam, tlM.ageMonths, tu(tlM));
+    assert.equal(before.下一胎回合差, due(tlM.ageMonths - 1, ys)); assert.equal(rel(fam, tlM.ageMonths - 6).下一胎回合差, due(tlM.ageMonths - 6, ys));
     assert.ok(before.下一胎回合差 >= 1);
-    const later = ys.filter((s) => s.arriveMonths > m).map((s) => Math.ceil((s.arriveMonths - m) / STEP));
+    const later = ys.filter((s) => s.arriveMonths > tlM.ageMonths).map((s) => tu(tlM)(s.arriveMonths));
     assert.equal(after.下一胎回合差, later.length ? Math.min(...later) : 99); // 這一胎出生了；還有更小的弟弟妹妹就算下一個
     assert.ok(after.手足數 >= before.手足數 + 1 - 0, '出生之後手足數多一個');
     assert.ok(after.年幼手足數 >= 1 && after.年幼手足 !== '');
-    assert.equal(before.年幼手足數, ys.filter((s) => s.arriveMonths <= m - 1).length);
+    assert.equal(before.年幼手足數, ys.filter((s) => s.arriveMonths <= tlOf(tlM.ageMonths - 1).ageMonths).length);
     assert.equal(after.手足數, after.年長手足數 + after.年幼手足數);
     assert.equal(siblingRelations(fam).年幼手足數, ys.length, '沒給月齡（開局抽籤）時全部都算');
   }
@@ -149,7 +155,7 @@ test('kid_newborn：只在弟弟妹妹出生前一、兩個回合出現；單親
       st.turn = tl.turn;
       const ctx = buildCtx(st, tl);
       const ok = require_ok(card, ctx);
-      const dueIn = st.family.siblings.filter((s) => !s.older && s.arriveMonths > tl.ageMonths).map((s) => Math.ceil((s.arriveMonths - tl.ageMonths) / 3));
+      const dueIn = st.family.siblings.filter((s) => !s.older && s.arriveMonths > tl.ageMonths).map((s) => data.timeline.findIndex((t) => t.ageMonths >= s.arriveMonths) - tl.turn); // 第一個月齡 ≥ 出生月齡的回合 − 現在的回合
       const gen = st.family.structure === '隔代'; // 隔代：孩子跟長輩住，家裡『多一個人』不是這個故事
       assert.equal(passes(card, st, ctx) && !gen, dueIn.some((d) => d >= 1 && d <= 2) && !gen, `seed ${seed} turn ${tl.turn}`);
       if (ok && !gen) { eligible++; assert.ok(st.family.structure !== '離異' && st.family.structure !== '喪親'); }

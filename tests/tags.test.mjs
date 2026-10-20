@@ -62,7 +62,7 @@ test('重複加速是逐標籤開啟的（accel）：替他決定越來越快；
     const st = fresh(); st.turn = 30; const out = [];
     for (let i = 0; i < 4; i++) {
       const turn = 30 + i, before = st.hidden[k];
-      apply(st, [tag], turn, { stage: '國小中高' }); st.hist.push({ turn, tags: [tag] });
+      apply(st, [tag], turn, { stage: '國小中高' }); st.hist.push({ turn, m: tlAt(turn).ageMonths, tags: [tag] });
       const d = st.hidden[k] - before;
       out.push(d / saturate(before, Math.sign(d))); // 去掉飽和的影響
     }
@@ -74,8 +74,10 @@ test('重複加速是逐標籤開啟的（accel）：替他決定越來越快；
   assert.equal(T.tags['給他選'].accel, undefined);
   assert.equal(T.tags['替他決定'].accel, true);
   // 隔得夠久就不加速
-  const st = fresh(); st.turn = 30; st.hist.push({ turn: 20, tags: ['替他決定'] });
-  assert.equal(repetitionMult(st, '替他決定', 30, T), 1);
+  const st = fresh(); st.turn = 30; st.hist.push({ turn: 20, m: tlAt(20).ageMonths, tags: ['替他決定'] });
+  assert.equal(repetitionMult(st, '替他決定', tlAt(30).ageMonths, T), 1); // 窗口以月計（windowMonths 12）：隔 30 個月就不加速
+  st.hist.push({ turn: 29, m: tlAt(29).ageMonths, tags: ['替他決定'] });
+  assert.ok(repetitionMult(st, '替他決定', tlAt(30).ageMonths, T) > 1);
 });
 
 test('方向加速（§3.3）：只放大壓力那一側（期待壓力↑、主見↓）；問他想法不放大；順口比特地小但不是零', () => {
@@ -146,27 +148,39 @@ test('情境倍率：孩子很想要時，替他決定的影響放大；敏感�
 test('自然漂移：了解度不維持就慢慢掉到 40、溫暖陪伴掉到 45（安靜的回合也一樣）', () => {
   const st = fresh();
   st.hidden.了解度 = 80; st.hidden.溫暖陪伴 = 90;
-  for (let i = 0; i < 10; i++) driftHidden(st, T);
-  assert.ok(Math.abs(st.hidden.了解度 - (40 + 40 * Math.pow(1 - 0.03, 10))) < 1e-9);
-  assert.ok(Math.abs(st.hidden.溫暖陪伴 - (45 + 45 * Math.pow(1 - 0.02, 10))) < 1e-9);
-  assert.equal(T.drift.to.了解度.to, 40); assert.equal(T.drift.to.了解度.rate, 0.03);
-  assert.equal(T.drift.to.溫暖陪伴.to, 45); assert.equal(T.drift.to.溫暖陪伴.rate, 0.02);
+  for (let i = 0; i < 10; i++) driftHidden(st, T, { span: 2 }); // 2 個月的回合＝舊的國小回合：每回合 0.03／0.02（資料存的是每月值，1−(1−r)^2）
+  assert.ok(Math.abs(st.hidden.了解度 - (40 + 40 * Math.pow(1 - 0.03, 10))) < 1e-3); // 資料存的每月值只有 6 位小數
+  assert.ok(Math.abs(st.hidden.溫暖陪伴 - (45 + 45 * Math.pow(1 - 0.02, 10))) < 1e-3);
+  assert.equal(T.drift.to.了解度.to, 40); assert.ok(Math.abs(1 - Math.pow(1 - T.drift.to.了解度.rateMonth, 2) - 0.03) < 1e-5);
+  assert.equal(T.drift.to.溫暖陪伴.to, 45); assert.ok(Math.abs(1 - Math.pow(1 - T.drift.to.溫暖陪伴.rateMonth, 2) - 0.02) < 1e-5);
+  // 以月計：走 6 個 1 個月的回合，和走 1 個 6 個月的回合，回復的量一樣（1−(1−r)^月數）
+  const a = fresh(), b = fresh(); a.hidden.了解度 = b.hidden.了解度 = 80;
+  for (let i = 0; i < 6; i++) driftHidden(a, T, { span: 1 });
+  driftHidden(b, T, { span: 6 });
+  assert.ok(Math.abs(a.hidden.了解度 - b.hidden.了解度) < 1e-9);
 });
 
-test('規則式漂移：耐心連續兩回合低於 30 → 父母情緒穩定度每回合 −0.5；只低一回合不扣', () => {
+test('規則式漂移：耐心連續低於 30 滿 4 個月 → 父母情緒穩定度每月 −0.25（2 個月的回合＝連續兩回合、每回合 −0.5）；只低一個回合不扣', () => {
   const st = fresh();
   // 把其他的自然漂移排除，只看規則
   const T2 = structuredClone(T); T2.drift.to = {};
-  st.parent.耐心 = 20; st.vcurves.push({ 耐心: 50 });
+  st.parent.耐心 = 20; st.vcurves.push({ 耐心: 50, m: 0 });
   const h0 = st.hidden.父母情緒穩定度;
-  driftHidden(st, T2);
-  assert.equal(st.hidden.父母情緒穩定度, h0); // 上一回合不低 → 不扣
-  st.vcurves.push({ 耐心: 20 });
-  driftHidden(st, T2);
+  driftHidden(st, T2, { span: 2, months: 2 });
+  assert.equal(st.hidden.父母情緒穩定度, h0); // 上一回合不低（只低了 2 個月）→ 不扣
+  st.vcurves.push({ 耐心: 20, m: 2 });
+  driftHidden(st, T2, { span: 2, months: 4 });
   assert.ok(Math.abs(st.hidden.父母情緒穩定度 - (h0 - 0.5)) < 1e-12);
   st.parent.耐心 = 31;
-  driftHidden(st, T2);
+  driftHidden(st, T2, { span: 2, months: 6 });
   assert.ok(Math.abs(st.hidden.父母情緒穩定度 - (h0 - 0.5)) < 1e-12);
+  // 以月計：6 個月的回合只要低一個回合就滿 4 個月，扣 0.25×6；1 個月的回合要連續 4 個回合才扣，每回合 −0.25
+  const s6 = fresh(); s6.parent.耐心 = 20; s6.vcurves.push({ 耐心: 50, m: 0 });
+  driftHidden(s6, T2, { span: 6, months: 6 });
+  assert.ok(Math.abs(s6.hidden.父母情緒穩定度 - (h0 - 1.5)) < 1e-12);
+  const s1 = fresh(); s1.parent.耐心 = 20; const drops = [];
+  for (let k = 0; k < 6; k++) { const before = s1.hidden.父母情緒穩定度; driftHidden(s1, T2, { span: 1, months: k + 1 }); drops.push(+(before - s1.hidden.父母情緒穩定度).toFixed(6)); s1.vcurves.push({ 耐心: 20, m: k + 1 }); }
+  assert.deepEqual(drops, [0, 0, 0, 0.25, 0.25, 0.25]);
 });
 
 test('只有 tags.js 的寫入口能改隱藏數值（hiddenWriteAllowed 只在寫入口內為真）', () => {

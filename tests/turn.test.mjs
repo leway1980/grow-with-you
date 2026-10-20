@@ -70,9 +70,10 @@ test('3C 的常態＝階段基準 + 規範監督的影響（M1 的 ?? 與 + 優�
   };
   const hi = run(90), lo = run(10);
   assert.ok(hi < lo - 1, `${hi} vs ${lo}`);
-  // 數值正確：target = 42（國小中高）+ (50 − 規範) × 0.25，往 target 走 0.2
+  // 數值正確：target = 42（國小中高）+ (50 − 規範) × 0.25，往 target 走一個回合的回復率（舊的每回合 0.2＝2 個月，以月計換成這個回合的月數）
   const t = 42 + (50 - 90) * 0.25;
-  assert.ok(Math.abs(hi - (t - 42) * 0.2) < 1e-9, String(hi));
+  const rate = 1 - Math.pow(1 - 0.2, data.timeline[40].span / 2);
+  assert.ok(Math.abs(hi - (t - 42) * rate) < 1e-9, String(hi));
 });
 
 /* ───── 錢、花費累積 ───── */
@@ -110,12 +111,15 @@ test('花費會累積：同樣的總花費，連續幾回合付出比一次付�
   assert.ok(B.parent.體力 < full - M.kBody * 2.5 - 5, String(B.parent.體力));
 });
 
-test('花費的回復速度大約 0.1：閒置一回合，離目標的差距縮小約一成', () => {
+test('花費的回復速度大約 0.1（2 個月的回合）：閒置一回合，離目標的差距縮小約一成；3 個月的回合縮小得更多（以月計）', () => {
   const st = fresh(3); st.turn = E;
   const full = 74 + data.identities.patterns[st.family.pattern].體力;
   st.parent.體力 = full - 30; st.cur = null;
   finishTurn(st, data);
-  assert.ok(Math.abs(st.parent.體力 - (full - 30 + 0.1 * 30)) < 1e-9, String(st.parent.體力));
+  const r = 1 - Math.pow(1 - data.identities.parentModel.recoverMonth, data.timeline[E].span);
+  assert.equal(data.timeline[E].span, 2);
+  assert.ok(Math.abs(r - 0.1) < 1e-5);
+  assert.ok(Math.abs(st.parent.體力 - (full - 30 + r * 30)) < 1e-9, String(st.parent.體力));
 });
 
 /* ───── 劑量表顯示意圖 ───── */
@@ -130,10 +134,20 @@ test('劑量表顯示「想要造成的變化」：錢已經是 0，選了錢 �
   assert.deepEqual(dose.parent.map((r) => [r.key, r.dir, r.level]), [['錢', -1, 2]]);
 });
 
+test('一年級的運動會與戶外教學在同一回合：運動會是第一張卡，戶外教學是第二張卡（國小低的固定事件回合 5/10）', () => {
+  const t = data.timeline.find((x) => x.grade === 1 && x.fixed.includes('fx_sports_day'));
+  assert.deepEqual(t.fixed, ['fx_sports_day', 'fx_field_trip']);
+  const st = fresh(6, 'elementary'); st.turn = t.turn;
+  const res = startTurn(st, data);
+  assert.equal(res.raw.id, 'fx_sports_day'); assert.equal(res.twoSlot, true);
+  assert.equal(chooseCard(st, data, res.card.choices.find((c) => !c.disabled).i).more, true);
+  assert.equal(nextCard(st, data).raw.id, 'fx_field_trip');
+});
+
 /* ───── 固定事件的回合有第二張卡 ───── */
 test('有固定事件的回合有第二張卡（日常或後續卡）；劑量表等第二張選完才合計', () => {
-  const SPORTS = gradeTurn(1, 'fx_sports_day');
-  const st = fresh(6, 'elementary'); st.turn = SPORTS; // 一年級的運動會（fx_sports_day，只有一個固定事件）
+  const SPORTS = gradeTurn(2, 'fx_sports_day');
+  const st = fresh(6, 'elementary'); st.turn = SPORTS; // 二年級的運動會（fx_sports_day，只有一個固定事件；一年級的運動會和戶外教學同一回合）
   const res = startTurn(st, data);
   assert.equal(res.raw.id, 'fx_sports_day'); assert.equal(res.twoSlot, true);
   const out1 = chooseCard(st, data, res.card.choices.find((c) => !c.disabled).i);
@@ -253,7 +267,7 @@ test('選項自己的 topic 同時用在顯示、變灰與套用：顯示可選 
 /* ───── 孩子不再開口 ───── */
 test('孩子不再開口：說了沒人聽的次數越多，孩子重提的後續池與「孩子主動提」的卡權重越低', () => {
   const st = fresh(5); st.turn = 25;
-  st.openPools['孩子重提'] = { x: 4, until: 40 };
+  st.openPools['孩子重提'] = { x: 4, until: 200 }; // until＝最後一個還開著的月齡
   const tl = data.timeline[25];
   const w = (n) => { st.vars.孩子不再開口 = n; return poolWeight(st, data, '孩子重提', buildCtx(st, tl)); };
   assert.ok(w(0) > w(1) && w(1) > w(3), `${w(0)} ${w(1)} ${w(3)}`);
@@ -267,7 +281,7 @@ test('§3.3 的連鎖卡（lo_club → 他又提了一次 → 他不要去了）
   for (const id of ['lo_club', 'fu_ask_again', 'fu_ask_third']) {
     const c = data.cardIndex[id];
     assert.ok(!c.once, `${id} 還是 once`);
-    assert.ok(c.cooldown > 0, `${id} 沒有冷卻`);
+    assert.ok(c.cooldownMonths > 0, `${id} 沒有冷卻`);
     assert.ok(c.stages.includes('國小低') && c.stages.includes('國小中高'), id);
   }
 });
@@ -292,7 +306,7 @@ test('後續卡記下排進去的回合；出現時記下延遲；到期的後�
   const res = startTurn(st, data);
   assert.equal(res.raw.id, 'fu_ask_again');
   chooseCard(st, data, res.card.choices.find((c) => !c.disabled).i);
-  assert.equal(st.hist.at(-1).fu, 2);
+  assert.equal(st.hist.at(-1).fu, data.timeline[quietLowTurn].ageMonths - data.timeline[quietLowTurn - 2].ageMonths); // 延遲以月計
 });
 
 test('一整局玩下來，每回合都玩完（含固定事件的第二張）而且不丟錯', () => {
@@ -414,8 +428,8 @@ test('日曆 v2：92 回合舊日曆（v2 形式）和舊實作逐回合逐欄�
   assert.equal(LEGACY_V2.totalTurns, 92); assert.equal(LEGACY_V2.playableTurns, 56);
   assert.equal(newTl.length, oldTl.length);
   for (let i = 0; i < oldTl.length; i++) {
-    const { newAge, ...rest } = newTl[i];
-    assert.equal(typeof newAge, 'boolean');
+    const { newAge, span, ...rest } = newTl[i];
+    assert.equal(typeof newAge, 'boolean'); assert.equal(typeof span, 'number'); // 只多 newAge 與 span（A2.5）
     assert.deepEqual(rest, oldTl[i], `回合 ${i}`);
   }
   assert.deepEqual(newTl.filter((t) => t.fixed.length).map((t) => [t.turn, t.fixed]), oldTl.filter((t) => t.fixed.length).map((t) => [t.turn, t.fixed]));
@@ -494,7 +508,9 @@ test('日曆 72：每個固定事件的月齡和舊 92 回合日曆相差在 ±3
     assert.ok(olds.length, `${ev} 在舊日曆裡有`);
     for (const t of newTl.filter((x) => x.fixed.includes(ev))) {
       const o = olds.filter((x) => x.grade === t.grade);
-      assert.ok(o.length === 1 && Math.abs(o[0].ageMonths - t.ageMonths) <= 3, `${ev} 年級 ${t.grade}：新 ${t.ageMonths} 個月，舊 ${o.map((x) => x.ageMonths)}`);
+      // 例外：一年級的戶外教學為了讓國小低的固定事件回合 ≤ 60%（A2.5），併進『期中之後』和運動會同一回合（78 → 74 個月，提前 4 個月）
+      const tol = ev === 'fx_field_trip' && t.grade === 1 ? 4 : 3;
+      assert.ok(o.length === 1 && Math.abs(o[0].ageMonths - t.ageMonths) <= tol, `${ev} 年級 ${t.grade}：新 ${t.ageMonths} 個月，舊 ${o.map((x) => x.ageMonths)}`);
     }
   }
   for (const f of data.calendar.schoolFixed) for (const g of f.grade) assert.ok(newTl.some((t) => t.grade === g && t.fixed.includes(f.event)), `${f.event} 年級 ${g} 排不進時間軸`);

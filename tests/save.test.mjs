@@ -70,13 +70,13 @@ const m1 = () => JSON.parse(readFileSync(fileURLToPath(new URL('./fixtures/m1-sa
 const v1Months = (t) => (t < 8 ? t * 3 : t < 20 ? 24 + (t - 8) * 4 : 72 + (t - 20) * 2);
 const firstTurnAtOrAfter = (m) => data.timeline.findIndex((t) => t.ageMonths >= m);
 
-test('v1 存檔升級成 v2：版本號、補上新欄位的預設值、每次選擇的隱藏變化被丟掉、當前卡清掉讓這一回合重玩', () => {
+test('v1 存檔升級成目前的版本：版本號、補上新欄位的預設值、每次選擇的隱藏變化被丟掉、當前卡清掉讓這一回合重玩', () => {
   const raw = m1();
-  assert.equal(raw.v, 1); assert.equal(SAVE_VERSION, 2);
+  assert.equal(raw.v, 1); assert.equal(SAVE_VERSION, 3);
   assert.ok(raw.hist.some((h) => h.h), 'fixture 應該帶有 M1 的 hist[].h');
   assert.equal(raw.costEMA, undefined); assert.equal(raw.startHidden, undefined);
   const st = migrate(deserialize(JSON.stringify(raw)), data);
-  assert.equal(st.v, 2);
+  assert.equal(st.v, 3);
   for (const k of Object.keys(data.tags.hidden)) { assert.equal(typeof st.hidden[k], 'number'); assert.equal(typeof st.startHidden[k], 'number'); }
   assert.deepEqual(st.costEMA, { 體力: 0, 耐心: 0 });
   assert.equal(st.vars.孩子主動開口, 0); assert.equal(st.vars.孩子不再開口, 0);
@@ -98,9 +98,10 @@ test('v1 → v2：還沒發生的序號向上對應（第一個月齡 ≥ 舊月
   assert.deepEqual(st.hist.map((h) => h.turn), before.hist.map((h) => down(h.turn)));
   assert.deepEqual([...new Set(st.curves.map((c) => c.t))], [...new Set(before.curves.map((c) => down(c.t)))]);
   assert.deepEqual([...new Set(st.vcurves.map((c) => c.t))], [...new Set(before.vcurves.map((c) => down(c.t)))]);
-  assert.deepEqual(Object.fromEntries(Object.entries(st.cooldowns)), Object.fromEntries(Object.entries(before.cooldowns).map(([k, v]) => [k, up(v)])));
+  const mo = (t) => data.timeline[t].ageMonths; // v3：冷卻是『最早可以再出現的月齡』，開啟的池是『最後一個還開著的月齡』
+  assert.deepEqual(Object.fromEntries(Object.entries(st.cooldowns)), Object.fromEntries(Object.entries(before.cooldowns).map(([k, v]) => [k, mo(up(v))])));
   assert.deepEqual(st.delayed, [{ card: 'fu_ask_again', due: up(30), from: up(28) }]);
-  assert.equal(st.openPools.孩子重提.until, up(35)); assert.equal(st.openPools.孩子重提.x, 4);
+  assert.equal(st.openPools.孩子重提.until, mo(up(35) - 1)); assert.equal(st.openPools.孩子重提.x, 4);
   assert.deepEqual(st.parentGrowth.map((g) => g.turn), [down(22), down(9)]);
   // 已玩過的紀錄一定在目前回合之前（不會出現『已經玩過、卻在現在或未來』的紀錄）；hist 不倒退；曲線的 t 不重複、遞增
   assert.ok(st.hist.every((h) => h.turn < st.turn), 'hist 都在 st.turn 之前');
@@ -119,10 +120,11 @@ test('v1 → v2：特殊需求的發作與確診回合也重新對應（月齡�
   const st = migrate(raw, data);
   const [a, b] = st.family.child.needs;
   for (const [n, onset, dx] of [[a, 14, 21], [b, 9, null]]) {
-    assert.ok(Math.abs(data.timeline[n.onset].ageMonths - v1Months(onset)) <= 3, `onset ${onset}`);
-    if (dx == null) assert.equal(n.dxTurn, null); else assert.ok(Math.abs(data.timeline[n.dxTurn].ageMonths - v1Months(dx)) <= 3, `dx ${dx}`);
+    assert.ok(Math.abs(n.onsetMonths - v1Months(onset)) <= 3, `onset ${onset}：${n.onsetMonths} vs ${v1Months(onset)}`);
+    assert.ok(!('onset' in n) && !('dxTurn' in n));
+    if (dx == null) assert.equal(n.dxMonths, null); else assert.ok(Math.abs(n.dxMonths - v1Months(dx)) <= 3, `dx ${dx}`);
   }
-  assert.ok(a.dxTurn > a.onset);
+  assert.ok(a.dxMonths > a.onsetMonths);
 });
 
 test('v1 → v2 壓力測試：任何舊回合（0–56）存檔、含存在半個回合的紀錄，升級後已玩過的紀錄都在 st.turn 之前、hist 單調、曲線不重複，而且玩得到結局', () => {
@@ -165,7 +167,7 @@ test('v1 → v2：舊的最後一個可玩回合（國小六年級暑假）夾�
 test('v1 存檔經 writeSave／readSave 路徑讀得進來（存檔鍵不變）', () => {
   store.set(JSON.stringify(m1()));
   const st = readSave(data);
-  assert.ok(st && st.v === 2); assert.equal(st.turn, firstTurnAtOrAfter(v1Months(24)));
+  assert.ok(st && st.v === 3); assert.equal(st.turn, firstTurnAtOrAfter(v1Months(24)));
   store.del();
 });
 
@@ -202,8 +204,49 @@ test('v1 存檔升級後可以接著玩到結局（隱藏數值只被 tags.js �
   }
 });
 
+/* ───── v2 → v3：所有『回合』單位的欄位改成月（A2.5） ───── */
+test('v2 → v3：hist／曲線補月齡 m；發作與確診改成月齡；冷卻與開啟的池改成月齡；後續卡 delayed 仍是回合序號；升級後玩得到結局', () => {
+  const st0 = newState(21, data, { role: '媽媽', startMode: 'birth' });
+  st0.family.child.needs = [{ kind: 'ADHD', diagnosed: false, onsetMonths: 60, dxMonths: 78 }];
+  playTurns(st0, 34);
+  st0.cooldowns.lo_club = st0.hist.at(-1).m + 20; st0.openPools['孩子重提'] = { x: 3, until: st0.hist.at(-1).m + 8 };
+  const turnOf = (m) => data.timeline.findIndex((t) => t.ageMonths >= m);
+  // 做出一份 v2 的樣子：沒有 m、需求用回合序號、冷卻是『最早可再出現的回合』、池是『第一個關掉的回合』
+  const v2 = structuredClone(st0); v2.v = 2;
+  for (const e of v2.hist) { delete e.m; delete e.fu; }
+  for (const c of [...v2.curves, ...v2.vcurves]) delete c.m;
+  v2.family.child.needs = st0.family.child.needs.map((n) => ({ kind: n.kind, diagnosed: false, onset: turnOf(n.onsetMonths), dxTurn: turnOf(n.dxMonths) }));
+  v2.cooldowns = Object.fromEntries(Object.entries(st0.cooldowns).map(([k, m]) => [k, turnOf(m)]));
+  v2.openPools = { 孩子重提: { x: 3, until: turnOf(st0.openPools.孩子重提.until) + 1 } };
+  const st = migrate(deserialize(JSON.stringify(v2)), data);
+  assert.equal(st.v, 3);
+  assert.ok(st.hist.every((e) => e.m === data.timeline[e.turn].ageMonths));
+  assert.ok([...st.curves, ...st.vcurves].every((c) => c.m === data.timeline[c.t].ageMonths));
+  const [n] = st.family.child.needs;
+  assert.deepEqual([n.onsetMonths, n.dxMonths, 'onset' in n, 'dxTurn' in n], [data.timeline[turnOf(60)].ageMonths, data.timeline[turnOf(78)].ageMonths, false, false]);
+  assert.ok(Math.abs(n.onsetMonths - 60) <= 3 && Math.abs(n.dxMonths - 78) <= 3);
+  assert.equal(st.cooldowns.lo_club, data.timeline[turnOf(st0.cooldowns.lo_club)].ageMonths);
+  assert.equal(st.openPools.孩子重提.until, data.timeline[turnOf(st0.openPools.孩子重提.until)].ageMonths); // 『最後一個還開著的回合』的月齡
+  assert.equal(st.openPools.孩子重提.x, 3);
+  assert.deepEqual(st.delayed, v2.delayed);
+  const again = migrate(JSON.parse(serialize(st)), data);
+  assert.equal(serialize(again), serialize(st), 'v3 再升級不變');
+  guardHidden(st); playToEnd(st, data, botPolicy('warmFirm', 1));
+  assert.ok(st.ended);
+});
+
+test('v2 存檔經 writeSave／readSave 路徑讀得進來', () => {
+  const st = newState(7, data, { role: '爸爸', startMode: 'elementary' });
+  const v2 = JSON.parse(serialize(st)); v2.v = 2;
+  for (const n of v2.family.child.needs) { n.onset = 30; n.dxTurn = null; delete n.onsetMonths; delete n.dxMonths; }
+  store.set(JSON.stringify(v2));
+  const back = readSave(data);
+  assert.ok(back && back.v === 3);
+  store.del();
+});
+
 test('版本不符的存檔（真的不相容）仍然拒絕', () => {
-  assert.throws(() => migrate({ v: 3 }, data), /版本不符/);
+  assert.throws(() => migrate({ v: 4 }, data), /版本不符/);
   assert.throws(() => migrate({ v: 0 }, data), /版本不符/);
   assert.throws(() => deserialize(JSON.stringify({ v: 0 })), /版本不符/);
 });

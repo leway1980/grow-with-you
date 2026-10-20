@@ -57,8 +57,8 @@ test('回來的路：一次補償（禮物、出遊）不算也不離開；中�
   assert.equal(st.vars.不太來找你, 0); assert.equal(st.vars.孩子來找_連續錯過, 0); assert.equal(st.vars.不太來找你_離開_主動, 1);
 });
 
-test('年紀越大，回來得越慢：國中要的份數比國小多', () => {
-  assert.ok(A.exitStreak.國中 > A.exitStreak.國小中高 && A.exitStreak.高中 > A.exitStreak.國中);
+test('年紀越大，回來得越慢（到國中為止）：國中要的份數比國小多', () => {
+  assert.ok(A.exitStreak.國中 > A.exitStreak.國小中高 && A.exitStreak.國小中高 > A.exitStreak.國小低); // 高中 3（每年只有 2 回合，6 回合等於三年；計畫 §8 第 6 項）不再比國中大
   const st = fresh();
   for (let i = 0; i < A.enterAt; i++) applyTags(st, ['敷衍帶過'], T, { turn: 40, stage: '國中', ctx: {}, approach: true });
   const n = need('國中');
