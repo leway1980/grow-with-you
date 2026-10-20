@@ -23,7 +23,7 @@ export function h(tag, attrs, ...kids) {
 }
 
 /* ───────────── 標題與開場 ───────────── */
-export function renderTitle(root, { hasSave, onNew, onContinue }) {
+export function renderTitle(root, { hasSave, onNew, onContinue, preview = false, previewHref = '' }) {
   root.replaceChildren(h('main', { class: 'wrap hero' },
     h('h1', null, '陪你長大'),
     h('p', { class: 'sub' }, '台灣親職人生模擬'),
@@ -32,6 +32,9 @@ export function renderTitle(root, { hasSave, onNew, onContinue }) {
       h('button', { class: 'btn primary block', 'data-act': 'new', onClick: onNew }, '開始新的一局'),
       hasSave && h('button', { class: 'btn block', 'data-act': 'continue', onClick: onContinue }, '繼續上次的'),
     ),
+    previewHref && h('p', { class: 'preview-link small' },
+      preview ? [h('span', { class: 'tag' }, '試玩模式'), ' 會玩到 18 歲離家。', h('a', { href: previewHref, 'data-act': 'preview-off' }, '回到一般版')]
+        : h('a', { href: previewHref, 'data-act': 'preview-on' }, '試玩到 18 歲（開發中）')),
     h('p', { class: 'foot small muted' }, '遊戲裡的家庭和孩子都是抽出來的，只是教學用的抽象，不能用來判斷真實的孩子。'),
   ));
 }
@@ -135,7 +138,8 @@ export function showResult(refs, { title, label, result, dose }, onNext, nextLab
     h('div', { class: 'eyebrow' }, title),
     h('p', { class: 'picked-label' }, `你選了：${label}`),
     result && h('p', { class: 'body' }, result),
-    dose && h('div', { class: 'dosebox', 'aria-label': '這次的變化' },
+    dose && h('div', { class: 'dosebox', 'aria-label': dose.period ? `${dose.period}的變化` : '這次的變化' },
+      dose.period && any && h('div', { class: 'dperiod small muted' }, `${dose.period}的變化`),
       any ? [
         dose.child.length > 0 && h('div', { class: 'dgroup' }, h('div', { class: 'dh' }, '孩子'), dose.child.map(doseRow)),
         dose.parent.length > 0 && h('div', { class: 'dgroup' }, h('div', { class: 'dh' }, '你'), dose.parent.map(doseRow)),

@@ -2,7 +2,7 @@
 // 沿用《高中，只有一次》(leway1980/Game 47wan @ ce1d972) main.js 的結構（安全儲存、?seed=、暫停／加速、讓他自己過、資料一次載入），
 // 改為一回合一張卡：選擇 → 劑量表 → 時間流動 → 下一回合；沒有線上統計。
 import { mergeData, manifestFiles } from './engine/dataload.js';
-import { prepareData, startTurn, chooseCard, nextCard, finishTurn } from './engine/turn.js';
+import { prepareData, playableEnd, startTurn, chooseCard, nextCard, finishTurn } from './engine/turn.js';
 import { newState, writeSave, readSave, store } from './engine/state.js';
 import { openingText, childcareText } from './engine/family.js';
 import { buildEnding } from './engine/ending.js';
@@ -15,6 +15,7 @@ const root = document.getElementById('app');
 const params = new URLSearchParams(location.search);
 const TURN_MS = Math.max(100, parseInt(params.get('ms') || '3500', 10) || 3500); // 1× 時回合之間的時間流動約 3.5 秒
 const seedParam = () => { const v = parseInt(params.get('seed') || '', 10); return Number.isFinite(v) ? v >>> 0 : null; };
+const PREVIEW = params.get('preview') === '1'; // 預覽版（開發中）：玩到 18 歲離家，用 previewTurns 當終點
 const newSeed = () => (Math.floor(Math.random() * 4294967296) >>> 0) || 1;
 
 let data, st = null, refs = null, speed = 1, auto = false, phase = 'idle', curView = null;
@@ -28,6 +29,7 @@ async function loadData() {
   const m = mergeData(manifest, Object.fromEntries(names.map((f, i) => [f, rest[i]])));
   if (m.problems.length) throw new Error('資料檔有問題：' + m.problems.join('；'));
   data = prepareData({ identities, tags, model, ending, events: m.events, pools, slots: m.slots, calendar });
+  if (PREVIEW) data.preview = true;
 }
 
 /* ───── 排程：暫停（速度 0）時不走；改速度時重新排 ───── */
@@ -52,12 +54,21 @@ function toggleAuto() {
 function showTitle() {
   clearTimers(); phase = 'idle'; st = null;
   const sv = readSave(data);
-  ui.renderTitle(root, { hasSave: !!sv, onNew: () => showIntro(seedParam() ?? newSeed()), onContinue: resume });
+  ui.renderTitle(root, { hasSave: !!sv, preview: PREVIEW, previewHref: previewHref(), onNew: () => showIntro(seedParam() ?? newSeed()), onContinue: resume });
 }
+
+// 標題頁的預覽開關：開著就連回一般版，關著就帶 ?preview=1（保留 ?seed= 等其他參數）
+function previewHref() {
+  const p = new URLSearchParams(location.search);
+  if (PREVIEW) p.delete('preview'); else p.set('preview', '1');
+  const q = p.toString();
+  return (location.pathname || '') + (q ? '?' + q : '');
+}
+const newOpts = (o) => ({ ...o, preview: PREVIEW });
 
 let introRole = '爸爸', introMode = 'birth';
 function showIntro(seed) {
-  const draftFam = newState(seed, data, { role: introRole, startMode: introMode }).family;
+  const draftFam = newState(seed, data, newOpts({ role: introRole, startMode: introMode })).family;
   const paras = openingText(draftFam, introRole);
   if (introMode === 'elementary') paras.push(childcareText(draftFam));
   const f = draftFam;
@@ -66,7 +77,7 @@ function showIntro(seed) {
     tags: [f.county + f.district, f.urban, f.econ, f.pattern, f.structure === '雙親' ? '雙親家庭' : f.structure],
     onRole: (v) => { introRole = v; showIntro(seed); },
     onMode: (v) => { introMode = v; showIntro(seed); },
-    onStart: () => startGame(newState(seed, data, { role: introRole, startMode: introMode })),
+    onStart: () => startGame(newState(seed, data, newOpts({ role: introRole, startMode: introMode }))),
     onReroll: () => showIntro(newSeed()),
   });
 }
@@ -92,7 +103,8 @@ function buildGame() {
   ui.setAutoButton(refs, auto);
 }
 const tlNow = () => data.timeline[Math.min(st.turn, data.timeline.length - 1)];
-const progress = () => st.turn / data.calendar.playableTurns;
+const endTurnIdx = () => playableEnd(data, { preview: !!(data.preview || st.preview) });
+const progress = () => st.turn / endTurnIdx();
 
 function beginTurn() {
   clearTimers();
@@ -184,12 +196,12 @@ function showEnding() {
   const e = buildEnding(st, data);
   store.del();
   const seed = st.seed, role = st.role, mode = st.startMode;
-  const last = data.timeline[Math.max(0, Math.min(st.turn, data.calendar.playableTurns) - 1)]; // 離家那天；目前只開放到國小，就是最後一個可玩的回合
+  const last = data.timeline[Math.max(0, Math.min(st.turn, endTurnIdx()) - 1)]; // 最後一個玩過的回合：一般版是國小六年級，預覽版是離家那天
   const portrait = sceneSVG(sceneSpec(st, data, last, { portrait: true }));
   const album = albumSpecs(st, data).map((a) => ({ label: a.label, svg: sceneSVG(a) }));
   ui.renderEnding(root, e, {
     seed, portrait, album,
-    onSame: () => { introRole = role; introMode = mode; startGame(newState(seed, data, { role, startMode: mode })); },
+    onSame: () => { introRole = role; introMode = mode; startGame(newState(seed, data, newOpts({ role, startMode: mode }))); },
     onNew: () => showIntro(newSeed()),
   });
   window.scrollTo(0, 0);

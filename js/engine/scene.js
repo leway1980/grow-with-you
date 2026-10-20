@@ -150,7 +150,7 @@ export function sceneSpec(st, data, tl, opts = {}) {
 
 /** 結局的成長相簿：孩子到過的每個階段各一張（只畫孩子） */
 export function albumSpecs(st, data) {
-  const last = Math.min(st.turn, data.calendar.playableTurns) - 1;
+  const last = Math.min(st.turn, (data.preview || st.preview) ? (data.calendar.previewTurns ?? data.calendar.playableTurns) : data.calendar.playableTurns) - 1; // 預覽版玩到離家，相簿也要有國中、高中、離家
   const seen = new Map();
   for (let i = 0; i <= Math.max(0, last); i++) {
     const tl = data.timeline[i];
@@ -209,7 +209,9 @@ export function sceneAlt(spec) {
 }
 
 /* ───────────── 像素畫布 ───────────── */
-const mkGrid = () => Array.from({ length: SCENE_H }, () => Array(SCENE_W).fill(null));
+const mkGrid = (w = SCENE_W, h = SCENE_H) => Array.from({ length: h }, () => Array(w).fill(null));
+/** 人物、寵物與道具放大 FS 倍（畫在 1/FS 解析度的格子上，再用 scale 放大）：360px 寬的手機上，臉才看得清楚 */
+const FS = 2, FGW = SCENE_W / FS, FGH = SCENE_H / FS, FGFLOOR = FLOOR / FS;
 let GW = SCENE_W, GH = SCENE_H; // 目前畫布大小（相簿用較小的畫布）
 const inb = (x, y) => x >= 0 && x < GW && y >= 0 && y < GH;
 function put(g, x, y, c) { if (c && inb(x, y)) g[y][x] = c; }
@@ -487,7 +489,9 @@ export function sceneSVG(spec, opts = {}) {
   if (spec.kind === 'sprite') return spriteSVG(spec, alt, opts);
   GW = SCENE_W; GH = SCENE_H;
   const { bg, win } = spec.vacation ? drawOutdoors(spec.tod) : drawHome(spec.home, spec.tod);
-  const fg = mkGrid();
+  const bgS = emit(bg), winS = emit(win); // 背景用完整解析度；人物另外畫在半解析度的格子上再放大
+  GW = FGW; GH = FGH;
+  const fg = mkGrid(FGW, FGH);
   const items = [];
   const byWho = (w) => spec.members.filter((m) => m.who === w);
   const heldBaby = spec.members.find((m) => m.who === 'child' && m.held);
@@ -497,22 +501,24 @@ export function sceneSVG(spec, opts = {}) {
   }
   if (spec.prop && spec.prop !== 'bowl') items.splice(items.findIndex((i) => i.m.who === 'child') + 1, 0, { prop: spec.prop, w: PROP_W[spec.prop] });
   if (spec.pet) { items.push({ pet: spec.pet, w: PET_W[spec.pet.type] || 10 }); if (spec.petBowl) items.push({ prop: 'bowl', w: 5 }); }
-  const gap = 2, avail = SCENE_W - 8;
+  const gap = 1, avail = FGW - 4;
   const total = items.reduce((a, i) => a + i.w, 0) + gap * (items.length - 1);
-  const f = total > avail ? avail / total : 1;
-  let cum = (SCENE_W - total * f) / 2;
+  const f = total > avail ? avail / total : 1; // 人太多就擠在一起（像拍團體照），不縮小
+  let cum = (FGW - total * f) / 2;
   for (const it of items) {
     const left = cum, cx = it.m && !(it.m.stage === '嬰兒') ? Math.round(left + 4) : Math.round(left + (it.w * f) / 2);
     cum += (it.w + gap) * f;
     if (it.m) {
-      const px = drawMember(fg, it.m, cx, FLOOR, spec);
+      const px = drawMember(fg, it.m, cx, FGFLOOR, spec);
       if (it.m.who === 'player' && heldBaby && px) drawHeld(fg, px, heldBaby);
-      if (it.m.orthok) rect(fg, cx + 5, FLOOR - 3, 3, 3, 'paperw');
-    } else if (it.pet) drawPet(fg, cx, FLOOR, it.pet);
-    else if (it.prop) drawProp(fg, cx, FLOOR, it.prop);
+      if (it.m.orthok) rect(fg, cx + 5, FGFLOOR - 3, 3, 3, 'paperw');
+    } else if (it.pet) drawPet(fg, cx, FGFLOOR, it.pet);
+    else if (it.prop) drawProp(fg, cx, FGFLOOR, it.prop);
   }
+  const fgS = emit(fg);
+  GW = SCENE_W; GH = SCENE_H;
   const dim = !spec.vacation && spec.tod === 'night' ? '<rect width="96" height="38" fill="var(--sc-night)" fill-opacity=".34"/>' : !spec.vacation && spec.tod === 'evening' ? '<rect width="96" height="38" fill="var(--sc-dusk)" fill-opacity=".16"/>' : '';
-  return `<svg xmlns="http://www.w3.org/2000/svg" class="${opts.cls || 'scene'}" viewBox="0 0 ${SCENE_W} ${SCENE_H}" role="img" aria-label="${alt}" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid meet">${emit(bg)}${dim}${emit(win)}${emit(fg)}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="${opts.cls || 'scene'}" viewBox="0 0 ${SCENE_W} ${SCENE_H}" role="img" aria-label="${alt}" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid meet">${bgS}${dim}${winS}<g transform="scale(${FS})">${fgS}</g></svg>`;
 }
 
 /** 成長相簿的一張：孩子一個人，站在素色背景前 */

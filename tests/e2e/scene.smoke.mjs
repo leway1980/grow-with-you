@@ -49,6 +49,7 @@ try {
     await page.click('[data-act="skip-end"]');
     await page.waitForSelector('#ending-portrait svg');
     assert.ok(await page.locator('#ending-portrait .album svg').count() >= 3, '成長相簿至少三張');
+    assert.match(await page.locator('.head .small').first().textContent(), /陪伴到：國小六年級/, '一般版的結局標題要寫最後玩的回合（國小六年級），不是下一個回合');
     assert.ok(await noScroll(), `${width}px 結局沒有水平捲軸`);
     if (shots && scheme === 'light') { await page.locator('#ending-portrait').scrollIntoViewIfNeeded(); await page.screenshot({ path: join(shots, '3-ending.png') }); }
     if (shots && scheme === 'dark') await page.screenshot({ path: join(shots, '4-ending-dark.png') });
