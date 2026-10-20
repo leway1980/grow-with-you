@@ -52,3 +52,15 @@ test('睡覺、其他', () => {
   assert.ok(tagsOf('kid_toilet', 3).includes('規則不一致')); // 家裡照舊包尿布、學校帶去上廁所：兩邊做法真的不一樣
   for (const [id, i] of [['kid_toilet', 3], ['inf_hold_spoil', 1], ['inf_shift', 2], ['sf_leave', 2]]) assert.ok(data.cardIndex[id].choices[i]);
 });
+
+test('審查後改標：學校與家裡做法不同＝規則不一致；讓孩子哭＝沒有下文；輪班說好誰起來＝找人分擔', () => {
+  assert.deepEqual(tagsOf('kid_toilet', 3), ['規則不一致']);
+  const hold = data.cardIndex.inf_hold_spoil;
+  assert.ok(hold.choices[1].tags.includes('沒有下文') && !hold.choices[1].tags.includes('說沒關係就結束'));
+  assert.ok(hold.choices.some((c) => c.tags.includes('先接住情緒') && /繼續抱著/.test(c.label)), '要有回應式抱著的選項');
+  const shift = data.cardIndex.inf_shift.choices[2];
+  assert.deepEqual(shift.tags, ['找人分擔']);
+  assert.ok(/叫醒/.test(shift.label) && /下一輪換你/.test(shift.label));
+  // sf_leave#2 是『陪{孩子}看電影』（Item 9 已從陪著觀察改成一起參與），不是自己去看電影，所以不用喘口氣
+  assert.ok(/陪\{孩子\}看電影/.test(data.cardIndex.sf_leave.choices[2].label));
+});
