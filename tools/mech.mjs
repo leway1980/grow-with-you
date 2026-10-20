@@ -12,6 +12,9 @@ export function maxInWindow(hist, tag, win = WINDOW) {
   return best;
 }
 
+/** 訊號卡 → 對應的特殊需求（§11 規則 16：訊號卡要多半出現在真的有該狀況的孩子身上） */
+export const SIGNAL_COND = { lo_signal_adhd: ['ADHD'], hi_signal_attention: ['ADHD'], hi_signal_reading: ['學習障礙'], lo_signal_read: ['學習障礙'], kid_unclear: ['自閉症', '發展遲緩'], kid_route: ['自閉症'], inf_late_talk: ['自閉症', '發展遲緩'] };
+const GEN = /_gen$/;
 /** 一局的機制紀錄：每個機制「有沒有發生」與「發生幾次」 */
 export function mechRecord(st, data) {
   const hist = st.hist, idx = data.cardIndex;
@@ -25,7 +28,12 @@ export function mechRecord(st, data) {
   const firstAcc = accTurns.length ? Math.min(...accTurns) : Infinity;
   const aw = st.curves.filter((c) => c.t < firstAcc).map((c) => c.交通安全認知 ?? 0);
   const relief = hist.filter((h) => (h.tags || []).some((t) => data.tags.tags[t] && data.tags.tags[t].relief)).length;
+  const needs = ((st.family && st.family.child && st.family.child.needs) || []).map((n) => n.kind);
+  const base = (id) => SIGNAL_COND[String(id).replace(GEN, '')];
+  const sig = hist.filter((h) => base(h.card)).length, sigGen = hist.filter((h) => GEN.test(h.card) && base(h.card)).length;
+  const sigOn = hist.filter((h) => base(h.card) && base(h.card).some((k) => needs.includes(k))).length;
   return {
+    signal: { by: Object.fromEntries(Object.keys(SIGNAL_COND).flatMap((k) => [k, k + '_gen']).map((k) => [k, ids(k)]).filter(([, n]) => n)), shown: sig, onCond: sigOn, gen: sigGen, hasNeed: needs.some((k) => k !== '資優') ? 1 : 0, share: sig ? sigOn / sig : null },
     avoid: { ever: (st.vars.不太來找你_曾 ?? (st.vars.不太來找你 ? 1 : 0)) > 0 ? 1 : 0, end: st.vars.不太來找你 ? 1 : 0, approachSeen, exitApproach: st.vars.不太來找你_離開_接住 || 0, exitInitiate: st.vars.不太來找你_離開_主動 || 0, exitAny: (st.vars.不太來找你_離開_接住 || 0) + (st.vars.不太來找你_離開_主動 || 0) > 0 ? 1 : 0 },
     c3: { count: st.tagCounts['3C當保母'] || 0, window: maxInWindow(hist, '3C當保母') },
     acc: { mode, scrape: ids('cm_scrape'), near: ids('cm_near'), hospital: ids('cm_hospital'), any: ids('cm_scrape') + ids('cm_near') + ids('cm_hospital'), any01: accTurns.length ? 1 : 0, awareBefore: aw.length ? aw.reduce((a, b) => a + b, 0) / aw.length : 0 },
@@ -70,8 +78,9 @@ export function evaluateMechanisms(recs, targets) {
     let pool = m.mode ? recs.filter((r) => r.mech.acc.mode === m.mode) : recs;
     if (m.where) pool = pool.filter((r) => m.where.every((c) => fired(r, c)));
     if (pool.length < (m.minN ?? 30)) { add(false, '機制', m.name, `樣本只有 ${pool.length} 局`, `至少 ${m.minN ?? 30} 局`, m.note || ''); continue; }
-    const v = m.kind === 'mean' ? avg(pool.map((r) => getPath(r, m.path))) : share(pool, (r) => fired(r, m.fired));
-    const fmt = m.kind === 'mean' ? f2 : pc;
+    const sum = (path) => pool.reduce((a, r) => a + (getPath(r, path) || 0), 0);
+    const v = m.kind === 'ratio' ? sum(m.num) / Math.max(1, sum(m.den)) : m.kind === 'mean' ? avg(pool.map((r) => getPath(r, m.path))) : share(pool, (r) => fired(r, m.fired));
+    const fmt = m.kind === 'mean' ? f2 : pc; // ratio 與 share 都用百分比
     add((m.min == null || v >= m.min) && (m.max == null || v <= m.max), '機制', m.name + (m.mode || m.where ? `（${pool.length} 局）` : ''), fmt(v), `${m.min == null ? '' : fmt(m.min)}～${m.max == null ? '' : fmt(m.max)}`, m.note || '');
   }
   for (const d of targets.mechanisms.directions || []) {

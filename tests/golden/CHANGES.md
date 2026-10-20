@@ -46,6 +46,7 @@
 - 2026-10-20 · sig:4db350a4 · axes：lo/mid/mid → lo/lo/mid；achievement：課業大致跟得上 → 課業有些吃力 · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## absent-partner-rich-permissive
+- 2026-10-20 · sig:07a77209 · wellbeingParts：hi/mid/lo → hi/mid/mid · 原因：項目 10：訊號卡改成條件卡＋一般孩子版（兩週觀察）、鑑定後續卡，抽到的卡改變
 - 2026-10-20 · sig:d1d274c0 · wellbeingParts：mid/mid/lo → hi/mid/lo · 原因：第 8 項（照顧者類型只改變代價）：選長輩／托嬰中心／私立／雙語幼兒園的選項不再帶 規則不一致或外包，並新增 10 張後續小卡與托育互動池，抽卡序列與隱藏數值都變了，類別因此在邊界上移動；check-design 全數在範圍內
 - 2026-10-20 · sig:7efc04eb · axes：lo/lo/lo → lo/mid/lo；combo：三邊都垮 → 其他 · 原因：第 7 項（approach 狀態規則）：出口只算 approach 卡與 initiate:true 的卡（固定事件、出遊的陪伴不再算）、工作插播『你先自己玩／想想看』改成敷衍帶過並新增『說好十分鐘後去找你』、孩子來問的開場成對、enterAt 4→5，抽卡序列與『不太來找你』的進入／離開時機都變了，類別因此在邊界上移動；check-design 全數在範圍內
 - 2026-10-20 · sig:01d7e075 · wellbeingParts：mid/mid/lo → mid/mid/mid · 原因：第 3 項（跨卡沿用的值、手足）：單親（離異、喪親）的家庭不再排弟弟妹妹、lo_sibling／hi_sibling 只給有哥哥姊姊的家庭、才藝已報名的孩子不再出現想學才藝、kid_newborn 改成弟弟妹妹出生前一兩個回合才出現，抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 與影響報告的整體分布未變）

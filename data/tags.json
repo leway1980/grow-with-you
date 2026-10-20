@@ -133,6 +133,8 @@
   "timeWords": ["隔天", "過幾天", "兩週後", "兩個星期後", "一個星期", "第三個星期", "昨天", "前天", "一個月後", "兩個月後", "兩個月過去", "幾天後", "兩天後", "三天後"],
   "timeWords_why": "規則 13：回合不是一天。排到下一回合以後的卡（followUp 的目標、後續池的卡），標題、內文、選項不寫這些時間詞；改用「上次」「那陣子」「後來」。",
   "hardcodedWords_why": "規則 15：稱謂與代名詞用依角色切換的槽（{你爸媽} {另一半稱呼} {另一半代名詞} {長輩稱呼} {同學叫你} {假期結束}），卡片文字與槽值不能寫死這些詞；{另一半} 也不能出現在「」的引號裡（對孩子說話要用 {另一半稱呼}）。",
+  "signalCards": {"lo_signal_adhd": "lo_signal_adhd_gen", "hi_signal_attention": "hi_signal_attention_gen", "hi_signal_reading": "hi_signal_reading_gen", "kid_unclear": "kid_unclear_gen", "kid_route": "kid_route_gen", "inf_late_talk": "inf_late_talk_gen"},
+  "signalCards_why": "規則 16：訊號卡（孩子有某種特殊需求才會出現的行為）要有『一般孩子版』（_gen），因為沒有特殊需求的孩子也會有類似的一天；一般版不提供申請評估或鑑定的選項，研究支持的選項是『兩週各自觀察再一起看』。訊號卡要有條件旗標才能出現（機制檢驗：出現在有該狀況孩子身上的比例 ≥ 60%）。",
   "restTag": "父母自己休息",
   "restPool": "父母自己",
   "restPoolExempt": ["V2", "V3", "一眼看穿"],

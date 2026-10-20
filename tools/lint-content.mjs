@@ -157,5 +157,19 @@ export function lintContent(raw, data, cards, ctxKeys, st0) {
     for (const l of raw.pools.loads || []) scan(l.text, `loads ${l.id}`);
     for (const lines of Object.values(raw.calendar.flavor || {})) for (const l of lines) scan(l, '日曆 flavor');
   }
+
+  // ── 規則 16：訊號卡要有一般孩子版；一般版不能是申請評估或鑑定、要有『兩週』的觀察選項；條件版要有條件才出現 ──
+  {
+    const byId = Object.fromEntries(cards.map((c) => [c.id, c]));
+    for (const [sig, gen] of Object.entries(R.signalCards || {})) {
+      const a = byId[sig], g = byId[gen];
+      if (!a) { errors.push(`規則 16：signalCards 的卡 ${sig} 不存在`); continue; }
+      if (!g) { errors.push(`卡片 ${sig}：規則 16：缺少一般孩子版 ${gen}`); continue; }
+      if (!/有(ADHD|學習障礙|自閉症類群|發展遲緩)/.test((a.requires && a.requires.expr) || '')) errors.push(`卡片 ${sig}：規則 16：訊號卡的 requires 要寫出條件（有ADHD、有學習障礙、有自閉症類群、有發展遲緩）`);
+      if (!/not 有(ADHD|學習障礙|自閉症類群|發展遲緩)|成績|活動量|月齡/.test((g.requires && g.requires.expr) || '')) errors.push(`卡片 ${gen}：規則 16：一般孩子版要排除有該狀況的孩子（not 有…）或限定一般孩子的情境`);
+      if (g.choices.some((ch) => (ch.tags || []).includes('申請評估或鑑定'))) errors.push(`卡片 ${gen}：規則 16：一般孩子版不提供「申請評估或鑑定」的選項（研究支持的選項是兩週各自觀察再一起看）`);
+      if (!g.choices.some((ch) => /兩週/.test(ch.label))) errors.push(`卡片 ${gen}：規則 16：一般孩子版要有一個「兩週」觀察的選項`);
+    }
+  }
   return { errors, warns };
 }
