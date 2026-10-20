@@ -144,10 +144,11 @@ test('kid_newborn：只在弟弟妹妹出生前一、兩個回合出現；單親
     for (let t = 8; t < 20; t++) {
       st.turn = t;
       const ctx = buildCtx(st, at(t));
-      const ok = data.cardIndex.kid_newborn && require_ok(card, ctx);
+      const ok = require_ok(card, ctx);
       const due = st.family.siblings.filter((s) => !s.older && s.arriveTurn > t).map((s) => s.arriveTurn - t);
-      assert.equal(ok, due.some((d) => d >= 1 && d <= 2), `seed ${seed} turn ${t}`);
-      if (ok) { eligible++; assert.ok(st.family.structure !== '離異' && st.family.structure !== '喪親'); }
+      const gen = st.family.structure === '隔代'; // 隔代：孩子跟長輩住，家裡『多一個人』不是這個故事
+      assert.equal(passes(card, st, ctx) && !gen, due.some((d) => d >= 1 && d <= 2) && !gen, `seed ${seed} turn ${t}`);
+      if (ok && !gen) { eligible++; assert.ok(st.family.structure !== '離異' && st.family.structure !== '喪親'); }
     }
   }
   assert.ok(eligible > 5);

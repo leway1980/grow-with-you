@@ -1,7 +1,7 @@
 // 遊戲狀態：整個遊戲就是一個可 JSON 序列化的物件（種子 + 目前進度）。
 // 沿用《高中，只有一次》(leway1980/Game 47wan @ ce1d972) state.js 的存檔作法（SAVE_VERSION、serialize/deserialize、種子衍生的亂數流）；
 // 內容改為親子遊戲：可見的父母／孩子數值、隱藏數值（只能經由 tags.js 改變）、興趣向量、父母傳遞的方向計數、歷史紀錄與曲線。
-import { generateFamily, familyCtx, rollWork } from './family.js';
+import { generateFamily, familyCtx, rollWork, rollBackground } from './family.js';
 import { evalCond } from './events.js';
 import { recomputeDerived } from './tags.js';
 
@@ -83,6 +83,9 @@ export function migrate(st, data) {
   // 舊存檔沒有職位、交通工具、通勤距離：用同一個種子補上（各自獨立的亂數流，不影響已經抽好的其他東西）
   const f = st.family, jd = data.identities.jobs.find((j) => j.name === f.job.name);
   if (jd && !(f.rank && f.transport && f.commute)) Object.assign(f, rollWork(st.seed, data.identities, jd, f.econ, f.urban));
+  // 舊存檔沒有族群背景：用同一個種子補上；舊的隔代存檔另一半是『同住』，改成在外地工作（隔代＝你和另一半都不在孩子身邊）
+  if (f.background == null) f.background = rollBackground(st.seed, data.identities, f.county, f.urban);
+  if (f.structure === '隔代' && f.partner && f.partner.present && f.partner.status === '同住') { f.partner.status = '在外地工作'; f.partner.attitude = '幾乎不在家'; }
   st.slotS ??= (st.seed ^ 0x7f4a7c15) >>> 0;
   st.autoS ??= (st.seed ^ 0x51ed270b) >>> 0;
   if (!st.startHidden) st.startHidden = newState(st.seed, data, { role: st.role, startMode: st.startMode }).startHidden;

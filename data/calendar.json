@@ -92,6 +92,10 @@
    "event": "fx_leave_end"
   },
   {
+   "turn": 1,
+   "event": "fx_leave_end_gen"
+  },
+  {
    "turn": 10,
    "event": "fx_kindergarten"
   },

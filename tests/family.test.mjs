@@ -80,7 +80,8 @@ test('每一步是獨立的亂數流：改某張表只改變那一步', () => {
     assert.deepEqual(a.child.interests, b.child.interests);
   });
   // 職業權重：職業（以及依賴職業的家境、住屋等）會變，但縣市、孩子、自己被帶大都不變
-  mutate((m) => { m.jobs.forEach((j, i) => { j.w = i === 12 ? 1000 : 0.0001; }); }, (a, b) => {
+  const prof = BASE.jobs.findIndex((j) => j.name === '大學教授');
+  mutate((m) => { m.jobs.forEach((j, i) => { j.w = i === prof ? 1000 : 0.0001; }); }, (a, b) => {
     assert.equal(b.job.name, '大學教授');
     for (const k of ['county', 'district', 'urban', 'upbringing', 'structure']) assert.deepEqual(a[k], b[k], k);
     assert.deepEqual(a.child.talents, b.child.talents);

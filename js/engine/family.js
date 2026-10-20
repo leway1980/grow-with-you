@@ -6,7 +6,7 @@ import { mulberry32, pickWeighted, gauss, rngAt } from './rng.js';
 export const STREAMS = {
   county: 0x1a2b3c4d, job: 0x2b3c4d5e, econ: 0x3c4d5e6f, struct: 0x4d5e6f70, partner: 0x5e6f7081, elders: 0x6f708192,
   housing: 0x708192a3, support: 0x8192a3b4, upbringing: 0x92a3b4c5, child: 0xa3b4c5d6, childNeeds: 0xb4c5d6e7, childInterest: 0xc5d6e7f8,
-  childName: 0xd6e7f809, rank: 0x3d4e5f60, transport: 0x4e5f6071, commute: 0x5f607182, childResp: 0xc3d4e5f6, siblings: 0xe7f8091a, space: 0xf8091a2b, pet: 0x091a2b3c, school: 0x1a2b3c5d, childcare: 0x2b3c4d6e,
+  childName: 0xd6e7f809, background: 0x5a6b7c8d, rank: 0x3d4e5f60, transport: 0x4e5f6071, commute: 0x5f607182, childResp: 0xc3d4e5f6, siblings: 0xe7f8091a, space: 0xf8091a2b, pet: 0x091a2b3c, school: 0x1a2b3c5d, childcare: 0x2b3c4d6e,
 };
 const rs = (seed, name) => mulberry32(((seed >>> 0) ^ STREAMS[name]) >>> 0);
 const wpick = (r, opts, ws) => pickWeighted(r, opts.map((o, i) => ({ o, w: ws[i] })), (x) => x.w)?.o ?? opts[0];
@@ -53,6 +53,17 @@ export function rollWork(seed, idn, job, econ, urban) {
   return { rank, transport, commute };
 }
 
+/**
+ * 家庭的族群與文化背景（DESIGN §2.5）：無特別／新住民家庭／原住民族／客家。設計估計，待確認（docs/DATA.md §3）。
+ * 用自己的亂數流（background），所以新增或調整這張表不會讓其他抽籤改變；舊存檔沒有時由 state.migrate 用同一個種子補上。
+ * 新住民不是職業：職業是職業，背景是另一條軸。
+ */
+export function rollBackground(seed, idn, county, urban) {
+  const B = idn.background;
+  const w = B.labels.map((l, i) => B.w[i] * (B.byUrban[l]?.[urban] ?? 1) * (B.countyMult[l]?.[county] ?? 1));
+  return wpick(rs(seed, 'background'), B.labels, w);
+}
+
 export function generateFamily(seed, idn) {
   seed >>>= 0;
   // 1–2 縣市、行政區、城鄉類型
@@ -89,7 +100,8 @@ export function generateFamily(seed, idn) {
   const exAtt = wpick(r7, pa.attitudes, pa.exWeights);
   const partner = struct.id === '喪親' ? { present: false, status: '已離世', job: null, pattern: null, attitude: null }
     : struct.id === '離異' ? { present: false, status: '前配偶（共親職）', job: pjob.name, pattern: pjob.pattern, attitude: exAtt }
-      : { present: true, status: '同住', job: pjob.name, pattern: pjob.pattern, attitude: attRoll };
+      : struct.id === '隔代' ? { present: true, status: '在外地工作', job: pjob.name, pattern: pjob.pattern, attitude: '幾乎不在家' } // 隔代：孩子平常跟長輩住，你和另一半都在外地工作（週末與視訊才見到孩子）
+        : { present: true, status: '同住', job: pjob.name, pattern: pjob.pattern, attitude: attRoll };
 
   // 8 長輩
   const r8 = rs(seed, 'elders');
@@ -198,7 +210,7 @@ export function generateFamily(seed, idn) {
   return {
     seed, county: county.name, district, urban,
     job: { name: job.name, line: job.line }, pattern, econ, econRaw, ...rollWork(seed, idn, job, econ, urban),
-    structure: struct.id, partner, elders, housing, space, support, upbringing,
+    structure: struct.id, background: rollBackground(seed, idn, county.name, urban), partner, elders, housing, space, support, upbringing,
     child, siblings, pet, school, childcare,
   };
 }
@@ -249,6 +261,7 @@ export function familyCtx(fam, role, turn) {
     有寵物: !!fam.pet, 寵物種類: fam.pet ? fam.pet.type : '',
     孩子性別: fam.child.sex, 孩子活動量: fam.child.temperament.活動量, 孩子敏感度: fam.child.temperament.敏感度, 孩子堅持度: fam.child.temperament.堅持度,
     // 特殊需求：各類各一個旗標（卡片的訊號與修正用精確的這幾個）；有特殊需求ADHD 沿用舊名
+    背景: fam.background || '無', 有同住的另一半: !!fam.partner.present && fam.partner.status === '同住',
     有ADHD: has('ADHD'), 有學習障礙: has('學習障礙'), 有自閉症類群: has('自閉症'), 有發展遲緩: has('發展遲緩'),
     有特殊需求ADHD: has('ADHD'), 有特殊需求: fam.child.needs.some((n) => n.kind !== '資優'),
     偏鄉: fam.urban === '偏鄉' || fam.urban === '離島', 都會: fam.urban === '都會核心' || fam.urban === '都會外圍',
@@ -292,7 +305,10 @@ export function openingText(fam, role) {
   paras.push(`${fam.job.line}，${patternLine(fam).replace(/^你/, '')}。${({ 寬裕: '家裡經濟寬裕', 小康: '家裡經濟小康', 吃緊: '家裡經濟有點吃緊' })[fam.econ]}。`);
   const struct = { 雙親: '', 離異: `你和${pw}已經分開，孩子平常跟你住。`, 隔代: `你在外地工作，${c.given}平常主要由${fam.elders.who || '長輩'}帶。`, 重組: `你再婚了，家裡多了一位新的家人，孩子還在適應。`, 喪親: `${pw}已經不在了，現在是你一個人帶孩子。` }[fam.structure];
   if (struct) paras.push(struct);
-  if (fam.partner.present) paras.push(`${pw}${fam.partner.job ? `的工作是${fam.partner.job}。` : '。'}${ATT_LINE[fam.partner.attitude]}`);
+  const BG = { 新住民家庭: '你們家是新住民家庭，家裡有兩個地方的語言和飲食。', 原住民族: '你們家是原住民族家庭，家裡有族語、祭典，和部落裡的人情。', 客家: '你們家是客家家庭，家裡還有人說客語、守著客家的節慶。' };
+  if (BG[fam.background]) paras.push(BG[fam.background]);
+  if (fam.structure === '隔代') paras.push(`${pw}${fam.partner.job ? `的工作是${fam.partner.job}，` : ''}也在外地工作。你們平常靠視訊，週末和假日才見得到${c.given}。`);
+  else if (fam.partner.present) paras.push(`${pw}${fam.partner.job ? `的工作是${fam.partner.job}。` : '。'}${ATT_LINE[fam.partner.attitude]}`);
   else if (fam.partner.attitude) paras.push(EX_LINE[fam.partner.attitude]);
   const elderTxt = { 同住: `${fam.elders.who}和你們同住，可以搭把手，也會有不同的意見。`, 住附近會幫忙: `${fam.elders.who}住在附近，需要的時候會來幫忙。`, 住遠: `${fam.elders.who}住得比較遠，一年見不了幾次。`, 沒有: '身邊沒有長輩可以幫忙，什麼都要靠自己和另一半。' }[fam.elders.status];
   paras.push(`${elderTxt}你們住的是${fam.housing === '住長輩家' ? '長輩的房子' : fam.housing === '租屋' ? '租來的房子' : '自己的房子'}${fam.space === '自己的房間' ? '，之後孩子可以有自己的房間' : fam.space === '和手足同房' ? '，之後孩子會和手足同一間房' : '，空間不大，之後孩子多半在客廳或餐桌寫功課'}。`);
