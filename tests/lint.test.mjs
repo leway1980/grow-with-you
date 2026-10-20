@@ -156,3 +156,20 @@ test('分檔：lint 會回報合併時的問題', () => {
   raw.mergeProblems = ['卡片 id「x」重複：a 與 b'];
   assert.match(lintData(raw).errors.join('\n'), /資料分檔：卡片 id「x」重複/);
 });
+
+test('每張卡的相關：|ρ| 超過 0.8 的卡不能超過 10%（cardRules.perCard）；超過時 lint 報錯並列出最偏的卡', () => {
+  const clone2 = () => JSON.parse(JSON.stringify(loadRaw()));
+  const { stats } = lintData();
+  assert.ok(stats.extremeCards <= Math.floor(0.1 * stats.cards));
+  const raw = clone2();
+  raw.tags.cardRules.perCard.maxShare = 0; // 收緊門檻：現有資料至少有一張卡不合格時要報錯
+  raw.tags.cardRules.perCard.maxAbs = 0.05;
+  assert.ok(lintData(raw).errors.some((e) => e.includes('每張卡的相關')));
+});
+
+test('工作插播：選項的 chance 若用 ping_big，必須是 p＝0.3 且沒有 mods（和條件環境的「來問重要」同一顆骰子）', () => {
+  const raw = JSON.parse(JSON.stringify(loadRaw()));
+  const c = raw.events.cards.find((x) => x.id === 'lo_interrupt');
+  c.choices[0].chance.p = 0.5;
+  assert.ok(lintData(raw).errors.some((e) => e.includes('ping_big')));
+});

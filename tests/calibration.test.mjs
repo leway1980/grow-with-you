@@ -1,4 +1,4 @@
-// 校準目標（DESIGN §3.4 修訂版）：N = 200、種子 1–200、從出生開始、所有策略共用同一批種子。
+// 校準目標（DESIGN §3.4 修訂版）：N = 200、從出生開始、所有策略共用同一批種子；兩組種子（1–200 與 201–400）都要通過。
 // 目標的定義在 tools/calibration.mjs（tools/simulate.mjs 也用同一份來印現況）。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,24 +6,31 @@ import { runBots, BOTS } from '../tools/simulate.mjs';
 import { evaluateCalibration } from '../tools/calibration.mjs';
 import { sensitivity, SENSITIVITY_FLOOR } from '../tools/sensitivity.mjs';
 
-const games = await runBots(200, 1);
-const results = evaluateCalibration(games);
+// 兩組種子（1–200、201–400）都要過：只在其中一組過的目標不算完成
+const SEED_SETS = [1, 201];
+const sets = [];
+for (const s0 of SEED_SETS) { const games = await runBots(200, s0); sets.push({ s0, games, results: evaluateCalibration(games) }); }
+const games = sets[0].games;
 
 test('模擬器：六種策略、每種 200 局、同一批種子', () => {
-  assert.deepEqual(Object.keys(games).sort(), Object.keys(BOTS).sort());
-  for (const g of Object.values(games)) assert.equal(g.length, 200);
-  for (const name of Object.keys(games)) assert.deepEqual(games[name].map((x) => x.seed), games.random.map((x) => x.seed)); // 成對
-  assert.ok(results.length >= 15);
+  for (const { games: g } of sets) {
+    assert.deepEqual(Object.keys(g).sort(), Object.keys(BOTS).sort());
+    for (const x of Object.values(g)) assert.equal(x.length, 200);
+    for (const name of Object.keys(g)) assert.deepEqual(g[name].map((y) => y.seed), g.random.map((y) => y.seed)); // 成對
+  }
+  assert.ok(sets[0].results.length >= 15);
 });
 
-for (const r of results) {
-  test(`校準：${r.desc}＝${r.value}（目標 ${r.target}）`, () => {
-    assert.ok(r.ok, `${r.desc}：現況 ${r.value}，目標 ${r.target}`);
-  });
+for (const { s0, results } of sets) {
+  for (const r of results) {
+    test(`校準（種子 ${s0}–${s0 + 199}）：${r.desc}＝${r.value}（目標 ${r.target}）`, () => {
+      assert.ok(r.ok, `${r.desc}：現況 ${r.value}，目標 ${r.target}`);
+    });
+  }
 }
 
 test('校準：每種策略的三條軸都有 P10／P50／P90（分布不是一個點）', () => {
-  for (const g of Object.values(games)) {
+  for (const g of sets.flatMap((x) => Object.values(x.games))) {
     const v = g.map((x) => x.ax[0]).sort((a, b) => a - b);
     assert.ok(v[Math.floor(v.length * 0.9)] > v[Math.floor(v.length * 0.1)]);
   }
