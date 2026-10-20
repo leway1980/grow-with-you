@@ -11,6 +11,7 @@ import { playTurn } from '../js/engine/turn.js';
 import { approachTracker } from './approach-log.mjs';
 import { outcomeAxes, wellbeing, routePosition, comboOf, COMBOS, estimateDeltas, chainRecords, endingContext, pickLines, lineContradictions } from '../js/engine/ending.js';
 import { setTagObserver } from '../js/engine/tags.js';
+import { buildChains, classroomSummary } from '../js/engine/chains.js';
 import { outcomeWeights, AXES, edgeForTagEffect } from '../js/engine/model.js';
 import { cardDoseK } from '../js/engine/timescale.js';
 import { mechRecord } from './mech.mjs';
@@ -94,6 +95,15 @@ export function playGame(data, bot, seed, opts = {}) {
   }
   if (hab) rec.hab = { det: hab.det, atSH: hab.atSH, end: structuredClone(st.habits), absAll: hab.absAll, autoAbs: st.autoLog.reduce((a, e) => a + e.abs, 0), nAuto: st.autoLog.filter((e) => e.tags.length).length, nChange: st.hist.filter((h) => h.card === 'jh_habit_change').length, jhChange: st.hist.filter((h) => h.card === 'jh_habit_change' && data.timeline[h.turn].stage === '國中').length, shChange: st.hist.filter((h) => h.card === 'jh_habit_change' && data.timeline[h.turn].stage === '高中').length };
   if (opts.paths) rec.paths = { snap: pathSnap, type: st.vars.學制, dest: st.vars.去向, drop: st.vars.中途離校, sex: f.child.sex, override: !!st.flags.志願被決定, pref: st.vars.志願偏好, chain: st.hist.some((h) => h.card === 'sh_drop_signal') };
+  if (opts.chains) { // 決定鏈量測（opts.chains；tools/checks/chains.mjs）：每局挑到幾條、幾條往好的方向、12 歲以後有沒有往好的方向轉、各條的內容是否齊全
+    const C = data.chains, late = C ? C.settings.lateAfterMonths : 144, r = buildChains(st, data), cl = classroomSummary(st, data);
+    rec.chains = {
+      n: r.chains.length, pos: r.chains.filter((c) => c.positive).length, cands: r.all, latePos: r.chains.some((c) => c.positive && c.m0 >= late), latePosCand: (r.cands || []).some((c) => c.positive && c.m0 >= late),
+      themes: r.chains.map((c) => c.theme), traced: r.chains.filter((c) => c.trace).length, curved: r.chains.filter((c) => c.curve).length, researched: r.chains.filter((c) => c.research).length,
+      shortChoices: r.chains.filter((c) => c.choices.length < 3 || c.choices.length > 5).length, noSituation: r.chains.filter((c) => !c.situation).length, auto: r.chains.reduce((a, c) => a + c.autoN, 0),
+      classLines: cl.lines.length, lowGrades: cl.lowGrades.length, reports: cl.reports.length,
+    };
+  }
   if (meter) rec.inf = meter.result();
   if (opts.st) rec.st = st;
   if (opts.exposure) {
@@ -138,7 +148,7 @@ export async function execute(tasks, opts) {
   }
   const url = new URL(import.meta.url);
   const parts = await Promise.all(chunk(tasks, nw).map((ts) => new Promise((res, rej) => {
-    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, preview: opts.preview, snap: opts.snap, mech: opts.mech, influence: opts.influence, role: opts.role, only: opts.only, habits: opts.habits, paths: opts.paths } });
+    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, preview: opts.preview, snap: opts.snap, mech: opts.mech, influence: opts.influence, role: opts.role, only: opts.only, habits: opts.habits, paths: opts.paths, chains: opts.chains } });
     w.once('message', res); w.once('error', rej);
   })));
   return parts.flat();
