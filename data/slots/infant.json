@@ -1,0 +1,4 @@
+{
+ "_readme": "infant 階段專用的變數槽（DESIGN §6.2）。槽名跨檔唯一；擴充 core 的槽用 extends。",
+ "slots": {}
+}

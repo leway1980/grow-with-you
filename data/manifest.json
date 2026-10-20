@@ -10,6 +10,10 @@
   "events/fixed.json"
  ],
  "slots": [
-  "slots/core.json"
+  "slots/core.json",
+  "slots/infant.json",
+  "slots/preschool.json",
+  "slots/elem_low.json",
+  "slots/elem_high.json"
  ]
 }
