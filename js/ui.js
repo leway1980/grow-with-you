@@ -119,11 +119,15 @@ export function renderMeters(refs, mv) {
     h('span', { class: 'chip' + (m.warn ? ' warn' : ''), 'aria-label': `${m.label}：${m.word}` }, `${m.label} ${m.word}`)));
 }
 
+/* 習慣的一句話（M3 B2）：灰色、放在卡片上方；第一個國中回合多一句一次性的說明。只有文字，不含任何隱藏數值 */
+const habitNodes = (x) => [x.habitExplainer, x.habitLine].filter(Boolean).map((t) => h('p', { class: 'habit muted' }, t));
+
 /* 面板：卡片 → 劑量表 → 時間流動 */
 export function showCard(refs, card, eyebrow, onChoose) {
   // 注意：按鈕上只放顯示順序（data-pos），不放選項在資料裡的原始索引——原始索引洩漏了寫卡時的排列。點下去的對應關係只留在閉包裡。
   refs.panel.replaceChildren(
     h('div', { class: 'eyebrow' }, eyebrow),
+    ...habitNodes(card),
     h('h2', { id: 'card-title' }, card.title),
     ...(card.loads || []).map((t) => h('p', { class: 'load muted' }, t)),
     h('p', { class: 'body' }, card.text),
@@ -157,8 +161,8 @@ export function showResult(refs, { title, label, result, dose, note }, onNext, n
     h('button', { class: 'btn primary block', 'data-act': 'next', onClick: onNext }, nextLabel));
   const b = refs.panel.querySelector('[data-act="next"]'); if (b) b.focus({ preventScroll: true });
 }
-export function showQuiet(refs, eyebrow, text, onNext) {
-  refs.panel.replaceChildren(h('div', { class: 'eyebrow' }, eyebrow), h('p', { class: 'body' }, text),
+export function showQuiet(refs, eyebrow, text, onNext, habit = {}) {
+  refs.panel.replaceChildren(h('div', { class: 'eyebrow' }, eyebrow), ...habitNodes(habit), h('p', { class: 'body' }, text),
     h('button', { class: 'btn primary block', 'data-act': 'next', onClick: onNext }, '繼續'));
   const b = refs.panel.querySelector('[data-act="next"]'); if (b) b.focus({ preventScroll: true });
 }

@@ -25,10 +25,10 @@ async function loadData() {
   const get = async (f) => { const r = await fetch(`data/${f}`); if (!r.ok) throw new Error(`載入 ${f} 失敗 (${r.status})`); return r.json(); };
   const manifest = await get('manifest.json');
   const names = manifestFiles(manifest);
-  const [identities, tags, pools, calendar, model, ending, ...rest] = await Promise.all(['identities.json', 'tags.json', 'pools.json', 'calendar.json', 'model.json', 'ending.json', ...names].map(get));
+  const [identities, tags, pools, calendar, model, ending, habits, ...rest] = await Promise.all(['identities.json', 'tags.json', 'pools.json', 'calendar.json', 'model.json', 'ending.json', 'habits.json', ...names].map(get));
   const m = mergeData(manifest, Object.fromEntries(names.map((f, i) => [f, rest[i]])));
   if (m.problems.length) throw new Error('資料檔有問題：' + m.problems.join('；'));
-  data = prepareData({ identities, tags, model, ending, events: m.events, pools, slots: m.slots, calendar });
+  data = prepareData({ identities, tags, model, ending, habits, events: m.events, pools, slots: m.slots, calendar });
   if (PREVIEW) data.preview = true;
 }
 
@@ -117,7 +117,7 @@ function beginTurn() {
     showCurrentCard(res.card, tl);
   } else {
     phase = 'quiet'; curView = null;
-    ui.showQuiet(refs, tl.label, res.quiet, endTurn);
+    ui.showQuiet(refs, tl.label, res.quiet, endTurn, res);
     ui.appendLog(refs, res.quiet);
     if (auto) schedule(1400, endTurn);
   }

@@ -231,6 +231,7 @@ ul, ol { padding-left: 20px; }
 .spark .line.up { stroke: var(--c-up); } .spark .line.dn { stroke: var(--c-dn); }
 .end .btns { display: grid; gap: 10px; max-width: 420px; margin: 8px auto 0; width: 100%; }
 @media (prefers-reduced-motion: reduce) { .progress i, .meter .mb i { transition: none; } }
+.habit { margin: 2px 0 6px; padding-left: 10px; border-left: 3px solid var(--line); font-size: 13.5px; line-height: 1.5; } /* 習慣的一句話（M3 B2）：國中、高中每回合『照平常那樣，…』 */
 .load { margin: 0 0 8px; padding-left: 10px; border-left: 3px solid var(--line); font-size: 14px; } /* 情境負荷：附在卡片上的當下處境（帳單……） */
 
 /* 像素家庭場景（DESIGN §8.5）：色彩全用 --sc-* 變數（上面淺色／深色各一組）；沒有閃動，淡入只在使用者沒要求減少動態時才有 */

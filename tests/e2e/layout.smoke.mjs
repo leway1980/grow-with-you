@@ -59,22 +59,29 @@ try {
     await page.goto(`http://localhost:${port}/?seed=11&ms=100&preview=1`);
     await page.click('[data-act="new"]'); await page.click('[data-act="start"]');
     await page.waitForSelector('#scene svg'); await toCard(page);
-    const rows = []; let junior = false;
+    const rows = [], habitLines = []; let junior = false, habitShot = false;
     for (let n = 0; n < 150 && rows.length < 120; n++) {
       const m = await page.evaluate(() => {
         const bs = [...document.querySelectorAll('[data-act="choice"]')]; const last = bs[bs.length - 1].getBoundingClientRect();
         return { label: document.querySelector('.date').textContent, n: bs.length, bottom: Math.round(last.bottom), vh: innerHeight, sw: document.documentElement.scrollWidth <= innerWidth,
-          sceneH: Math.round(document.querySelector('#scene').getBoundingClientRect().height), chars: document.querySelector('.panel .body').textContent.length };
+          sceneH: Math.round(document.querySelector('#scene').getBoundingClientRect().height), chars: document.querySelector('.panel .body').textContent.length,
+          habit: ([...document.querySelectorAll('.panel .habit')].pop() || {}).textContent || '', habits: document.querySelectorAll('.panel .habit').length };
       });
       rows.push(m);
       assert.ok(m.sw, `${name} 沒有水平捲軸`);
       assert.ok(m.bottom <= m.vh, `${name}「${m.label}」最後一個選項底部 ${m.bottom} 超出視窗 ${m.vh}（${m.n} 個選項、${m.chars} 字）`);
-      if (/國中/.test(m.label)) junior = true;
+      if (/國中/.test(m.label)) { junior = true; if (m.habit) habitLines.push({ ...m, shot: shots && habitLines.length === 0 }); }
       if (shots && n === 3) await page.screenshot({ path: join(shots, `game-${name}.png`) });
+      if (shots && /國中/.test(m.label) && m.habit && !habitShot) { habitShot = true; await page.screenshot({ path: join(shots, `habit-line-${name}.png`) }); }
       if (!(await advance(page))) break;
     }
     assert.ok(rows.length >= 10, `${name} 至少取樣 10 張卡（實際 ${rows.length}）`);
     assert.ok(junior, `${name} 取樣包含國中回合`);
+    // 習慣的一句話（M3 B2）：國中回合在卡片上方有灰色的『照平常那樣，…』，第一個國中回合多一句說明；最後一個選項仍在視窗內（上面的 bottom 斷言已涵蓋）
+    assert.ok(habitLines.length >= 2, `${name} 國中回合有習慣的一句話（${habitLines.length}）`);
+    assert.ok(habitLines.every((x) => x.habit.startsWith('照平常那樣，')), `${name} 習慣的一句話以「照平常那樣，」開頭`);
+    assert.ok(habitLines.some((x) => x.habits === 2), `${name} 第一個國中回合有一次性的說明＋一句話`);
+    console.log(name, `習慣的一句話 ${habitLines.length} 回合，例：${habitLines[0].habit}`);
     console.log(name, `取樣 ${rows.length} 張卡，最大底部 ${Math.max(...rows.map((r) => r.bottom))} / 視窗 ${h}，場景高 ${rows[0].sceneH}px，選項數 ${Math.min(...rows.map((r) => r.n))}–${Math.max(...rows.map((r) => r.n))}`);
     if (name === '1366') { // 結局
       if (!(await page.locator('#ending-portrait').count())) await page.click('[data-act="skip-end"]');
