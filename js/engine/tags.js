@@ -60,8 +60,34 @@ const pressureSide = (k, d) => (k === '期待壓力' ? d > 0 : k === '主見' ? 
 
 /**
  * 套用一組標籤。回傳 { deltas }：這次每個隱藏數值實際改變了多少（只給工具與測試用，遊戲畫面不會用到）。
- * opts: { turn, stage, ctx, topic, direction }
+ * opts: { turn, stage, ctx, topic, direction, approach }
  */
+/**
+ * 孩子來找你（DESIGN §4.28 連續才是關鍵）：只看『連續』。approach 卡上選項帶 missTags ⇒ 連續錯過 +1（達門檻進入『不太來找你』）；
+ * 帶 attendTags ⇒ 連續錯過歸零。進入之後，要連續 exitStreak 次（approach 卡上的 attendTags，或任何卡上的 initiateTags）才離開；
+ * approach 卡上的錯過讓『回來的連續數』歸零；其他卡上的補償（禮物、出遊）不算也不歸零。st.vars 由這個檔案唯一寫入（同其他計數）。
+ */
+export function updateApproach(st, tags, T, opts) {
+  const A = T.approach;
+  if (!A) return;
+  const v = st.vars, set = new Set(tags || []);
+  const has = (list) => list.some((t) => set.has(t));
+  const attend = has(A.attendTags), miss = !attend && has(A.missTags);
+  v.孩子來找_連續錯過 ||= 0; v.孩子來找_回來連續 ||= 0; v.不太來找你 ||= 0;
+  if (opts.approach) {
+    if (attend) { v.孩子來找_連續錯過 = 0; if (v.不太來找你) v.孩子來找_回來連續++; }
+    else if (miss) {
+      v.孩子來找_回來連續 = 0;
+      if (!v.不太來找你) {
+        v.孩子來找_連續錯過++;
+        const sens = st.family.child.temperament.敏感度 >= A.sensitiveFrom;
+        if (v.孩子來找_連續錯過 >= (sens ? A.enterAtSensitive : A.enterAt)) { v.不太來找你 = 1; v.孩子來找_回來連續 = 0; }
+      }
+    }
+  } else if (v.不太來找你 && has(A.initiateTags)) v.孩子來找_回來連續++;
+  if (v.不太來找你 && v.孩子來找_回來連續 >= (A.exitStreak[opts.stage] ?? 3)) { v.不太來找你 = 0; v.孩子來找_連續錯過 = 0; v.孩子來找_回來連續 = 0; }
+}
+
 export const applyTags = writer((st, tags, T, opts) => {
   const deltas = {};
   const { turn, stage, ctx, topic, direction } = opts;
@@ -90,6 +116,7 @@ export const applyTags = writer((st, tags, T, opts) => {
     for (const [k, n] of Object.entries(def.counts || {})) st.vars[k] = (st.vars[k] || 0) + n;
     st.tagCounts[tag] = (st.tagCounts[tag] || 0) + 1;
   }
+  updateApproach(st, tags, T, opts);
   // 父母的收穫：一個選項只算一次，只在這裡寫（單一寫入口）；飽和與其他隱藏數值相同
   if (isGrowthChoice(T, tags)) {
     const before = st.hidden.父母的收穫 ?? 0;

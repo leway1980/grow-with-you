@@ -146,7 +146,7 @@ export function buildCtx(st, tl, extra = {}) {
     回合: st.turn, 階段: tl.stage, 年齡: Math.floor(tl.ageMonths / 12), 年級: tl.grade, 假期: !!tl.vacation, 月: month,
     托育方式: st.vars.托育方式, 幼兒園類型: st.vars.幼兒園類型, 照顧者: st.vars.照顧者, 換照顧者次數: st.vars.換照顧者次數,
     孩子不再開口: st.vars.孩子不再開口 || 0, 孩子主動開口: st.vars.孩子主動開口 || 0, 起點: st.startMode,
-    上學方式: st.vars.上學方式 || '',
+    上學方式: st.vars.上學方式 || '', 孩子來找_連續錯過: st.vars.孩子來找_連續錯過 || 0, 不太來找你: !!st.vars.不太來找你,
     來問重要: rngAt(st.seed, st.turn, PING_BIG_ID) < PING_BIG_P, // 命運骰：孩子這次來問的事其實重不重要（§4.28）；和選項的 chance（id＝ping_big、p＝0.3）用同一顆骰子，文字與結果才會一致
     意願強度: willOf(st, extra.topic),
     疲勞: Math.round(((st.costEMA && st.costEMA.體力) || 0) + ((st.costEMA && st.costEMA.耐心) || 0)), // 最近幾回合體力與耐心花費的累積（「父母自己」池的權重用）
@@ -224,7 +224,7 @@ export function drawCard(st, data, ctx, tl, r, excludeId = null) {
   }
   const pool = pickWeighted(r, pools);
   if (!pool) return null;
-  return pickWeighted(r, live[pool.name], (c) => (c.weight ?? 1) * mulMods(c.modifiers, ctx));
+  return pickWeighted(r, live[pool.name], (c) => (c.weight ?? 1) * mulMods(c.modifiers, ctx) * (c.approach && ctx.不太來找你 ? data.tags.approach?.weightX ?? 1 : 1));
 }
 export function pickFixed(st, data, tl, ctx) {
   for (const id of tl.fixed || []) { const c = data.cardIndex[id]; if (c && passes(c, st, ctx)) return c; }
@@ -382,7 +382,7 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
     branchTags = b.tags || []; // 分支也可以帶行為標籤（隱藏數值仍然只經由標籤換算）
   }
   const allTags = [...(ch.tags || []), ...branchTags];
-  applyTags(st, allTags, data.tags, { turn: st.turn, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope) });
+  applyTags(st, allTags, data.tags, { turn: st.turn, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope), approach: !!card.approach });
   if (isGrowthChoice(data.tags, ch.tags)) recordGrowth(st, data.tags, ch, scope);
   if (card.once) st.used[card.id] = true;
   if (card.cooldown) st.cooldowns[card.id] = st.turn + card.cooldown + 1;
