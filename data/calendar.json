@@ -1,7 +1,7 @@
 {
- "_readme": "日曆 v2（72 回合；目前只開放到國小六年級，playableTurns 50）：0–2 歲每年 4 回合（8）、2–6 歲每年 4 回合（16）、國小低每年 5 回合、國小中高每年 4 回合、國中每年 4 回合（國三 5）、高中每年 2 回合、離家 3 回合（逐月）。遊戲在 playableTurns 以『待續』結束（開放到 72 是 E1）。stage 名稱要和 data/tags.json 的 stages 一致。segmentSets：每組是一學年的段落（month 是段起的月份，9 月開學；months 是顯示文字，可省略）；stage 的 grades 用 {g, segs} 指定每個年級用哪一組。年級回合的月齡 = 72+(g-1)·12+((month-9+12)%12)。fixed：atMonths 是第一個月齡 ≥ 該值的回合，at:{stage,i} 是該階段第 i 回合。schoolFixed 依『年級＋段名』排進每個學年（用名字，不用序號）；國小中高的固定事件刻意變稀（家長會 3、5 年級，校外教學 4、6 年級），免得 4 個回合裡有 3 個是固定的。段的月份是大約值（見 docs/DATA.md §5），各校不同。 【預覽】previewTurns（72）：網址加 ?preview=1 時遊戲玩到這一回合（turn.js 的 playableEnd）；CI、check-design 與黃金範例仍用 playableTurns（50）。",
+ "_readme": "日曆 v2（72 回合，全部開放，playableTurns 72）：0–2 歲每年 4 回合（8）、2–6 歲每年 4 回合（16）、國小低每年 5 回合、國小中高每年 4 回合、國中每年 4 回合（國三 5）、高中每年 2 回合、離家 3 回合（逐月）。遊戲在 playableTurns（72，離家那天）結束；previewTurns 只為相容保留（E1 起 ?preview=1 不再有作用）。stage 名稱要和 data/tags.json 的 stages 一致。segmentSets：每組是一學年的段落（month 是段起的月份，9 月開學；months 是顯示文字，可省略）；stage 的 grades 用 {g, segs} 指定每個年級用哪一組。年級回合的月齡 = 72+(g-1)·12+((month-9+12)%12)。fixed：atMonths 是第一個月齡 ≥ 該值的回合，at:{stage,i} 是該階段第 i 回合。schoolFixed 依『年級＋段名』排進每個學年（用名字，不用序號）；國小中高的固定事件刻意變稀（家長會 3、5 年級，校外教學 4、6 年級），免得 4 個回合裡有 3 個是固定的。段的月份是大約值（見 docs/DATA.md §5），各校不同。 【預覽】previewTurns（72）：網址加 ?preview=1 時遊戲玩到這一回合（turn.js 的 playableEnd）；CI、check-design 與黃金範例仍用 playableTurns（50）。",
  "totalTurns": 72,
- "playableTurns": 50,
+ "playableTurns": 72,
  "previewTurns": 72,
  "segmentSets": {
   "低5": [

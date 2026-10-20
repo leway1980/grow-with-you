@@ -61,7 +61,6 @@ export function newState(seed, data, opts = {}) {
     parentGrowth: [],                          // 父母一起參與過的活動（§7.2b）：{turn, slot, value} 或 {turn, tag}
     cur: null, ended: false, endReason: null,
   };
-  if (opts.preview) st.preview = true;            // 預覽版（?preview=1）：玩到 18 歲離家；存進存檔，『繼續』時不必再帶網址參數
   // 「從國小開始」：學前托育由抽籤決定（DATA §4），並給國小起點一點差異
   if (startMode === 'elementary') {
     const cc = fam.childcare;
@@ -100,7 +99,9 @@ function remapper(data) {
 }
 function migrateV1(st, data) {
   const { ceil, floor } = remapper(data);
-  const last = data.calendar.playableTurns - 1;
+  // v1 的存檔只玩到國小六年級（E1 之前的可玩範圍）：終點是第一個國中回合，不是現在的 playableTurns
+  const v1End = (() => { const i = data.timeline.findIndex((t) => t.stage === '國中'); return i < 0 ? data.calendar.playableTurns : Math.min(i, data.calendar.playableTurns); })();
+  const last = v1End - 1;
   const oldTurn = st.turn;
   st.hist ||= []; st.parentGrowth ||= [];
   for (const e of st.hist) e.turn = floor(e.turn);
@@ -108,7 +109,7 @@ function migrateV1(st, data) {
   for (const c of [...(st.curves || []), ...(st.vcurves || [])]) c.t = floor(c.t);
   const lastPlayed = Math.max(-1, ...st.hist.map((e) => e.turn), ...(st.curves || []).map((c) => c.t), ...(st.vcurves || []).map((c) => c.t));
   // 已結束的存檔：回合就是可玩範圍的終點；沒結束的：向上對應，但不早於『最後一筆紀錄的下一回合』，也不超過最後一個可玩回合
-  st.turn = st.ended || oldTurn >= V1_PLAYABLE ? data.calendar.playableTurns : Math.min(Math.max(ceil(oldTurn), lastPlayed + 1), last);
+  st.turn = st.ended || oldTurn >= V1_PLAYABLE ? v1End : Math.min(Math.max(ceil(oldTurn), lastPlayed + 1), last);
   // 最後一個可玩回合已經玩了一張卡又存檔（st.turn 被夾在 last）：這張卡的紀錄退到前一個回合，已玩過的紀錄才不會落在 st.turn 或之後
   if (!st.ended) {
     for (const e of st.hist) if (e.turn >= st.turn) e.turn = st.turn - 1;

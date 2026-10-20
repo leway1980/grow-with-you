@@ -1,6 +1,6 @@
 // 階段可塑性的設計檢驗（M3 B1；計畫 §2.1、§8 第 2–4 項）。由 tools/check-design.mjs 透過 tools/plugins.mjs 載入。
-// 用分段機器人（tools/bots.mjs PLASTICITY_BOTS）在預覽模式（玩到第 72 回合）各玩 games 局，比較親子軸（ax.0）與彼此之間的幸福（w.2）。
-// 目標在 tools/targets/plasticity.json，pending:true ＝ 只報告、不擋 CI（預覽內容還薄，E1 會強制）。
+// 用分段機器人（tools/bots.mjs PLASTICITY_BOTS）用完整 72 回合的預設局各玩 games 局，比較親子軸（ax.0）與彼此之間的幸福（w.2）。
+// 目標在 tools/targets/plasticity.json，pending:true ＝ 只報告、不擋 CI（E1 起 plasticity 是強制的）。
 // 掃描：node tools/checks/plasticity.mjs --sweep [局數=600] [起始種子=1]  → 依序試 byStage 候選（環境變數 GWY_BYSTAGE 覆蓋，不改檔），印表格，挑第一組全部通過的。
 import { fileURLToPath } from 'node:url';
 import { avg } from '../stats.mjs';
@@ -18,7 +18,7 @@ function inApproachAtSwitch(r, data, turn) {
 /** 量測：回傳 { v（各項數值）, rows（check-design 的列）, table（掃描用的一行） } */
 export async function measure({ runBots, data, T, N, s0 }) {
   const bots = T.bots;
-  const g = await runBots(T.games ?? N, s0 + 400000, { bots, preview: true, snap: [50] });
+  const g = await runBots(T.games ?? N, s0 + 400000, { bots, snap: [50] });
   const A = Object.fromEntries(bots.map((b) => [b, mean(g[b], ax0)])), W = Object.fromEntries(bots.map((b) => [b, mean(g[b], w2)]));
   const early = 'earlyGood', late = 'lateStarter', vl = 'veryLateStarter', never = 'neverChange';
   const sw = T.veryLateApproachExit.switchTurn;
@@ -36,7 +36,7 @@ export async function measure({ runBots, data, T, N, s0 }) {
   const ok = (x, R) => Number.isFinite(x) && (R.min == null || x >= R.min) && (R.max == null || x <= R.max);
   const f1 = (x) => (x >= 0 ? '+' : '') + x.toFixed(1), rng = (R) => (R.min != null && R.max != null ? `${R.min}–${R.max}` : R.min != null ? `≥ ${R.min}` : `≤ ${R.max}`);
   const n = `（各 ${g[early].length} 局）`;
-  const row = (R, name, value, note = '', range = rng(R)) => ({ ok: ok(value.x, R), pending: !!T.pending, group: '階段可塑性', name: name + n, value: value.s, range, note: `${T.pending ? 'pending：預覽內容還薄，E1 強制。' : ''}${note}${R.note ? '　[' + R.note + ']' : ''}` });
+  const row = (R, name, value, note = '', range = rng(R)) => ({ ok: ok(value.x, R), pending: !!T.pending, group: '階段可塑性', name: name + n, value: value.s, range, note: `${T.pending ? 'pending：只報告、不擋 CI。' : ''}${note}${R.note ? '　[' + R.note + ']' : ''}` });
   const rows = [
     row(T.repairRatio, '補救比例 (lateStarter−neverChange)/(earlyGood−neverChange)，親子軸', { x: v.repair, s: v.repair.toFixed(2) }, `earlyGood ${A[early].toFixed(1)}、lateStarter ${A[late].toFixed(1)}、neverChange ${A[never].toFixed(1)}`),
     row(T.earlyMinusLate, 'earlyGood − lateStarter，親子軸', { x: v.earlyLate, s: f1(v.earlyLate) }, `彼此之間幸福 w.2：${f1(v.wEarlyLate)}`),
@@ -76,7 +76,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1] && pro
     const res = await measure({ runBots, data, T: { ...T, games: N }, N, s0 });
     const v = res.v, bad = res.rows.filter((r) => !r.ok);
     console.log(`\n【${name}】byStage = ${STAGES.map((s) => bs[s]).join(', ')}`);
-    for (const r of res.rows) console.log(`  ${r.ok ? '✓' : '✗'} ${r.name}：${r.value}（${r.range}）${r.note.replace('pending：預覽內容還薄，E1 強制。', '')}`);
+    for (const r of res.rows) console.log(`  ${r.ok ? '✓' : '✗'} ${r.name}：${r.value}（${r.range}）${r.note.replace('pending：只報告、不擋 CI。', '')}`);
     console.log(`  → ${bad.length ? '未通過 ' + bad.length + ' 項' : '全部通過'}；w.2 early−late ${v.wEarlyLate.toFixed(1)}、late−never ${v.wLateNever.toFixed(1)}`);
     if (!bad.length && !first && name !== '全部 1') first = [name, bs];
   }

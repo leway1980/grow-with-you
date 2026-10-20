@@ -27,13 +27,13 @@ export function doseScale(alpha, span, card) {
 }
 
 /**
- * 這張卡實際用的劑量倍率：doseScale，再加上預覽專用的上限 model.timeScale.previewKMax（只在預覽旗標開著時生效；CI 與校準目標不受影響）。
- * 預覽是給老師看節奏與內容的過渡設計：高中 6 個月一回合的倍率 3 會讓單一選擇的變動過大，先壓在 previewKMax，等 B1/E1 改成分段再放開。
+ * 這張卡實際用的劑量倍率：doseScale。
+ * E1 起拿掉預覽專用的上限 previewKMax：α＝1 的劑量、固定的疲勞 EMA 與依劑量加權的計數就是真正的模型。
+ * 第四個參數（舊的預覽旗標）只為相容保留，沒有作用。
  */
-export function cardDoseK(model, span, card, preview = false) {
+export function cardDoseK(model, span, card) {
   const ts = (model && model.timeScale) || {};
-  const k = doseScale(ts.alpha || 0, span, card);
-  return preview && typeof ts.previewKMax === 'number' ? Math.min(k, ts.previewKMax) : k;
+  return doseScale(ts.alpha || 0, span, card);
 }
 
 /** 乘上倍率後的效果表（不改原物件） */

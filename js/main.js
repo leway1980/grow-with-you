@@ -16,7 +16,6 @@ const root = document.getElementById('app');
 const params = new URLSearchParams(location.search);
 const TURN_MS = Math.max(100, parseInt(params.get('ms') || '3500', 10) || 3500); // 1× 時回合之間的時間流動約 3.5 秒
 const seedParam = () => { const v = parseInt(params.get('seed') || '', 10); return Number.isFinite(v) ? v >>> 0 : null; };
-const PREVIEW = params.get('preview') === '1'; // 預覽版（開發中）：玩到 18 歲離家，用 previewTurns 當終點
 const newSeed = () => (Math.floor(Math.random() * 4294967296) >>> 0) || 1;
 
 let data, st = null, refs = null, speed = 1, auto = false, phase = 'idle', curView = null;
@@ -35,7 +34,6 @@ async function loadData() {
   if (m.problems.length) throw new Error('資料檔有問題：' + m.problems.join('；'));
   data = prepareData({ identities, tags, model, ending, habits, events: m.events, pools, slots: m.slots, calendar });
   try { data.yearly = await get('yearly.json'); } catch { data.yearly = null; } // 小卡的資料缺了不影響遊戲：沒有『你知道嗎』，其他照常
-  if (PREVIEW) data.preview = true;
 }
 
 /* ───── 排程：暫停（速度 0）時不走；改速度時重新排 ───── */
@@ -60,17 +58,10 @@ function toggleAuto() {
 function showTitle() {
   clearTimers(); phase = 'idle'; st = null;
   const sv = readSave(data);
-  ui.renderTitle(root, { hasSave: !!sv, preview: PREVIEW, previewHref: previewHref(), onNew: () => showIntro(seedParam() ?? newSeed()), onContinue: resume });
+  ui.renderTitle(root, { hasSave: !!sv, onNew: () => showIntro(seedParam() ?? newSeed()), onContinue: resume });
 }
 
-// 標題頁的預覽開關：開著就連回一般版，關著就帶 ?preview=1（保留 ?seed= 等其他參數）
-function previewHref() {
-  const p = new URLSearchParams(location.search);
-  if (PREVIEW) p.delete('preview'); else p.set('preview', '1');
-  const q = p.toString();
-  return (location.pathname || '') + (q ? '?' + q : '');
-}
-const newOpts = (o) => ({ ...o, preview: PREVIEW });
+const newOpts = (o) => o; // E1：?preview=1 不再有作用，一律玩到 18 歲離家
 
 // 開場：爸爸或媽媽也是骰子（只由種子決定）；UI 一律從出生開始（引擎的國小起點留給測試與工具）
 function showIntro(seed) {
@@ -107,7 +98,7 @@ function buildGame() {
   ui.setAutoButton(refs, auto);
 }
 const tlNow = () => data.timeline[Math.min(st.turn, data.timeline.length - 1)];
-const endTurnIdx = () => playableEnd(data, { preview: !!(data.preview || st.preview) });
+const endTurnIdx = () => playableEnd(data);
 const progress = () => st.turn / endTurnIdx();
 
 function beginTurn() {

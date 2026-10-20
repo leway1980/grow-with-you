@@ -33,7 +33,7 @@ export function influenceMeter(st, data) {
     if (turn !== curTurn) { flush(); curTurn = turn; }
     const cid = st.cur && st.cur.cardId, p = cid && data.cardIndex[cid] ? data.cardIndex[cid].pool : null;
     // 單回合的邊變動用『參考劑量』（÷ 這張卡的劑量倍率 k）記，maxTurn 以每 2 個月的一次為單位；整局累計（edgeGame）仍用實際值
-    const kk = cid && data.cardIndex[cid] ? cardDoseK(data.model, data.timeline[Math.min(turn, data.timeline.length - 1)].span ?? 2, data.cardIndex[cid], !!(data.preview || st.preview)) : 1;
+    const kk = cid && data.cardIndex[cid] ? cardDoseK(data.model, data.timeline[Math.min(turn, data.timeline.length - 1)].span ?? 2, data.cardIndex[cid]) : 1;
     for (const [t, ds] of Object.entries(perTag)) {
       const vec = [0, 0, 0];
       for (const [k, d] of Object.entries(ds)) {
@@ -58,7 +58,7 @@ export function moneyAtSchoolPlus(st, data, e, months = 6) {
 
 /* ───── 一局 ───── */
 export function playGame(data, bot, seed, opts = {}) {
-  const st = newState(seed, data, { role: opts.role || (seed % 2 ? '媽媽' : '爸爸'), startMode: opts.startMode || 'birth', preview: !!opts.preview });
+  const st = newState(seed, data, { role: opts.role || (seed % 2 ? '媽媽' : '爸爸'), startMode: opts.startMode || 'birth' });
   const meter = opts.influence ? influenceMeter(st, data) : null;
   const tracker = approachTracker(data), policy = botPolicy(bot, SALT, opts.only ? new Set(opts.only) : null);
   // 習慣量測（opts.habits；tools/checks/habits.mjs）：偵測結果、第 63 回合（進高中）時的習慣、整局的習慣，以及第 50 回合起所有 applyTags 的 |Δ| 合計（含自動套用）
@@ -148,7 +148,7 @@ export async function execute(tasks, opts) {
   }
   const url = new URL(import.meta.url);
   const parts = await Promise.all(chunk(tasks, nw).map((ts) => new Promise((res, rej) => {
-    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, preview: opts.preview, snap: opts.snap, mech: opts.mech, influence: opts.influence, role: opts.role, only: opts.only, habits: opts.habits, paths: opts.paths, chains: opts.chains } });
+    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, snap: opts.snap, mech: opts.mech, influence: opts.influence, role: opts.role, only: opts.only, habits: opts.habits, paths: opts.paths, chains: opts.chains } });
     w.once('message', res); w.once('error', rej);
   })));
   return parts.flat();

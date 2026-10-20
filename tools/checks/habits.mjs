@@ -1,6 +1,6 @@
 // 習慣的設計檢驗（M3 B2；計畫 §2.2、§8 第 5、6 項）。由 tools/check-design.mjs 透過 tools/plugins.mjs 載入。
-// 在預覽模式（玩到第 72 回合）讓多種機器人各玩 games 局，量：回家第一句的偵測結果、想改變的機器人翻轉習慣的比例（國中、高中）、
-// 『不太來找你』的離開比例（國中、高中）、自動套用占隱藏數值變動的比例。目標在 tools/targets/habits.json（pending:true＝只報告、不擋 CI）。
+// 完整 72 回合（E1 起是預設）讓多種機器人各玩 games 局，量：回家第一句的偵測結果、想改變的機器人翻轉習慣的比例（國中、高中）、
+// 『不太來找你』的離開比例（國中、高中）、自動套用占隱藏數值變動的比例。目標在 tools/targets/habits.json（pending:true＝只報告、不擋 CI；E1 起群組是 false，個別目標可自己標 pending:true）。
 // 單獨執行：node tools/checks/habits.mjs [局數] [起始種子]  → 印出所有數值（含各機器人的偵測分布）
 import { fileURLToPath } from 'node:url';
 
@@ -16,7 +16,7 @@ function episodeAt(r, data, turn) {
 export async function measure({ runBots, data, T, N, s0 }) {
   const jh0 = data.timeline.findIndex((t) => t.stage === '國中'), sh0 = data.timeline.findIndex((t) => t.stage === '高中');
   const warm = new Set(T.warmPatterns);
-  const g = await runBots(T.games ?? N, s0 + 500000, { bots: T.bots, preview: true, habits: true });
+  const g = await runBots(T.games ?? N, s0 + 500000, { bots: T.bots, habits: true });
   const fam = (r, which, f) => (r.hab[which] || {})[f];
   const per = {};
   for (const b of T.bots) {
@@ -53,7 +53,7 @@ export async function measure({ runBots, data, T, N, s0 }) {
   const autoMax = Math.max(...T.bots.map((b) => per[b].auto)), autoWorst = T.bots.find((b) => per[b].auto === autoMax);
   const v = { flipJH, flipSH, nJH: jhPool.length, nSH: shPool.length, detectMin, detectWorst, exitJH, exitSH, nExitJH: inJH.length, nExitSH: inSH.length, autoMax, autoWorst, per };
   const ok = (x, R) => Number.isFinite(x) && (R.min == null || x >= R.min) && (R.max == null || x <= R.max);
-  const row = (R, name, value, range, note = '') => ({ ok: ok(value.x, R), pending: !!T.pending, group: '習慣', name, value: value.s, range, note: `${T.pending ? 'pending：預覽內容還薄，E1 強制。' : ''}${note}${R.note ? '　[' + R.note + ']' : ''}` });
+  const row = (R, name, value, range, note = '') => ({ ok: ok(value.x, R), pending: R.pending ?? !!T.pending, group: '習慣', name, value: value.s, range, note: `${R.pending ?? T.pending ? 'pending：只報告、不擋 CI。' : ''}${note}${R.note ? '　[' + R.note + ']' : ''}` });
   const rows = [
     row(T.flipJH, `國中翻轉習慣：lateStarter 在（非溫暖模式的 ${jhPool.length} 局）中翻成溫暖模式的比例`, { x: flipJH, s: pctS(flipJH) }, `≥ ${T.flipJH.min * 100}%`),
     row(T.flipSH, `高中翻轉習慣：veryLateStarter 在（非溫暖模式的 ${shPool.length} 局）中翻成溫暖模式的比例`, { x: flipSH, s: pctS(flipSH) }, `≥ ${T.flipSH.min * 100}%`),
@@ -82,7 +82,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const T = { ...loadTargets().habits }, data = loadData(loadRaw());
   if (nums[0]) T.games = nums[0];
   const res = await measure({ runBots, data, T, N: T.games, s0: nums[1] || 1 });
-  for (const r of res.rows) console.log(`${r.ok ? '✓' : r.pending ? '△' : '✗'} ${r.name}：${r.value}（${r.range}）${r.note.replace('pending：預覽內容還薄，E1 強制。', '')}`);
+  for (const r of res.rows) console.log(`${r.ok ? '✓' : r.pending ? '△' : '✗'} ${r.name}：${r.value}（${r.range}）${r.note.replace('pending：只報告、不擋 CI。', '')}`);
   console.log('\n回家第一句偵測分布（第一個國中回合）：');
   for (const b of T.bots) console.log(`  ${b.padEnd(18)} ${Object.entries(res.v.per[b].dist).sort((x, y) => y[1] - x[1]).map(([k, n]) => `${k} ${(n / res.v.per[b].n * 100).toFixed(0)}%`).join('　')}　（每局自動套用 ${res.v.per[b].nAuto.toFixed(1)} 次）`);
 }

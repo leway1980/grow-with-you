@@ -44,14 +44,13 @@ export function playedStages(cal) {
 }
 
 /**
- * 遊戲玩到哪一回合結束：預覽時是 previewTurns（72，國中、高中、離家），平常是 playableTurns（50，CI 與 check-design 用的）。
- * 預覽旗標由呼叫端決定（網址 ?preview=1）：data.preview 或 st.preview 為真時，startTurn／finishTurn 用預覽的終點。
+ * 遊戲玩到哪一回合結束：就是日曆的 playableTurns（E1 起是 72，離家那天）。
+ * 第二個參數（舊的預覽旗標）只為相容保留，沒有作用：?preview=1 不再改變終點。
  */
-export function playableEnd(data, { preview = false } = {}) {
-  const cal = data.calendar;
-  return preview ? (cal.previewTurns ?? cal.playableTurns) : cal.playableTurns;
+export function playableEnd(data) {
+  return data.calendar.playableTurns;
 }
-const endOf = (st, data) => playableEnd(data, { preview: !!(data.preview || st.preview) });
+const endOf = (st, data) => playableEnd(data);
 
 export function buildTimeline(cal) {
   const tl = [];

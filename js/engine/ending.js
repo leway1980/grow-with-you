@@ -46,7 +46,7 @@ export function wholeAvg(rows, key) {
 function blendOf(st) {
   let b = { recent: 0.6, whole: 0.4 };
   try { b = getEnding().outcomeBlend || b; } catch { /* 句子庫還沒載入 */ }
-  return b.appliesTo === 'preview' && !st.preview ? { recent: 1, whole: 0 } : b; // appliesTo:'preview'＝只有預覽（玩到離家的 72 回合）混合；E1 改成 'all'
+  return b.appliesTo === 'none' ? { recent: 1, whole: 0 } : b; // E1：appliesTo:'all'＝每一局都混合（72 回合是標準）；'none' 只給測試關掉混合
 }
 const blend = (recent, whole, B) => (whole == null || !B.whole ? recent : B.recent * recent + B.whole * whole);
 

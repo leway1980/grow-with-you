@@ -1,5 +1,5 @@
 // 路線的設計檢驗（M3 B4；計畫 §2.4、§8 第 8 項）。由 tools/check-design.mjs 透過 tools/plugins.mjs 載入。
-// 在預覽模式（玩到第 72 回合）讓多種機器人各玩 games 局，量：學制比例、去向比例（依機器人、依經濟）、中途離校、技高的反污名、
+// 用完整 72 回合的預設局讓多種機器人各玩 games 局，量：學制比例、去向比例（依機器人、依經濟）、中途離校、技高的反污名、
 // 大學的經濟差、孩子幸福在不同去向的差（只報告）。目標在 tools/targets/paths.json。
 // 單獨執行：node tools/checks/paths.mjs [局數] [起始種子]  → 印出所有數值；加 --json 印出摘要的 JSON
 import { fileURLToPath } from 'node:url';
@@ -14,7 +14,7 @@ export async function measure({ runBots, data, T, N, s0 }) {
   const P = data.paths, types = Object.keys(P.schoolTypes), dests = P.destinations.order;
   // 每個機器人用不同的一批種子（不同的家庭）：經濟分層要有足夠多的家庭才穩；機器人之間的差別由各自的比例報告
   const n = T.games ?? N, g = {};
-  for (let i = 0; i < T.bots.length; i++) Object.assign(g, await runBots(n, s0 + 700000 + i * n, { bots: [T.bots[i]], preview: true, paths: true }));
+  for (let i = 0; i < T.bots.length; i++) Object.assign(g, await runBots(n, s0 + 700000 + i * n, { bots: [T.bots[i]], paths: true }));
   const all = T.bots.flatMap((b) => g[b]).filter((r) => r.paths);
   // 學制、去向的比例
   const typeShare = Object.fromEntries(types.map((t) => [t, share(all, (r) => r.paths.type === t)]));

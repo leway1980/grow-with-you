@@ -445,7 +445,7 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
   const gs = choiceState(ch, ctx);
   if (gs.hidden || gs.disabled) throw new Error(`選項不可選: ${card.id}#${idx}`);
   const acc = {}; // 這個選項自己造成的可見變化；回合的合計由呼叫端累加
-  const k = cardDoseK(data.model, tl.span ?? 2, card, !!(data.preview || st.preview)); // 劑量倍率：一張卡代表這個回合那麼長的時間
+  const k = cardDoseK(data.model, tl.span ?? 2, card); // 劑量倍率：一張卡代表這個回合那麼長的時間
   const scope = cardScope(st, card.id);
   const parts = [fill(ch.result, st, ctx, scope)];
   let branchTags = [], approved = true;

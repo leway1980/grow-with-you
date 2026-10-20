@@ -1,5 +1,5 @@
 // 決定鏈的設計檢驗（M3 B5；計畫 §2.5、§8）。由 tools/check-design.mjs 透過 tools/plugins.mjs 載入。
-// 在預覽模式（玩到第 72 回合）讓多種機器人各玩 games 局，量：每局挑到幾條鏈、warmFirm 有沒有往好的方向轉的鏈、
+// 用完整 72 回合的預設局讓多種機器人各玩 games 局，量：每局挑到幾條鏈、warmFirm 有沒有往好的方向轉的鏈、
 // lateStarter 在 12 歲以後有沒有往好的方向轉的鏈、各鏈內容是否齊全（選擇數、處境、曲線、研究小卡）、主題分布、後來的痕跡（只報告）。目標在 tools/targets/chains.json。
 // 單獨執行：node tools/checks/chains.mjs [局數] [起始種子]
 import { fileURLToPath } from 'node:url';
@@ -10,7 +10,7 @@ const sum = (xs) => xs.reduce((a, b) => a + b, 0);
 
 export async function measure({ runBots, T, N, s0 }) {
   const n = T.games ?? N;
-  const g = await runBots(n, s0 + 900000, { bots: T.bots, preview: true, chains: true });
+  const g = await runBots(n, s0 + 900000, { bots: T.bots, chains: true });
   const all = T.bots.flatMap((b) => g[b]);
   const themes = {};
   for (const r of all) for (const t of r.chains.themes) themes[t] = (themes[t] || 0) + 1;

@@ -150,7 +150,7 @@ export function sceneSpec(st, data, tl, opts = {}) {
 
 /** 結局的成長相簿：孩子到過的每個階段各一張（只畫孩子） */
 export function albumSpecs(st, data) {
-  const last = Math.min(st.turn, (data.preview || st.preview) ? (data.calendar.previewTurns ?? data.calendar.playableTurns) : data.calendar.playableTurns) - 1; // 預覽版玩到離家，相簿也要有國中、高中、離家
+  const last = Math.min(st.turn, data.calendar.playableTurns) - 1; // 玩到離家，相簿也有國中、高中、離家
   const seen = new Map();
   for (let i = 0; i <= Math.max(0, last); i++) {
     const tl = data.timeline[i];

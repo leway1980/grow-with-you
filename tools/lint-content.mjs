@@ -75,9 +75,9 @@ const TOL = 3;
 export function lintContent(raw, data, cards, ctxKeys, st0) {
   const errors = [], warns = [];
   const T = raw.tags, R = T.cardRules;
-  // P1 預覽：檢查涵蓋整條時間軸（含國中、高中、離家），不只 playableTurns；沒寫 stages 的卡片仍只算 CI 開放的階段
+  // E1：playableTurns 就是整條時間軸（含國中、高中、離家）
   const stageNames = playedStages(raw.calendar);
-  const playable = data.timeline.slice(0, raw.calendar.previewTurns ?? raw.calendar.playableTurns);
+  const playable = data.timeline.slice(0, raw.calendar.playableTurns);
 
   // ── 規則 18：情境負荷（命運事件）不帶任何家長行為標籤 ──
   for (const l of raw.pools.loads || []) if ('tags' in l) errors.push(`loads ${l.id}：規則 18：情境負荷與命運事件不能帶行為標籤（沒有玩家的選擇，就不能有隱藏的扣分）；只改看得見的數值`);

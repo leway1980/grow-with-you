@@ -115,7 +115,7 @@ export function autoHabit(st, data, tl, ctx, skipFamilies = new Set()) {
   let abs = 0;
   if (h.pattern !== mixed) {
     assertAppliedSubset(st, data, family, h.tags);
-    const k = cfg.scale[tl.stage] * cardDoseK(data.model, tl.span ?? 2, { scale: true }, !!(data.preview || st.preview));
+    const k = cfg.scale[tl.stage] * cardDoseK(data.model, tl.span ?? 2, { scale: true });
     const { deltas } = applyTags(st, h.tags, data.tags, { turn: st.turn, months: tl.ageMonths, span: tl.span ?? 2, scale: k, stage: tl.stage, ctx, approach: false, initiate: false });
     abs = sum(Object.values(deltas).map(Math.abs));
   }

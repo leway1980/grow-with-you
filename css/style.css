@@ -76,9 +76,6 @@ ul, ol { padding-left: 20px; }
 .hero .lede { margin: 18px auto 0; max-width: 28em; }
 .hero .actions, .intro .actions { margin: 28px auto 0; display: grid; gap: 10px; max-width: 340px; }
 .hero .foot { margin-top: 28px; }
-.hero .preview-link { margin-top: 18px; }
-.hero .preview-link a { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
-.hero .preview-link .tag { margin-right: 6px; }
 .intro { padding-block: 20px 40px; }
 .opening p + p { margin-top: 10px; }
 .opening .big { font-size: 18px; font-weight: 600; }

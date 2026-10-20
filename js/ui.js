@@ -24,7 +24,7 @@ export function h(tag, attrs, ...kids) {
 }
 
 /* ───────────── 標題與開場 ───────────── */
-export function renderTitle(root, { hasSave, onNew, onContinue, preview = false, previewHref = '' }) {
+export function renderTitle(root, { hasSave, onNew, onContinue }) {
   root.replaceChildren(h('main', { class: 'wrap hero' },
     h('h1', null, '陪你長大'),
     h('p', { class: 'sub' }, '台灣親職人生模擬'),
@@ -33,9 +33,6 @@ export function renderTitle(root, { hasSave, onNew, onContinue, preview = false,
       h('button', { class: 'btn primary block', 'data-act': 'new', onClick: onNew }, '開始新的一局'),
       hasSave && h('button', { class: 'btn block', 'data-act': 'continue', onClick: onContinue }, '繼續上次的'),
     ),
-    previewHref && h('p', { class: 'preview-link small' },
-      preview ? [h('span', { class: 'tag' }, '試玩模式'), ' 會玩到 18 歲離家。', h('a', { href: previewHref, 'data-act': 'preview-off' }, '回到一般版')]
-        : h('a', { href: previewHref, 'data-act': 'preview-on' }, '試玩到 18 歲（開發中）')),
     h('p', { class: 'foot small muted' }, '遊戲裡的家庭和孩子都是抽出來的，只是教學用的抽象，不能用來判斷真實的孩子。'),
   ));
 }
