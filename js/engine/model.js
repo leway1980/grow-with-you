@@ -67,18 +67,21 @@ export function opennessFrom(M, spoke, silent) {
   return clamp(O.base + byId.get(O.spoke).w * spoke - byId.get(O.silent).w * silent, O.clamp[0], O.clamp[1]);
 }
 
+/** 懲罰項 over 的門檻：有 overByStage 且該階段在表裡就用表的值，否則用 over（E1 審查：3C 的『一般的量』隨年紀上升，國小的 35 不能拿來扣青少年） */
+export const overFor = (p, stage) => (stage && p.overByStage && p.overByStage[stage] != null ? p.overByStage[stage] : p.over);
+
 /**
  * 一個結果節點的值。read(item) 回傳該輸入的數值：item 是 outcomes 裡的一項（{from, as, n, ...}）。
  * 平均（mean，權重 m 預設 1，invert 表示 100−x）減掉各個懲罰（over：超過 center 的部分；under：低於 center 的部分）。clamp 0–100。
  */
-export function evalOutcome(M, name, read) {
+export function evalOutcome(M, name, read, stage = null) {
   const O = M.outcomes[name];
   let num = 0, den = 0;
   for (const it of O.mean) { const m = it.m ?? 1; const x = read(it); num += m * (it.invert ? 100 - x : x); den += m; }
   let v = num / den;
   for (const p of O.pen || []) {
     const x = read(p);
-    v -= p.w * (p.over != null ? Math.max(0, x - p.over) : Math.max(0, p.under - x));
+    v -= p.w * (p.over != null ? Math.max(0, x - overFor(p, stage)) : Math.max(0, p.under - x));
   }
   return clamp(v, 0, 100);
 }

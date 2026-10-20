@@ -69,8 +69,13 @@ const modelOf = (st, M) => M || getModel();
  */
 export function outcomeAxes(st, M) {
   M = modelOf(st, M);
-  const r = reader(st, M);
-  return { 親子: evalOutcome(M, '親子', r), 人際: evalOutcome(M, '人際', r), 學習: evalOutcome(M, '學習', r) };
+  const r = reader(st, M), stg = endStage(st);
+  return { 親子: evalOutcome(M, '親子', r, stg), 人際: evalOutcome(M, '人際', r, stg), 學習: evalOutcome(M, '學習', r, stg) };
+}
+/** 結局時孩子所在的階段（只用來查 model.json outcomes 的 overByStage）：看最後一筆紀錄的月齡；國小以前（或沒有紀錄）回 null＝用原本的 over */
+export function endStage(st) {
+  const rows = st.vcurves, m = rows && rows.length ? rows[rows.length - 1].m : null;
+  return m == null ? null : m >= 216 ? '離家' : m >= 180 ? '高中' : m >= 144 ? '國中' : null;
 }
 
 /** 孩子願不願意開口（0–100）：被聽見的次數往上，說了沒人聽、後來不再開口的次數往下。計數來自事件，不是隱藏數值。 */

@@ -6,8 +6,8 @@ import { loadRaw, loadData } from '../tools/data-node.mjs';
 import { newState } from '../js/engine/state.js';
 import { playToEnd } from '../js/engine/turn.js';
 import { applyTags, setTagObserver, recomputeDerived } from '../js/engine/tags.js';
-import { getEnding, outcomeAxes, wellbeing, opennessOf, comboOf, bandOf, buildEnding, pickLines, lineContradictions, endingContext, chainRecords } from '../js/engine/ending.js';
-import { edgeForTagEffect, outcomeWeights, AXES } from '../js/engine/model.js';
+import { getEnding, endStage, outcomeAxes, wellbeing, opennessOf, comboOf, bandOf, buildEnding, pickLines, lineContradictions, endingContext, chainRecords } from '../js/engine/ending.js';
+import { edgeForTagEffect, outcomeWeights, evalOutcome, overFor, AXES } from '../js/engine/model.js';
 import { botPolicy, SALT } from '../tools/bots.mjs';
 
 const data = loadData();
@@ -130,7 +130,7 @@ function formulaCheck() {
     const ax = outcomeAxes(st), w = wellbeing(st, data.identities.parentModel);
     const parent = mean([h.親子信任, h.了解度, h.溫暖陪伴, h.規則一致性]) - 0.3 * Math.max(0, h.期待壓力 - 50) - 0.3 * Math.max(0, 50 - h.父母情緒穩定度);
     const peer = mean([last(st, '同學往來', 12), h.師親信任, h.內在穩定, h.承受度]) - 0.15 * Math.max(0, h.試探度 - 40);
-    const learn = mean([last(st, '成績', 12), last(st, '成績', 12), last(st, '作業', 12), h.自我效能, h.閱讀習慣, h.家庭學習環境, last(st, '睡眠', 12)]) - 0.3 * Math.max(0, last(st, '3C時間', 12) - 35);
+    const learn = mean([last(st, '成績', 12), last(st, '成績', 12), last(st, '作業', 12), h.自我效能, h.閱讀習慣, h.家庭學習環境, last(st, '睡眠', 12)]) - 0.3 * Math.max(0, last(st, '3C時間', 12) - overFor(M.outcomes.學習.pen[0], endStage(st)));
     assert.ok(Math.abs(ax.親子 - clamp(parent)) < 1e-9 && Math.abs(ax.人際 - clamp(peer)) < 1e-9 && Math.abs(ax.學習 - clamp(learn)) < 1e-9, `${seed}/${bot}`);
     const open = clamp(30 + 7 * (st.vars.孩子主動開口 || 0) - 12 * (st.vars.孩子不再開口 || 0));
     assert.ok(Math.abs(opennessOf(st) - open) < 1e-9);
@@ -187,4 +187,22 @@ test('量測用的觀察者：每個標籤的隱藏數值變化加起來等於�
   assert.deepEqual(st2.hidden, st.hidden);
   assert.equal(seen.length, 1);
   void r2; void bandOf;
+});
+
+test('學習軸的 3C 懲罰依階段（overByStage）：國小用 over 35，國中、高中、離家用各自的門檻；同樣的 3C 量在青少年身上扣得比較少', () => {
+  const pen = M.outcomes.學習.pen.find((p) => p.from === '3C時間');
+  assert.equal(pen.over, 35);
+  assert.deepEqual(Object.keys(pen.overByStage), ['國中', '高中', '離家']);
+  assert.ok(pen.overByStage.國中 > pen.over && pen.overByStage.高中 >= pen.overByStage.國中 && pen.overByStage.離家 >= pen.overByStage.高中, '青少年的門檻不低於國小');
+  assert.ok(pen.overByStage.高中 <= 45, '不能鬆到全域 45（會讓 controlling 三邊都垮掉到 3% 以下）');
+  assert.ok(pen.overByStage_why, '要有理由與來源（設計估計要寫明）');
+  assert.equal(overFor(pen, null), 35); assert.equal(overFor(pen, '國小中高'), 35); assert.equal(overFor(pen, '高中'), pen.overByStage.高中);
+  // 其他輸入固定在 50，3C 時間 = 41：國小扣 0.3×6、高中扣 0.3×(41−高中門檻)
+  const read = (it) => (it.from === '3C時間' ? 41 : 50);
+  const base = evalOutcome(M, '學習', read, '國小中高'), teen = evalOutcome(M, '學習', read, '高中');
+  assert.ok(Math.abs((teen - base) - 0.3 * (6 - Math.max(0, 41 - pen.overByStage.高中))) < 1e-9, `${base} ${teen}`);
+  assert.ok(teen > base);
+  // 結局時的階段取自最後一筆紀錄的月齡
+  assert.equal(endStage({ vcurves: [] }), null); assert.equal(endStage({ vcurves: [{ m: 120 }] }), null);
+  assert.equal(endStage({ vcurves: [{ m: 150 }] }), '國中'); assert.equal(endStage({ vcurves: [{ m: 190 }] }), '高中'); assert.equal(endStage({ vcurves: [{ m: 216 }] }), '離家');
 });
