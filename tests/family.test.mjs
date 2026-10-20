@@ -254,3 +254,22 @@ test('職位、交通、通勤各用自己的亂數流：改這三張表，其�
     assert.deepEqual(without(a, 'rank'), without(c, 'rank'));
   }
 });
+
+test('開場文字：每一種工作型態的句子都沒有「，的」', () => {
+  const base = generateFamily(7, idn());
+  for (const pattern of Object.keys(idn().patterns)) {
+    for (const role of ['爸爸', '媽媽']) {
+      const text = openingText({ ...base, pattern }, role).join('');
+      assert.ok(!text.includes('，的'), `${pattern}：${text.slice(0, 120)}`);
+    }
+  }
+});
+
+test('住屋：住長輩家只會和「長輩同住」一起出現（1000 個種子）', () => {
+  let live = 0;
+  for (let s = 1; s <= 1000; s++) {
+    const f = generateFamily(s, idn());
+    if (f.housing === '住長輩家') { live++; assert.equal(f.elders.status, '同住', `seed ${s}`); }
+  }
+  assert.ok(live > 0, '住長輩家仍然會出現');
+});

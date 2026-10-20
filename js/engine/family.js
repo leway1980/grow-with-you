@@ -302,7 +302,7 @@ export function openingText(fam, role) {
   const order = sibN.length ? `家裡已經有${sibN.map((s) => s.rel).join('和')}，${c.given}排行比較小。` : '這是你的第一個孩子。';
   const paras = [];
   paras.push(`你是${c.given}的${role}。${c.name}在${c.birthMonth}月出生，家住${fam.county}${fam.district}。${order}`);
-  paras.push(`${fam.job.line}，${patternLine(fam).replace(/^你/, '')}。${({ 寬裕: '家裡經濟寬裕', 小康: '家裡經濟小康', 吃緊: '家裡經濟有點吃緊' })[fam.econ]}。`);
+  paras.push(`${fam.job.line}，${patternLine(fam).replace(/^你的?/, '')}。${({ 寬裕: '家裡經濟寬裕', 小康: '家裡經濟小康', 吃緊: '家裡經濟有點吃緊' })[fam.econ]}。`);
   const struct = { 雙親: '', 離異: `你和${pw}已經分開，孩子平常跟你住。`, 隔代: `你在外地工作，${c.given}平常主要由${fam.elders.who || '長輩'}帶。`, 重組: `你再婚了，家裡多了一位新的家人，孩子還在適應。`, 喪親: `${pw}已經不在了，現在是你一個人帶孩子。` }[fam.structure];
   if (struct) paras.push(struct);
   const BG = { 新住民家庭: '你們家是新住民家庭，家裡有兩個地方的語言和飲食。', 原住民族: '你們家是原住民族家庭，家裡有族語、祭典，和部落裡的人情。', 客家: '你們家是客家家庭，家裡還有人說客語、守著客家的節慶。' };
