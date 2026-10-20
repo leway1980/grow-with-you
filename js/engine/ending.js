@@ -2,6 +2,7 @@
 // 『教養路線』由行為累積出來的位置計算，從不由玩家宣告。簡單的句子產生；組合式的信（47wan 的面向句庫）留到後面的里程碑。
 
 import { stageMult } from './tags.js';
+import { evalOutcome, opennessFrom, getModel } from './model.js';
 
 const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
 const clamp = (x, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, x));
@@ -19,23 +20,27 @@ export const GOOD_WHEN_UP = (k) => k !== '期待壓力' && k !== '試探度' && 
 function avgHidden(st, key, n = 99) { return mean(last(st.curves, n).map((c) => c[key]).filter((x) => x != null)); }
 function avgVis(st, key, n = 8) { return mean(last(st.vcurves, n).map((c) => c[key]).filter((x) => x != null)); }
 
+/** 結果節點的輸入怎麼讀：hidden＝終點的隱藏數值；vis＝可見數值最近 n 回合的平均；開口度由兩個計數算出（公式與權重在 data/model.json 的 outcomes） */
+function reader(st, M) {
+  const h = st.hidden;
+  return (it) => (it.as === 'vis' ? avgVis(st, it.from, it.n) : it.from === '開口度' ? opennessOf(st, M) : h[it.from]);
+}
+const modelOf = (st, M) => M || getModel();
+
 /**
  * 三條結果軸（§3.1）：親子、人際、學習。0–100。它們是各自獨立的軸，不會被加進幸福裡。
- * 人際：同學往來、師親信任、內在穩定、承受度；孩子學到「吵就有、找理由」（試探度高）會被同學疏遠，所以扣分。
- * 學習：成績、作業、自我效能、閱讀習慣、家庭學習環境、睡眠；3C 超過一般的量會扣分（擠掉睡眠與共處時間，§10 第 7 點）。
+ * 公式（哪些輸入、權重、懲罰）全部在 data/model.json 的 outcomes：
+ * 人際：孩子學到「吵就有、找理由」（試探度高）會被同學疏遠，所以扣分；學習：3C 超過一般的量會扣分（擠掉睡眠與共處時間，§10 第 7 點）。
  */
-export function outcomeAxes(st) {
-  const h = st.hidden;
-  const parent = mean([h.親子信任, h.了解度, h.溫暖陪伴, h.規則一致性]) - 0.3 * Math.max(0, h.期待壓力 - 50) - 0.3 * Math.max(0, 50 - h.父母情緒穩定度);
-  const peer = mean([avgVis(st, '同學往來', 12), h.師親信任, h.內在穩定, h.承受度]) - 0.15 * Math.max(0, h.試探度 - 40);
-  const learn = mean([avgVis(st, '成績', 12), avgVis(st, '成績', 12), avgVis(st, '作業', 12), h.自我效能, h.閱讀習慣, h.家庭學習環境, avgVis(st, '睡眠', 12)]) - 0.3 * Math.max(0, avgVis(st, '3C時間', 12) - 35);
-  return { 親子: clamp(parent), 人際: clamp(peer), 學習: clamp(learn) };
+export function outcomeAxes(st, M) {
+  M = modelOf(st, M);
+  const r = reader(st, M);
+  return { 親子: evalOutcome(M, '親子', r), 人際: evalOutcome(M, '人際', r), 學習: evalOutcome(M, '學習', r) };
 }
 
 /** 孩子願不願意開口（0–100）：被聽見的次數往上，說了沒人聽、後來不再開口的次數往下。計數來自事件，不是隱藏數值。 */
-export function opennessOf(st) {
-  const spoke = st.vars['孩子主動開口'] || 0, silent = st.vars['孩子不再開口'] || 0;
-  return clamp(30 + 7 * spoke - 12 * silent);
+export function opennessOf(st, M) {
+  return opennessFrom(modelOf(st, M), st.vars['孩子主動開口'] || 0, st.vars['孩子不再開口'] || 0);
 }
 
 /** 父母幸福的參數預設值（正式的值在 data/identities.json 的 parentModel；buildEnding 會帶進來） */
@@ -44,18 +49,20 @@ const DEFAULT_PM = { lowShareWeight: 60, lowThreshold: 35, levelWeight: 1, growt
  * 共同的幸福（§7.1 第一個畫面）：孩子、父母、彼此之間。成績、去向不會被加進來（成就和幸福是兩條軸，§7.2）。
  * 父母那一項是整段時間的樣子（平均＋體力見底的回合比例），不是最後幾回合；錢不算（§2.3：家境改變代價，不改變能不能幸福）。
  */
-export function wellbeing(st, M = DEFAULT_PM) {
+export function wellbeing(st, PM = DEFAULT_PM, M) {
+  M = modelOf(st, M);
   const h = st.hidden;
-  const child = mean([avgVis(st, '心情', 8), h.內在穩定, h.自我效能, h.安全感, 100 - h.期待壓力]);
+  const r = reader(st, M);
+  const child = evalOutcome(M, '孩子幸福', r);
   const keys = ['體力', '耐心'];
   if (st.family.partner.present) keys.push('夫妻關係');
   const rows = st.vcurves;
   // 平均水準只算一半的權重（往 50 收）：辛苦但可持續——撐不住的那幾回合（體力或耐心見底）才是主要的扣分
-  const whole = 50 + M.levelWeight * (mean(rows.map((c) => mean(keys.map((k) => c[k])))) - 50);
-  const lowShare = rows.length ? rows.filter((c) => c.體力 < M.lowThreshold || c.耐心 < M.lowThreshold).length / rows.length : 0;
+  const whole = 50 + PM.levelWeight * (mean(rows.map((c) => mean(keys.map((k) => c[k])))) - 50);
+  const lowShare = rows.length ? rows.filter((c) => c.體力 < PM.lowThreshold || c.耐心 < PM.lowThreshold).length / rows.length : 0;
   // 父母的收穫（§7.2b）：一起參與的活動補回一部分犧牲，權重中等，不會抵消全部（也不會讓沒參與的人扣分：收穫從 0 起算）
-  const parent = mean([whole, avgHidden(st, '父母情緒穩定度')]) - M.lowShareWeight * lowShare + (M.growthWeight ?? 0) * (h.父母的收穫 ?? 0);
-  const between = mean([h.親子信任, h.了解度, opennessOf(st)]) - 0.25 * Math.max(0, h.期待壓力 - 50);
+  const parent = mean([whole, avgHidden(st, '父母情緒穩定度')]) - PM.lowShareWeight * lowShare + (PM.growthWeight ?? 0) * (h.父母的收穫 ?? 0);
+  const between = evalOutcome(M, '彼此之間', r);
   return { child: clamp(child), parent: clamp(parent), between: clamp(between) };
 }
 
@@ -72,7 +79,7 @@ export function wellbeingLine(w, st) {
 }
 
 /** 路線判定的門檻：和開局相比，變化超過這個值才算「往那邊走」 */
-export const ROUTE_DELTA = 8;
+export const ROUTE_DELTA = 8; // 值的來源是 data/model.json 的 bands.routeDelta（tests/lint 檢查兩者一致）；routePosition 讀因果圖
 /**
  * 教養路線位置（§3、§7.1 第 5 項）：看「和開局相比」的變化，不是絕對值；不是玩家宣告的。
  * 溫暖、規範、替他做主都沒有明顯變化 ⇒ 未成形／混合。
@@ -83,8 +90,9 @@ export function routePosition(st) {
   const warm = end('溫暖陪伴'), firm = end('規範監督'), control = end('替他做主');
   const dw = warm - s0.溫暖陪伴, df = firm - s0.規範監督, dc = control - s0.替他做主;
   let kind, name;
-  if (dc > ROUTE_DELTA) { kind = '高壓做主'; name = '高壓做主：替孩子決定很多事'; }
-  else if (Math.abs(dw) <= ROUTE_DELTA && Math.abs(df) <= ROUTE_DELTA) { kind = '未成形'; name = '未成形／混合：有時陪、有時不陪，還沒有形成固定的樣子'; }
+  const RD = getModel().bands.routeDelta;
+  if (dc > RD) { kind = '高壓做主'; name = '高壓做主：替孩子決定很多事'; }
+  else if (Math.abs(dw) <= RD && Math.abs(df) <= RD) { kind = '未成形'; name = '未成形／混合：有時陪、有時不陪，還沒有形成固定的樣子'; }
   else if (dw < 0 && df < 0) { kind = '放任'; name = '放任：說是尊重，其實沒怎麼在管'; }
   else if (dw < 0) { kind = '盯但不陪'; name = '盯但不陪：規矩有，陪伴少'; }
   else if (df < 0) { kind = '溺愛'; name = '溺愛：關係很近，規矩比較少'; }
@@ -93,9 +101,12 @@ export function routePosition(st) {
 }
 
 /** §3.1 的七種組合（結局用）。thresholds：好 ≥ 60、差 < 45。 */
+/** 高低區間（結果軸與幸福共用）：好 ≥ bands.good、差 < bands.bad，其餘 mid；門檻在 data/model.json */
+export const bandOf = (v, B = getModel().bands) => (v >= B.good ? 'hi' : v < B.bad ? 'lo' : 'mid');
 export const COMBOS = ['三邊都顧到', '關係好、人際好，成績普通', '成績好、關係冷', '成績好、人際孤立', '關係好、自律弱', '人際好、在家說不上話', '三邊都垮', '其他'];
 export function comboOf(ax) {
-  const lv = (v) => (v >= 60 ? 'hi' : v < 45 ? 'lo' : 'mid');
+  const B = getModel().bands;
+  const lv = (v) => bandOf(v, B);
   const a = lv(ax.親子), p = lv(ax.人際), l = lv(ax.學習);
   if (a === 'lo' && p === 'lo' && l === 'lo') return '三邊都垮';
   if (a === 'hi' && p === 'hi' && l === 'hi') return '三邊都顧到';

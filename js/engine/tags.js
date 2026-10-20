@@ -2,6 +2,7 @@
 // 換算會依情境調整：孩子的階段、（只有害處會累積的標籤才有的）重複加速、「父母傳遞的方向」計數、孩子的狀態與氣質。
 // 數值有飽和（越接近 0 或 100 越難動）與自然漂移（不維持就慢慢回到常態，例如了解度）。純函式，無 DOM。
 import { evalCond } from './events.js';
+import { derivedValue } from './model.js';
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 export const HIDDEN_KEYS = (T) => Object.keys(T.hidden);
@@ -10,6 +11,9 @@ export const HIDDEN_KEYS = (T) => Object.keys(T.hidden);
    tests 會把 st.hidden 換成 Proxy，任何在這三個函式之外的寫入都會丟錯。 */
 let writing = 0;
 export const hiddenWriteAllowed = () => writing > 0;
+/** 量測用的觀察者（tools/check-design.mjs、impact）：每次 applyTags 結束時呼叫 fn({ st, turn, stage, tags, perTag, deltas })；不改變任何數值。 */
+let observer = null;
+export const setTagObserver = (fn) => { observer = fn; };
 const writer = (fn) => (...a) => { writing++; try { return fn(...a); } finally { writing--; } };
 
 /** 階段（孩子目前在哪個階段）：timeline 裡的 stage 字串 */
@@ -81,7 +85,7 @@ export function updateApproach(st, tags, T, opts) {
       if (!v.不太來找你) {
         v.孩子來找_連續錯過++;
         const sens = st.family.child.temperament.敏感度 >= A.sensitiveFrom;
-        if (v.孩子來找_連續錯過 >= (sens ? A.enterAtSensitive : A.enterAt)) { v.不太來找你 = 1; v.孩子來找_回來連續 = 0; }
+        if (v.孩子來找_連續錯過 >= (sens ? A.enterAtSensitive : A.enterAt)) { v.不太來找你 = 1; v.不太來找你_曾 = (v.不太來找你_曾 || 0) + 1; v.孩子來找_回來連續 = 0; }
       }
     }
   } else if (v.不太來找你 && has(A.initiateTags)) v.孩子來找_回來連續++;
@@ -89,7 +93,7 @@ export function updateApproach(st, tags, T, opts) {
 }
 
 export const applyTags = writer((st, tags, T, opts) => {
-  const deltas = {};
+  const deltas = {}, perTag = observer ? {} : null;
   const { turn, stage, ctx, topic, direction } = opts;
   for (const tag of tags || []) {
     const def = T.tags[tag];
@@ -110,6 +114,7 @@ export const applyTags = writer((st, tags, T, opts) => {
       const before = st.hidden[k];
       st.hidden[k] = clamp(before + saturate(before, d * m), 0, 100);
       deltas[k] = (deltas[k] || 0) + (st.hidden[k] - before);
+      if (perTag) ((perTag[tag] ||= {})[k] = (perTag[tag][k] || 0) + (st.hidden[k] - before));
     }
     if (def.interest && topic && topic in st.interest) st.interest[topic] = clamp(st.interest[topic] + (def.interest / 100) * mult, 0, 1);
     if (def.relief) for (const k of ['體力', '耐心']) st.costEMA[k] *= 1 - def.relief; // 真的休息：累積的疲勞減輕（不是隱藏數值）
@@ -122,15 +127,17 @@ export const applyTags = writer((st, tags, T, opts) => {
     const before = st.hidden.父母的收穫 ?? 0;
     st.hidden.父母的收穫 = clamp(before + saturate(before, T.growth.gain), 0, 100);
     deltas.父母的收穫 = (deltas.父母的收穫 || 0) + (st.hidden.父母的收穫 - before);
+    if (perTag) perTag['@父母的收穫'] = { 父母的收穫: st.hidden.父母的收穫 - before };
   }
   recomputeDerived(st, T);
+  if (observer) observer({ st, turn, stage, tags: tags || [], perTag, deltas });
   return { deltas };
 });
 
-/** 承受度：由氣質、安全感、自我效能、親子信任推出（隱藏；不能由選項直接改） */
+/** 承受度：由氣質、安全感、自我效能、親子信任、期待壓力推出（隱藏；不能由選項直接改）。公式的方向與權重在 data/model.json 的 derived／邊 */
 export const recomputeDerived = writer((st, T) => {
   const h = st.hidden, tp = st.family.child.temperament;
-  h.承受度 = clamp(50 + (3 - tp.敏感度) * 6 + (h.安全感 - 55) * 0.25 + (h.自我效能 - 50) * 0.25 + (h.親子信任 - 55) * 0.2 - (h.期待壓力 - 30) * 0.1, 0, 100);
+  h.承受度 = derivedValue(T.model, '承受度', (k) => (k === '敏感度' ? tp.敏感度 : h[k]));
 });
 
 /**
@@ -145,7 +152,7 @@ export const driftHidden = writer((st, T) => {
     const target = def.to === 'start' ? (st.startHidden?.[k] ?? T.hidden[k]) : def.to;
     st.hidden[k] = clamp(st.hidden[k] + (target - st.hidden[k]) * def.rate, 0, 100);
   }
-  for (const rule of dr.rules || []) {
+  for (const rule of T.model.rules || []) {
     const prev = st.vcurves.slice(-(rule.turns - 1)).map((c) => c[rule.stat]);
     const vals = rule.turns > 1 ? [...prev, st.parent[rule.stat]] : [st.parent[rule.stat]];
     if (vals.length >= rule.turns && vals.every((v) => v < rule.lt)) {

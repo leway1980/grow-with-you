@@ -23,10 +23,10 @@ async function loadData() {
   const get = async (f) => { const r = await fetch(`data/${f}`); if (!r.ok) throw new Error(`載入 ${f} 失敗 (${r.status})`); return r.json(); };
   const manifest = await get('manifest.json');
   const names = manifestFiles(manifest);
-  const [identities, tags, pools, calendar, ...rest] = await Promise.all(['identities.json', 'tags.json', 'pools.json', 'calendar.json', ...names].map(get));
+  const [identities, tags, pools, calendar, model, ...rest] = await Promise.all(['identities.json', 'tags.json', 'pools.json', 'calendar.json', 'model.json', ...names].map(get));
   const m = mergeData(manifest, Object.fromEntries(names.map((f, i) => [f, rest[i]])));
   if (m.problems.length) throw new Error('資料檔有問題：' + m.problems.join('；'));
-  data = prepareData({ identities, tags, events: m.events, pools, slots: m.slots, calendar });
+  data = prepareData({ identities, tags, model, events: m.events, pools, slots: m.slots, calendar });
 }
 
 /* ───── 排程：暫停（速度 0）時不走；改速度時重新排 ───── */

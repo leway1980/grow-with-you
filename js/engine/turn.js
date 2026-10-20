@@ -6,6 +6,7 @@ import { setSlotData } from './slots.js';
 import { buildCtx, passes, pickFixed, pickDelayed, drawCard, describeCard, applyChoice, applyEffects, rollLoads, fill, cardById, setGates } from './events.js';
 import { driftHidden, applyTags } from './tags.js';
 import { doseView } from './dose.js';
+import { setModel } from './model.js';
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 
@@ -72,8 +73,11 @@ export function prepareData(raw) {
     if (c.pool.startsWith('_')) continue;
     for (const st of c.stages || raw.tags.stages) ((index[st] ||= {})[c.pool] ||= []).push(c);
   }
+  // 因果圖（data/model.json，§3.7）掛在標籤對照表上，tags.js 只認 T.model
+  setModel(raw.model);
+  const tags = raw.model ? { ...raw.tags, model: raw.model } : raw.tags;
   const data = {
-    identities: raw.identities, tags: raw.tags, events, pools: raw.pools.pools, loads: raw.pools.loads || [], calendar: raw.calendar,
+    identities: raw.identities, tags, model: raw.model, events, pools: raw.pools.pools, loads: raw.pools.loads || [], calendar: raw.calendar,
     cardIndex: Object.fromEntries(events.cards.map((c) => [c.id, c])), index,
     timeline: buildTimeline(raw.calendar),
   };
