@@ -240,6 +240,8 @@ function drift(st, data, tl) {
   for (const k of ['體力', '耐心']) st.costEMA[k] = Math.max(0, st.costEMA[k] + a * (-(acc[k] || 0) / (sp / REF_MONTHS) - st.costEMA[k]));
   const recover = perSpan(M.recoverMonth, sp);
   to(P, '體力', 74 + pat.體力 - M.kBody * st.costEMA.體力, recover);
+  // 用藥（DESIGN §5.0）：用藥中的 ADHD 孩子，成績與作業被拖累的部分減少；沒有盯著吃（用藥打折）時只剩一點點，學校看到的仍是老樣子
+  const A = data.tags.adherence, medCut = adhd && st.flags.用藥中 && A ? (st.vars.用藥打折 ? A.slipped : A.supervised) : 0;
   const load = (tp.活動量 >= 4 ? 3 : 0) + (tp.敏感度 >= 4 ? 3 : 0) + (adhd ? 4 : 0) + (st.flags.等公托候補 && tl.stage === '嬰幼兒' ? 3 : 0);
   to(P, '耐心', 68 - load - (P.體力 < 35 ? 8 : 0) - M.kPatience * st.costEMA.耐心, recover);
   to(P, '錢', M.moneyTarget[f.econ], perSpan(M.moneyRateMonth, sp)); // 回歸家境的常態；帳單是偶爾壓下來的情境負荷（pools.json loads），不是單調的扣款
@@ -255,8 +257,8 @@ function drift(st, data, tl) {
   if (school) {
     // 壓力有時候「有用」（§3.1：盯成績在國小常常真的把分數撐住）：不敏感的孩子，期待壓力與替他做主會推高成績與作業；敏感的孩子反過來被拖累
     const press = (h.期待壓力 - 30) * (tp.敏感度 <= 2 ? 0.35 : tp.敏感度 >= 4 ? -0.12 : 0.12) + (h.替他做主 - 30) * (tp.敏感度 <= 3 ? 0.12 : -0.04);
-    to(C, '成績', 50 + (f.child.talents.國語 + f.child.talents.數學) * 3 + press + (h.家庭學習環境 - 45) * 0.25 + (h.閱讀習慣 - 40) * 0.2 + (h.自我效能 - 50) * 0.2 + (C.睡眠 - 60) * 0.1 - Math.max(0, C['3C時間'] - 50) * 0.1 - (adhd ? 3 : 0), R(0.12));
-    to(C, '作業', 55 + press * 0.8 + (h.自理與責任 - 40) * 0.3 + (h.規範監督 - 50) * 0.15 + (C.睡眠 - 60) * 0.05 - (adhd ? 6 : 0), R(0.25));
+    to(C, '成績', 50 + (f.child.talents.國語 + f.child.talents.數學) * 3 + press + (h.家庭學習環境 - 45) * 0.25 + (h.閱讀習慣 - 40) * 0.2 + (h.自我效能 - 50) * 0.2 + (C.睡眠 - 60) * 0.1 - Math.max(0, C['3C時間'] - 50) * 0.1 - (adhd ? 3 * (1 - medCut) : 0), R(0.12));
+    to(C, '作業', 55 + press * 0.8 + (h.自理與責任 - 40) * 0.3 + (h.規範監督 - 50) * 0.15 + (C.睡眠 - 60) * 0.05 - (adhd ? 6 * (1 - medCut) : 0), R(0.25));
   }
 }
 

@@ -98,6 +98,7 @@
 - 2026-10-20 · sig:506e5c5c · axes：hi/hi/hi → hi/hi/mid；combo：三邊都顧到 → 關係好、人際好，成績普通 · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## tight-single-dad-permissive
+- 2026-10-20 · sig:1e8c2887 · wellbeingParts：mid/mid/lo → mid/hi/lo；axes：lo/mid/lo → mid/mid/lo · 原因：§5 第 7 點特殊需求一致性（新增 sn_push／sn_teacher_note／sn_meltdown／sn_tantrum／sn_med_daily 與父母自己池的 sf_group_mute）：新卡進入抽卡池，抽卡序列與亂數流位移，這個家庭走上不同的人生；同批把 modifiers 裡舊的 ADHD 倍率改由 needsMult 依輕重處理。類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響上限全 ✓）
 - 2026-10-20 · sig:37a3ca1c · wellbeingParts：mid/mid/mid → mid/mid/lo；axes：mid/mid/lo → lo/lo/lo；combo：其他 → 三邊都垮 · 原因：規則 21／工作插播（批 1）：wp_kg_bath／wp_lo_weekend／hi_work_ping 在『急的工作＋孩子還沒被連續錯過』時最好的選項改成『先請孩子一句話說是什麼事，再約時間』；gen_elder_call 與 cm_scrape 敏感的孩子最好的選項改成先抱住；sf_sleep／sf_exercise／sf_friends 依體力切換休息或社交；這幾張卡被抽到時的標籤不同，類別在邊界上移動，不是機制方向改變（check-design 全數在範圍內）
 - 2026-10-20 · sig:e52727b1 · wellbeingParts：mid/mid/lo → mid/mid/mid；axes：lo/mid/lo → mid/mid/lo · 原因：規則 21（A 組）：嬰幼兒、幼兒園與托育後續的 26 張卡（inf_night、inf_feed、kid_dress、kid_story、kid_toilet、fu_screen_ask 等）的最好選項改成依孩子的敏感度、堅持度、活動量切換，並各新增一個溫暖但有問題的選項（抱到天亮、最後一本連講三次、邊等邊看手機）；這個策略在這些卡上選到的標籤與連用改變，類別因此在邊界上移動；方向是對的（沒有永遠最好的選項），check-design 全數在範圍內（warmest 親子差 8.1→7.3）。
 - 2026-10-20 · sig:37a3ca1c · axes：lo/mid/lo → lo/lo/lo；combo：其他 → 三邊都垮 · 原因：規則 21（B 組：國小低年級日常卡與通勤卡 20 張）：最佳選項依年級、敏感度、堅持度、活動量而定，並把『罵一頓／兩手一攤／嘴巴尊重無跟進』等幾個明顯壞的選項換成『說教一段、說沒關係就結束、全部替他做、規則不一致』等溫暖但有問題的選項；放任類策略選到的標籤與抽卡序列改變，學習與人際軸在邊界上移動。方向是對的（同一個決定在不同孩子身上好壞不同），check-design 全部在範圍內。

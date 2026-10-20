@@ -352,10 +352,12 @@ test('花費倍率（costMods）：ADHD 的孩子，訂規則與跟進要付更�
   assert.equal(scaleCosts(m, { effects: { 耐心: 3 }, tags: ['事前訂規則'] }, { 有特殊需求ADHD: true, 另一半: '' }).耐心, 3); // 正的（回復）不放大
 });
 
-test('孩子的氣質改變規則的效果：堅持度高 → 事前訂規則比較難見效；ADHD 也是', () => {
+test('孩子的氣質改變規則的效果：堅持度高 → 事前訂規則比較難見效；ADHD 的倍率改由 needsMult 依輕重處理（modifiers 不再重複乘）', () => {
   const lo = { 孩子堅持度: 3, 有特殊需求ADHD: false }, hi = { 孩子堅持度: 5, 有特殊需求ADHD: false }, adhd = { 孩子堅持度: 3, 有特殊需求ADHD: true };
   assert.ok(modifierFactorOf('事前訂規則', hi) < modifierFactorOf('事前訂規則', lo));
-  assert.ok(modifierFactorOf('事前訂規則', adhd) < modifierFactorOf('事前訂規則', lo));
+  assert.equal(modifierFactorOf('事前訂規則', adhd), modifierFactorOf('事前訂規則', lo), 'ADHD 的加成走 needsMult（tests/special_needs.test.mjs）');
+  for (const t of ['吵了才讓步', '說了不算']) assert.equal(modifierFactorOf(t, adhd), modifierFactorOf(t, lo), t);
+  assert.ok(modifierFactorOf('罵一頓', adhd) > modifierFactorOf('罵一頓', lo));
 });
 import { modifierFactor as modifierFactorOf0 } from '../js/engine/tags.js';
 const modifierFactorOf = (tag, ctx) => modifierFactorOf0(data.tags, tag, ctx);

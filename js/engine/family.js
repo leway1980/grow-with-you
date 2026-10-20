@@ -132,15 +132,17 @@ export function generateFamily(seed, idn) {
   const talents = {};
   for (const k of C.talents.keys) talents[k] = clampI(gauss(rc2) * C.talents.sd, C.talents.min, C.talents.max);
   const rn = rs(seed, 'childNeeds');
+  const rsv = rs(seed, 'childNeedSev'); // 輕重（設計估計）：獨立的亂數流，每一類固定抽一次
   const needs = [];
   for (const [kind, def] of Object.entries(C.specialNeeds)) {
     const u1 = rn(), u2 = rn(), u3 = rn(), u4 = rn(); // 固定消耗，別張表改了也不影響其他類別
+    const sev = wpick(rsv, C.needSeverity.options, C.needSeverity.w);
     const p = def.rate * (sex === '男' ? def.male : def.female);
     if (u1 < p) {
       // 發作月齡：從 onsetMonths 清單均勻抽一個（清單是舊日曆的發作回合逐一換成月齡，分布與 A0 相同）；確診＝發作後再過 dxDelayMonths 個月
       const onsetMonths = def.onsetMonths[Math.min(def.onsetMonths.length - 1, Math.floor(u3 * def.onsetMonths.length))];
       const dx = u2 < def.dxRate; // 「有」和「被看見」分開：只有一部分會在遊戲中被診斷
-      needs.push({ kind, diagnosed: false, onsetMonths, dxMonths: dx ? onsetMonths + def.dxDelayMonths[0] + Math.floor(u4 * (def.dxDelayMonths[1] - def.dxDelayMonths[0] + 1)) : null });
+      needs.push({ kind, severity: sev, diagnosed: false, onsetMonths, dxMonths: dx ? onsetMonths + def.dxDelayMonths[0] + Math.floor(u4 * (def.dxDelayMonths[1] - def.dxDelayMonths[0] + 1)) : null });
     }
   }
   const ri = rs(seed, 'childInterest');
@@ -263,7 +265,7 @@ export function familyCtx(fam, role, ageMonths, turnsUntil = null) {
     // 特殊需求：各類各一個旗標（卡片的訊號與修正用精確的這幾個）；有特殊需求ADHD 沿用舊名
     背景: fam.background || '無', 有同住的另一半: !!fam.partner.present && fam.partner.status === '同住',
     有ADHD: has('ADHD'), 有學習障礙: has('學習障礙'), 有自閉症類群: has('自閉症'), 有發展遲緩: has('發展遲緩'),
-    有特殊需求ADHD: has('ADHD'), 有特殊需求: fam.child.needs.some((n) => n.kind !== '資優'),
+    有特殊需求ADHD: has('ADHD'), 有情緒行為障礙: has('情緒行為障礙'), 有特殊需求: fam.child.needs.some((n) => n.kind !== '資優'),
     偏鄉: fam.urban === '偏鄉' || fam.urban === '離島', 都會: fam.urban === '都會核心' || fam.urban === '都會外圍',
   };
 }

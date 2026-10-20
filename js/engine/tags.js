@@ -54,6 +54,49 @@ export function modifierFactor(T, tag, ctx) {
 /** 飽和：往上加時，越接近 100 越難加；往下減時，越接近 0 越難減（50 附近 ×1） */
 export const saturate = (v, d) => (d >= 0 ? d * (100 - v) / 50 : d * v / 50);
 
+/**
+ * 特殊需求的一致性倍率（tags.json 的 needsMult，DESIGN §5 第 7 點）：孩子有 ADHD 或情緒行為障礙（且已過發作月齡）時，
+ * 『說到做到』『事前訂規則』加大、『吵了才讓步』『說了不算』加大、單獨的『先接住情緒』打折。倍率隨輕重遞減：1 + (x − 1) × needsSeverityShare。
+ * 有兩類時取偏離 1 最多的；沒有特殊需求（或舊存檔沒有輕重，當輕度）時是 1。tags＝這個選項全部的標籤（unlessWith 看它）。
+ */
+export function needsFactor(st, T, tag, tags, months) {
+  const NM = T.needsMult;
+  if (!NM) return 1;
+  let best = 1;
+  for (const n of st.family.child.needs) {
+    let def = NM[n.kind];
+    if (!def || months < n.onsetMonths) continue;
+    if (def.same) def = NM[def.same];
+    const e = def[tag];
+    if (e == null) continue;
+    const x = typeof e === 'number' ? e : e.x;
+    if (e.unlessWith && (tags || []).some((t) => e.unlessWith.includes(t))) continue;
+    const m = 1 + (x - 1) * (T.needsSeverityShare[n.severity ?? '輕'] ?? 1);
+    if (Math.abs(m - 1) > Math.abs(best - 1)) best = m;
+  }
+  return best;
+}
+
+/**
+ * 用藥要盯著吃（tags.json 的 adherence，DESIGN §5.0）：只看『連續』，和工作插播同一種算法。
+ * 選項帶 missTags ⇒ 連續漏盯 +1（達 enterAt 進入『用藥打折』）；帶 attendTags ⇒ 漏盯歸零、連續盯著 +1（達 exitAt 離開）。st.vars 由這個檔案唯一寫入。
+ */
+export function updateAdherence(st, tags, T) {
+  const A = T.adherence;
+  if (!A) return;
+  const v = st.vars, set = new Set(tags || []);
+  const attend = A.attendTags.some((t) => set.has(t)), miss = !attend && A.missTags.some((t) => set.has(t));
+  if (!attend && !miss) return;
+  v.用藥_連續漏盯 ||= 0; v.用藥_連續盯著 ||= 0; v.用藥打折 ||= 0;
+  if (miss) {
+    v.用藥_連續盯著 = 0; v.用藥_連續漏盯++;
+    if (v.用藥_連續漏盯 >= A.enterAt) { if (!v.用藥打折) v.用藥打折_曾 = (v.用藥打折_曾 || 0) + 1; v.用藥打折 = 1; }
+  } else {
+    v.用藥_連續漏盯 = 0; v.用藥_連續盯著++;
+    if (v.用藥打折 && v.用藥_連續盯著 >= A.exitAt) v.用藥打折 = 0;
+  }
+}
+
 /** 重複加速的倍率（只有 accel:true 的標籤才會用到） */
 export function repetitionMult(st, tag, months, T) {
   const rep = T.repetition;
@@ -103,7 +146,7 @@ export const applyTags = writer((st, tags, T, opts) => {
   for (const tag of tags || []) {
     const def = T.tags[tag];
     if (!def) throw new Error('未知的行為標籤: ' + tag);
-    let mult = (T.gain ?? 1) * (st.family.child.responsive ?? 1) * stageMult(def, stage) * modifierFactor(T, tag, ctx) * scale;
+    let mult = (T.gain ?? 1) * (st.family.child.responsive ?? 1) * stageMult(def, stage) * modifierFactor(T, tag, ctx) * needsFactor(st, T, tag, tags, months) * scale;
     // 重複加速：只有「害處會累積」的標籤（accel:true）才會在短時間內越來越快
     if (def.accel) mult *= repetitionMult(st, tag, months, T);
     // 方向加速（§3.3）：同一個方向一直被提到，壓力那一側越來越快；順口的權重比特地小，但不是零
@@ -127,6 +170,7 @@ export const applyTags = writer((st, tags, T, opts) => {
     st.tagCounts[tag] = (st.tagCounts[tag] || 0) + 1;
   }
   updateApproach(st, tags, T, opts);
+  updateAdherence(st, tags, T);
   // 父母的收穫：一個選項只算一次，只在這裡寫（單一寫入口）；飽和與其他隱藏數值相同
   if (isGrowthChoice(T, tags)) {
     const before = st.hidden.父母的收穫 ?? 0;
