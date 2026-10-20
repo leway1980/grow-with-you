@@ -6,7 +6,7 @@ import { mulberry32, pickWeighted, gauss } from './rng.js';
 export const STREAMS = {
   county: 0x1a2b3c4d, job: 0x2b3c4d5e, econ: 0x3c4d5e6f, struct: 0x4d5e6f70, partner: 0x5e6f7081, elders: 0x6f708192,
   housing: 0x708192a3, support: 0x8192a3b4, upbringing: 0x92a3b4c5, child: 0xa3b4c5d6, childNeeds: 0xb4c5d6e7, childInterest: 0xc5d6e7f8,
-  childName: 0xd6e7f809, childResp: 0xc3d4e5f6, siblings: 0xe7f8091a, space: 0xf8091a2b, pet: 0x091a2b3c, school: 0x1a2b3c5d, childcare: 0x2b3c4d6e,
+  childName: 0xd6e7f809, rank: 0x3d4e5f60, transport: 0x4e5f6071, commute: 0x5f607182, childResp: 0xc3d4e5f6, siblings: 0xe7f8091a, space: 0xf8091a2b, pet: 0x091a2b3c, school: 0x1a2b3c5d, childcare: 0x2b3c4d6e,
 };
 const rs = (seed, name) => mulberry32(((seed >>> 0) ^ STREAMS[name]) >>> 0);
 const wpick = (r, opts, ws) => pickWeighted(r, opts.map((o, i) => ({ o, w: ws[i] })), (x) => x.w)?.o ?? opts[0];
@@ -37,6 +37,20 @@ export function rollName(r, idn, sex) {
   }
   const a = first[0].c;
   return { surname, given: a + second.find((x) => x.c !== a && !bad(a + x.c)).c };
+}
+
+/**
+ * 5b 職位、8b 交通工具與通勤距離：各用自己的亂數流，所以新增或調整這幾張表不會讓其他抽籤改變。
+ * 舊存檔沒有這幾個欄位時，state.migrate 會用同一個種子補上。
+ */
+export function rollWork(seed, idn, job, econ, urban) {
+  const rk = idn.rankModel, rw = job.rank.map((w, i) => w * rk.byEcon[econ][i]);
+  const rank = wpick(rs(seed, 'rank'), rk.labels, rw);
+  const tr = idn.transport, tw = mulArr(tr.byEcon[econ], tr.byUrban[urban]);
+  const transport = wpick(rs(seed, 'transport'), tr.labels, tw);
+  const cm = idn.commute, cw = mulArr(cm.byUrban[urban], transport === '沒有車' ? cm.noCarX : [1, 1, 1]);
+  const commute = wpick(rs(seed, 'commute'), cm.labels, cw);
+  return { rank, transport, commute };
 }
 
 export function generateFamily(seed, idn) {
@@ -182,7 +196,7 @@ export function generateFamily(seed, idn) {
 
   return {
     seed, county: county.name, district, urban,
-    job: { name: job.name, line: job.line }, pattern, econ, econRaw,
+    job: { name: job.name, line: job.line }, pattern, econ, econRaw, ...rollWork(seed, idn, job, econ, urban),
     structure: struct.id, partner, elders, housing, space, support, upbringing,
     child, siblings, pet, school, childcare,
   };
@@ -193,6 +207,7 @@ export function familyCtx(fam, role) {
   const adhd = fam.child.needs.find((n) => n.kind === 'ADHD');
   return {
     角色: role, 經濟: fam.econ, 城鄉: fam.urban, 職業: fam.job.name, 工時: fam.pattern, 家庭: fam.structure,
+    職位: fam.rank || '基層', 交通工具: fam.transport || '機車', 通勤距離: fam.commute || '中', // 舊存檔沒有時由 migrate 補上，這裡只是保險
     另一半: fam.partner.attitude || '', 有另一半: !!fam.partner.present, 長輩: fam.elders.status, 住屋: fam.housing, 孩子空間: fam.space,
     升學資源: fam.support, 被帶大: fam.upbringing, 手足數: fam.siblings.filter((s) => s.older).length,
     有寵物: !!fam.pet, 寵物種類: fam.pet ? fam.pet.type : '',
@@ -243,6 +258,7 @@ export function openingText(fam, role) {
   else if (fam.partner.attitude) paras.push(EX_LINE[fam.partner.attitude]);
   const elderTxt = { 同住: `${fam.elders.who}和你們同住，可以搭把手，也會有不同的意見。`, 住附近會幫忙: `${fam.elders.who}住在附近，需要的時候會來幫忙。`, 住遠: `${fam.elders.who}住得比較遠，一年見不了幾次。`, 沒有: '身邊沒有長輩可以幫忙，什麼都要靠自己和另一半。' }[fam.elders.status];
   paras.push(`${elderTxt}你們住的是${fam.housing === '住長輩家' ? '長輩的房子' : fam.housing === '租屋' ? '租來的房子' : '自己的房子'}${fam.space === '自己的房間' ? '，之後孩子可以有自己的房間' : fam.space === '和手足同房' ? '，之後孩子會和手足同一間房' : '，空間不大，之後孩子多半在客廳或餐桌寫功課'}。`);
+  paras.push(workLine(fam));
   paras.push(idnSupport(fam));
   paras.push(`${TEMP_LINE(c.temperament)}`);
   if (fam.pet) paras.push(`家裡本來就有一隻${fam.pet.type === fam.pet.kind ? fam.pet.kind : fam.pet.type}，叫${fam.pet.name}。`);
@@ -251,6 +267,12 @@ export function openingText(fam, role) {
 }
 function patternLine(fam) {
   return { 朝九晚五: '你大多朝九晚五，晚餐和睡前通常都在家', 常加班: '你常常加班，晚餐桌上不一定看得到你', 輪班: '你輪班，有些週整週都不在晚餐桌上', 清晨開店: '你清晨就得出門，早上家裡沒有人，下午比較能顧到孩子', 晚上工作: '你的工作多在晚上，晚餐和睡前常常不在家，早上才有力氣陪', 常出差: '你常出差，一出門就是好幾天' }[fam.pattern];
+}
+function workLine(fam) {
+  const rank = { 基層: '你在職場上是一般職員，下班的事不太會帶回家，不過薪水也就那樣', 主管: '你是主管，底下有人要帶，晚上和假日手機不太能關', 自己當老闆: '你自己當老闆，時間自己排，可是事情出了狀況沒有人能替你扛' }[fam.rank];
+  const car = { 沒有車: '家裡沒有車，出門靠走路、公車或捷運', 機車: '家裡主要靠機車代步', 汽車: '家裡有一台車，接送和出遊都比較方便' }[fam.transport];
+  const way = { 近: '上班很近，十幾分鐘就到', 中: '上班單程大約半小時', 遠: '上班單程要花一個鐘頭上下' }[fam.commute];
+  return `${rank}。${car}，${way}。`;
 }
 function idnSupport(fam) {
   return { 自己就是資源: '你熟悉升學制度，知道去哪裡問；代價是對孩子的期待也容易偏高。', 花錢買資源: '你不太熟升學制度，但願意把錢花在補習、才藝和營隊上。', 自己找資源: '你工時長，能給孩子的主要是信任和放手；要靠學校、老師和自己去問、去找。' }[fam.support];

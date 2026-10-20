@@ -177,3 +177,53 @@ test('名字：_readme 說明來源，並標明設計估計／待確認與已查
   assert.equal(BASE.surnames.length, BASE.surnameW.length);
   assert.deepEqual(BASE.surnames.slice(0, 11), ['陳', '林', '黃', '張', '李', '王', '吳', '劉', '蔡', '楊', '許']);
 });
+
+/* ───────────── 職位、交通工具、通勤距離（§2.1 5b／8b） ───────────── */
+import { familyCtx } from '../js/engine/family.js';
+const many = (n, f) => { const o = []; for (let s = 1; s <= n; s++) o.push(generateFamily(s, idn())); return f ? o.filter(f) : o; };
+const share = (arr, f) => arr.filter(f).length / Math.max(1, arr.length);
+
+test('職位、交通工具、通勤距離：決定性，值都在合法範圍，並出現在 ctx 與開場文字', () => {
+  const a = generateFamily(321, idn()), b = generateFamily(321, idn());
+  assert.deepEqual([a.rank, a.transport, a.commute], [b.rank, b.transport, b.commute]);
+  for (const f of many(300)) {
+    assert.ok(['基層', '主管', '自己當老闆'].includes(f.rank) && ['沒有車', '機車', '汽車'].includes(f.transport) && ['近', '中', '遠'].includes(f.commute));
+    const c = familyCtx(f, '爸爸');
+    assert.equal(c.職位, f.rank); assert.equal(c.交通工具, f.transport); assert.equal(c.通勤距離, f.commute);
+  }
+  const txt = openingText(generateFamily(5, idn()), '媽媽').join('');
+  assert.ok(/主管|職員|老闆/.test(txt) && /沒有車|機車|一台車/.test(txt) && /上班/.test(txt));
+});
+
+test('職位：自己開店、農漁業、接案多半自己當老闆；公務員、教師多半基層；吃緊的主管比寬裕少', () => {
+  const fs = many(4000);
+  const own = fs.filter((f) => ['早餐店', '小吃店或自助餐', '夜市攤商', '農漁業', '自由接案（設計、攝影）', '中小企業老闆', '便利商店加盟'].includes(f.job.name));
+  assert.ok(own.length > 100 && share(own, (f) => f.rank === '自己當老闆') > 0.8, '自營業老闆比例 ' + share(own, (f) => f.rank === '自己當老闆'));
+  const gov = fs.filter((f) => ['公務員', '教師', '科技廠作業員（輪班）'].includes(f.job.name));
+  assert.ok(share(gov, (f) => f.rank === '基層') > 0.75 && share(gov, (f) => f.rank === '自己當老闆') < 0.02);
+  const same = fs.filter((f) => f.job.name === '金融或保險');
+  assert.ok(share(same.filter((f) => f.econ === '寬裕'), (f) => f.rank === '主管') >= share(same.filter((f) => f.econ === '吃緊'), (f) => f.rank === '主管'));
+});
+
+test('交通工具與通勤：偏鄉多半需要車、都會核心沒有車較多；吃緊的家庭沒有車較多；偏鄉通勤遠比都會核心常見', () => {
+  const fs = many(5000);
+  const core = fs.filter((f) => f.urban === '都會核心'), rural = fs.filter((f) => f.urban === '偏鄉');
+  assert.ok(share(core, (f) => f.transport === '沒有車') > share(rural, (f) => f.transport === '沒有車') * 3);
+  assert.ok(share(rural, (f) => f.transport === '汽車') > share(core, (f) => f.transport === '汽車'));
+  assert.ok(share(fs.filter((f) => f.econ === '吃緊'), (f) => f.transport === '沒有車') > share(fs.filter((f) => f.econ === '寬裕'), (f) => f.transport === '沒有車') * 3);
+  assert.ok(share(rural, (f) => f.commute === '遠') > share(core, (f) => f.commute === '遠') * 1.5);
+});
+
+test('職位、交通、通勤各用自己的亂數流：改這三張表，其他抽籤完全不變；反過來也一樣', () => {
+  for (const s of [1, 2, 3, 77, 4096]) {
+    const m = clone(); m.transport.byEcon = { 寬裕: [1, 0, 0], 小康: [1, 0, 0], 吃緊: [1, 0, 0] }; m.commute.byUrban = Object.fromEntries(Object.keys(m.commute.byUrban).map((k) => [k, [0, 0, 1]]));
+    const a = generateFamily(s, idn()), b = generateFamily(s, m);
+    assert.equal(b.transport, '沒有車'); assert.equal(b.commute, '遠');
+    assert.equal(b.rank, a.rank);
+    assert.deepEqual(without(a, 'transport', 'commute'), without(b, 'transport', 'commute'));
+    const m2 = clone(); for (const j of m2.jobs) j.rank = [0, 0, 1];
+    const c = generateFamily(s, m2);
+    assert.equal(c.rank, '自己當老闆');
+    assert.deepEqual(without(a, 'rank'), without(c, 'rank'));
+  }
+});
