@@ -45,6 +45,7 @@
 - 2026-10-20 · sig:16eafde0 · wellbeing：lo → mid；wellbeingParts：lo/mid/lo → lo/mid/mid；axes：lo/lo/mid → lo/mid/mid · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## manager-overtime-dosegreedy
+- 2026-10-20 · sig:60eb29df · wellbeing：mid → lo；axes：lo/lo/lo → lo/mid/mid；combo：三邊都垮 → 其他 · 原因：C0 新增『回家第一句』（kid_home_first／lo_home_first／hi_home_first，§4.34）與『餐桌』（lo_table／hi_table，§4.33）卡，放進日常池且權重大（國小每局約多出 3 次回家第一句、1.7 次餐桌），佔掉日常卡的位置，抽卡序列與亂數流位移，同一個家庭走上不同的人生；只看劑量表的策略在這些卡上選劑量表最好看的選項（把平板遞給孩子、先問功課），這個家庭的三條軸由 lo/lo/lo（三邊都垮）變成 lo/mid/mid，幸福 mid→lo 在邊界上移動；不是機制方向改變（check-design 全 ✓）
 - 2026-10-20 · sig:37a3ca1c · route：高壓做主 → 放任 · 原因：§4.37 身體的照顧（新增 data/events/health.json 的 11 張卡：近視、脊椎側彎、牙齒矯正、扁平足、過敏、骨折；父母自己池補 sf_work_boundary、sf_wait_class）：新卡進入抽卡池，抽卡序列與亂數流位移，這個家庭走上不同的人生，類別的改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查、影響上限與校準目標全 ✓，沒有改任何既有標籤、邊或權重）
 - 2026-10-20 · sig:d43b0901 · wellbeing：lo → mid；axes：lo/lo/mid → lo/lo/lo；combo：其他 → 三邊都垮 · 原因：A2.5 時間正規化（α＝1）：每個比率與窗口改成以月計，一張卡的劑量依回合月數放大（3 個月的回合 ×1.5）、冷卻與後續卡改成月、國小 exitStreak 2／3；抽卡序列與數值軌跡改變，類別在邊界上移動；不是機制方向改變（check-design 全 ✓，見下方 A2.5 全體說明）
 - 2026-10-20 · sig:90db10c9 · route：放任 → 高壓做主 · 原因：A2 曆法 92→72：學前每年 4 回合、國小低 5、中高 4；同一家庭抽卡序列與回合數改變；不是機制方向改變（check-design 方向全 ✓）
@@ -65,6 +66,7 @@
 - 2026-10-20 · sig:a82ea249 · route：放任 → 高壓做主 · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## elders-live-in-research
+- 2026-10-20 · sig:a1c0f071 · wellbeing：hi → mid；wellbeingParts：hi/hi/hi → mid/mid/lo；axes：hi/mid/mid → mid/mid/mid；route：陪又要求 → 溺愛 · 原因：C0 新增『回家第一句』（kid_home_first／lo_home_first／hi_home_first，§4.34）與『餐桌』（lo_table／hi_table，§4.33）卡，放進日常池且權重大（國小每局約多出 3 次回家第一句、1.7 次餐桌），佔掉日常卡的位置，抽卡序列與亂數流位移，同一個家庭走上不同的人生；偶爾查研究的策略多數回合照習慣反應，最長連用變成『假裝聽×2、沒聽孩子重複的要求×2』，路線由陪又要求變成溺愛、幸福 hi→mid；是新卡位移了這個家庭的抽卡序列，不是機制方向改變（check-design 全 ✓）
 - 2026-10-20 · sig:d5d93857 · route：溺愛 → 陪又要求 · 原因：§4.37 身體的照顧（新增 data/events/health.json 的 11 張卡：近視、脊椎側彎、牙齒矯正、扁平足、過敏、骨折；父母自己池補 sf_work_boundary、sf_wait_class）：新卡進入抽卡池，抽卡序列與亂數流位移，這個家庭走上不同的人生，類別的改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查、影響上限與校準目標全 ✓，沒有改任何既有標籤、邊或權重）
 - 2026-10-20 · sig:8041fd9e · wellbeingParts：mid/hi/hi → hi/hi/hi；axes：hi/mid/mid → mid/mid/mid；route：溺愛 → 陪又要求 · 原因：A2.5 時間正規化（α＝1）：每個比率與窗口改成以月計，一張卡的劑量依回合月數放大（3 個月的回合 ×1.5）、冷卻與後續卡改成月、國小 exitStreak 2／3；抽卡序列與數值軌跡改變，類別在邊界上移動；不是機制方向改變（check-design 全 ✓，見下方 A2.5 全體說明）
 - 2026-10-20 · sig:fadddbed · wellbeingParts：mid/hi/hi → hi/hi/hi · 原因：規則 21／工作插播（批 1）：wp_kg_bath／wp_lo_weekend／hi_work_ping 在『急的工作＋孩子還沒被連續錯過』時最好的選項改成『先請孩子一句話說是什麼事，再約時間』；gen_elder_call 與 cm_scrape 敏感的孩子最好的選項改成先抱住；sf_sleep／sf_exercise／sf_friends 依體力切換休息或社交；這幾張卡被抽到時的標籤不同，類別在邊界上移動，不是機制方向改變（check-design 全數在範圍內）
@@ -102,6 +104,7 @@
 - 2026-10-20 · sig:506e5c5c · axes：hi/hi/hi → hi/hi/mid；combo：三邊都顧到 → 關係好、人際好，成績普通 · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## tight-single-dad-permissive
+- 2026-10-20 · sig:c6334604 · achievement：課業有些吃力 → 課業很辛苦 · 原因：C0 新增『回家第一句』（kid_home_first／lo_home_first／hi_home_first，§4.34）與『餐桌』（lo_table／hi_table，§4.33）卡，放進日常池且權重大（國小每局約多出 3 次回家第一句、1.7 次餐桌），佔掉日常卡的位置，抽卡序列與亂數流位移，同一個家庭走上不同的人生；放任策略在新卡上選『把平板遞給孩子』（3C當保母，最長連用 3C當保母×2 共 15 次），學習軸再低一點，成就由『課業有些吃力』變成『課業很辛苦』，其餘類別不變；方向與 permissive 的『三邊都垮』比例仍在目標內（check-design 全 ✓）
 - 2026-10-20 · sig:1e8c2887 · wellbeingParts：mid/mid/lo → mid/hi/lo；axes：lo/mid/lo → mid/mid/lo · 原因：§5 第 7 點特殊需求一致性（新增 sn_push／sn_teacher_note／sn_meltdown／sn_tantrum／sn_med_daily 與父母自己池的 sf_group_mute）：新卡進入抽卡池，抽卡序列與亂數流位移，這個家庭走上不同的人生；同批把 modifiers 裡舊的 ADHD 倍率改由 needsMult 依輕重處理。類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響上限全 ✓）
 - 2026-10-20 · sig:37a3ca1c · wellbeingParts：mid/mid/mid → mid/mid/lo；axes：mid/mid/lo → lo/lo/lo；combo：其他 → 三邊都垮 · 原因：規則 21／工作插播（批 1）：wp_kg_bath／wp_lo_weekend／hi_work_ping 在『急的工作＋孩子還沒被連續錯過』時最好的選項改成『先請孩子一句話說是什麼事，再約時間』；gen_elder_call 與 cm_scrape 敏感的孩子最好的選項改成先抱住；sf_sleep／sf_exercise／sf_friends 依體力切換休息或社交；這幾張卡被抽到時的標籤不同，類別在邊界上移動，不是機制方向改變（check-design 全數在範圍內）
 - 2026-10-20 · sig:e52727b1 · wellbeingParts：mid/mid/lo → mid/mid/mid；axes：lo/mid/lo → mid/mid/lo · 原因：規則 21（A 組）：嬰幼兒、幼兒園與托育後續的 26 張卡（inf_night、inf_feed、kid_dress、kid_story、kid_toilet、fu_screen_ask 等）的最好選項改成依孩子的敏感度、堅持度、活動量切換，並各新增一個溫暖但有問題的選項（抱到天亮、最後一本連講三次、邊等邊看手機）；這個策略在這些卡上選到的標籤與連用改變，類別因此在邊界上移動；方向是對的（沒有永遠最好的選項），check-design 全數在範圍內（warmest 親子差 8.1→7.3）。
@@ -121,6 +124,7 @@
 - 2026-10-20 · sig:a1c0f071 · route：放任 → 溺愛 · 原因：第 3 項（跨卡沿用的值、手足）：單親（離異、喪親）的家庭不再排弟弟妹妹、lo_sibling／hi_sibling 只給有哥哥姊姊的家庭、才藝已報名的孩子不再出現想學才藝、kid_newborn 改成弟弟妹妹出生前一兩個回合才出現，抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 與影響報告的整體分布未變）
 
 ## rural-skip-generation-random
+- 2026-10-20 · sig:e58babae · wellbeingParts：mid/mid/hi → hi/mid/hi · 原因：C0 新增『回家第一句』（kid_home_first／lo_home_first／hi_home_first，§4.34）與『餐桌』（lo_table／hi_table，§4.33）卡，放進日常池且權重大（國小每局約多出 3 次回家第一句、1.7 次餐桌），佔掉日常卡的位置，抽卡序列與亂數流位移，同一個家庭走上不同的人生；隨機策略在新卡上隨機選到『放下手機陪』『問具體的事』較多（最長連用多了這兩個），父母幸福由 mid 升到 hi（邊界附近），孩子與彼此之間不變，三條軸不變；不是機制方向改變（check-design 全 ✓）
 - 2026-10-20 · sig:8ceac8a5 · axes：mid/mid/mid → hi/mid/mid；route：放任 → 溺愛 · 原因：A2.5 時間正規化（α＝1）：每個比率與窗口改成以月計，一張卡的劑量依回合月數放大（3 個月的回合 ×1.5）、冷卻與後續卡改成月、國小 exitStreak 2／3；抽卡序列與數值軌跡改變，類別在邊界上移動；不是機制方向改變（check-design 全 ✓，見下方 A2.5 全體說明）
 - 2026-10-20 · sig:6b742d44 · route：高壓做主 → 放任 · 原因：A2 曆法 92→72：學前每年 4 回合、國小低 5、中高 4；同一家庭抽卡序列與回合數改變；不是機制方向改變（check-design 方向全 ✓）
 - 2026-10-20 · sig:c6d3c979 · achievement：課業大致跟得上 → 課業有些吃力 · 原因：規則 22 提醒清理：二十幾張卡的情境版本拿掉沒在選項文字裡看得到的加標籤（放下手機陪、事後跟進、說到做到、一起參與等），並新增『過度糾正』標籤給注音作業、考卷、比賽影片的敏感版本；這個家庭被抽到這幾張卡時的標籤與隱藏數值不同，學習軸在邊界上移動，不是機制方向改變（check-design 全數在範圍內）
@@ -131,6 +135,7 @@
 - 2026-10-20 · sig:33a120dd · wellbeingParts：mid/mid/mid → mid/mid/hi · 原因：第 4 項（後續卡要有前因、時間詞、公幼候補結局、學校平板擇一）與同批的事故機制重調（事故骰、交通安全認知倍率改成 ×1.5／×0.6）：抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 全數在範圍內）
 
 ## strict-upbringing-elementary-warmfirm
+- 2026-10-20 · sig:2d8d3639 · axes：hi/hi/hi → hi/mid/mid；combo：三邊都顧到 → 其他 · 原因：C0 新增『回家第一句』（kid_home_first／lo_home_first／hi_home_first，§4.34）與『餐桌』（lo_table／hi_table，§4.33）卡，放進日常池且權重大（國小每局約多出 3 次回家第一句、1.7 次餐桌），佔掉日常卡的位置，抽卡序列與亂數流位移，同一個家庭走上不同的人生；溫暖堅定策略在新卡上選『放下手機陪』『問具體的事』（連用 ×4），親子軸維持 hi；新卡佔掉國小的日常位置，其他日常卡的出現次數整體變少，人際與學習軸少了幾次推動，這兩軸由 hi 落到 mid（邊界附近）、組合由三邊都顧到變成其他；是位置被新卡佔掉，不是機制方向改變（check-design 全 ✓）
 - 2026-10-20 · sig:29d07aff · axes：hi/hi/hi → hi/mid/hi；combo：三邊都顧到 → 其他 · 原因：A2 曆法 92→72：學前每年 4 回合、國小低 5、中高 4；同一家庭抽卡序列與回合數改變；不是機制方向改變（check-design 方向全 ✓）
 - 2026-10-20 · sig:f5b03cbe · wellbeingParts：hi/lo/hi → hi/mid/hi · 原因：規則 17／選項情境版本（labelIf 等）：運動會、戶外教學、親師座談在五、六年級改成『放手讓他跟同學去、事後問具體的事』最好（低年級仍是現場陪著最好）；溫暖堅定的策略到了高年級改選放手＋問具體的事，『放下手機陪』連用的次數下降（28→24），類別在邊界上移動；方向是對的（高年級的自主支持），check-design 全部在範圍內。
 - 2026-10-20 · sig:35f0ba03 · wellbeingParts：hi/hi/hi → hi/lo/hi · 原因：第 5 項（家庭一致性）：拿掉『新住民家庭開店』職業，所有種子的職業抽籤整批重洗；隔代的另一半改成在外地工作、平日在家的日常卡不再給隔代；抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽籤與抽卡序列，不是機制方向改變（check-design 全數在範圍內）
@@ -142,5 +147,6 @@
 - 2026-10-20 · sig:332696bf · axes：hi/mid/mid → hi/hi/mid；combo：其他 → 關係好、人際好，成績普通 · 原因：規則 21（C 組：國小中高）：機器人改看情境版本展開後的選項（resolveChoice），並把 hi_late_hw、hi_sibling、hi_prep_night 等高年級卡改成依年級、孩子特質的最佳選項；這個家庭的孩子在五、六年級時，運動會／戶外教學／親師座談（規則 17）、hi_sibling（問他要不要談）、hi_late_hw（聯絡簿加聽他說卡在哪）的最佳選項換了，抽卡序列位移，學習軸 mid → hi
 
 ## gifted-child-warmfirm
+- 2026-10-20 · sig:b8b5ace5 · axes：hi/hi/hi → hi/hi/mid；combo：三邊都顧到 → 關係好、人際好，成績普通 · 原因：C0 新增『回家第一句』（kid_home_first／lo_home_first／hi_home_first，§4.34）與『餐桌』（lo_table／hi_table，§4.33）卡，放進日常池且權重大（國小每局約多出 3 次回家第一句、1.7 次餐桌），佔掉日常卡的位置，抽卡序列與亂數流位移，同一個家庭走上不同的人生；溫暖堅定策略在新卡上選『放下手機陪』（連用 ×5）、『問具體的事』，親子軸維持 hi；新卡佔掉國小日常位置，其他日常卡少了幾次，學習軸由 hi 落到 mid（邊界附近），組合由三邊都顧到變成『關係好、人際好，成績普通』（和它之前的一條記錄是同一個邊界）；不是機制方向改變（check-design 全 ✓）
 - 2026-10-20 · sig:35f0ba03 · wellbeingParts：hi/mid/hi → hi/lo/hi；axes：hi/hi/mid → hi/hi/hi；combo：關係好、人際好，成績普通 → 三邊都顧到 · 原因：§6.0 升學路徑新卡（data/events/pathways.json）：這個孩子是資優，所以遇到只給資優孩子的兩張新卡——pw_early_enroll（中班，溫暖堅定選了「請老師記錄、期末再看」）與 pw_skip_grade（國小四年級，選了「向鑑輔會申請數學部分跳級」）。多了兩個決定，這個家庭之後的抽卡序列與亂數流跟著位移；父母幸福由 mid 降到 lo（邊界附近，兩個決定都花耐心與體力、工作表現），孩子與彼此不變；學習軸 mid → hi（結果軸的第三條），是兩個決定之後抽到的日常卡不同，組合因此從「關係好、人際好，成績普通」變成「三邊都顧到」。方向上合理：事後跟進與申請鑑輔會都是研究支持的做法，沒有調任何標籤、邊或權重。其他 14 個家庭不是資優，類別都沒有變。
 - 2026-10-20 · sig:506e5c5c · wellbeingParts：hi/lo/hi → hi/mid/hi · 原因：§4.38 新增 14 張班級卡後，抽卡序列與亂數流改變，同一個家庭走上不同的人生；父母幸福由 lo 升到 mid（邊界附近），孩子與彼此之間不變，三條軸不變（hi/hi/mid）。這個家庭的最長標籤連用多了『怪老師×2』，是新卡上的選擇，不影響機制方向；類別改變來自抽卡序列，不是機制方向改變。

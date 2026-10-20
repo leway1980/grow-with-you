@@ -43,6 +43,7 @@ export function lintData(raw = loadRaw()) {
   const st = newState(1, data, {});
   const ctx = buildCtx(st, data.timeline[0], { topic: '運動' });
   const ctxKeys = new Set(Object.keys(ctx));
+  for (const c of raw.events.cards) if (c.habit) { ctxKeys.add('習慣_' + c.habit); ctxKeys.add('習慣改變_' + c.habit); } // 習慣家族由卡片的 habit 欄位登記；新存檔的 st.habits 是空的，ctx 沒有這兩個變數，條件（resultIf 的 習慣改變_回家第一句 >= 1）執行時缺值就是 false
   const baseCards = raw.events.cards;
   const cards = [...baseCards, ...expandVariantCards(baseCards)]; // 情境版本（labelIf 等）展開成虛擬卡，跟一般的卡跑同一套規則
   const ids = new Set(baseCards.map((c) => c.id));
