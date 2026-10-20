@@ -1,6 +1,8 @@
 // 終局（DESIGN §7、§3.1、§11）v0：先給「你們一起的幸福」，成就另外顯示，最後才「回頭看」把所有隱藏數值攤開。純函式、無 DOM。
 // 『教養路線』由行為累積出來的位置計算，從不由玩家宣告。簡單的句子產生；組合式的信（47wan 的面向句庫）留到後面的里程碑。
 
+import { stageMult } from './tags.js';
+
 const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
 const clamp = (x, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, x));
 const last = (arr, n) => arr.slice(-n);
@@ -17,24 +19,39 @@ export const GOOD_WHEN_UP = (k) => k !== '期待壓力' && k !== '試探度' && 
 function avgHidden(st, key, n = 99) { return mean(last(st.curves, n).map((c) => c[key]).filter((x) => x != null)); }
 function avgVis(st, key, n = 8) { return mean(last(st.vcurves, n).map((c) => c[key]).filter((x) => x != null)); }
 
-/** 三條結果軸（§3.1）：親子、人際、學習。0–100。 */
+/**
+ * 三條結果軸（§3.1）：親子、人際、學習。0–100。它們是各自獨立的軸，不會被加進幸福裡。
+ * 人際：同學往來、師親信任、內在穩定、承受度；孩子學到「吵就有、找理由」（試探度高）會被同學疏遠，所以扣分。
+ * 學習：成績、作業、自我效能、閱讀習慣、家庭學習環境、睡眠；3C 超過一般的量會扣分（擠掉睡眠與共處時間，§10 第 7 點）。
+ */
 export function outcomeAxes(st) {
   const h = st.hidden;
   const parent = mean([h.親子信任, h.了解度, h.溫暖陪伴, h.規則一致性]) - 0.3 * Math.max(0, h.期待壓力 - 50) - 0.3 * Math.max(0, 50 - h.父母情緒穩定度);
-  const peer = mean([avgVis(st, '同學往來', 12), h.師親信任, h.班級風氣, h.內在穩定, h.承受度]);
-  const learn = mean([avgVis(st, '成績', 12), h.自我效能, h.閱讀習慣, h.家庭學習環境, 100 - Math.max(0, avgVis(st, '3C時間', 12) - 20), avgVis(st, '睡眠', 12)]);
+  const peer = mean([avgVis(st, '同學往來', 12), h.師親信任, h.內在穩定, h.承受度]) - 0.15 * Math.max(0, h.試探度 - 40);
+  const learn = mean([avgVis(st, '成績', 12), avgVis(st, '作業', 12), h.自我效能, h.閱讀習慣, h.家庭學習環境, avgVis(st, '睡眠', 12)]) - 0.3 * Math.max(0, avgVis(st, '3C時間', 12) - 35);
   return { 親子: clamp(parent), 人際: clamp(peer), 學習: clamp(learn) };
 }
 
-/** 共同的幸福（§7.1 第一個畫面）：孩子、父母、彼此之間 */
+/** 孩子願不願意開口（0–100）：被聽見的次數往上，說了沒人聽、後來不再開口的次數往下。計數來自事件，不是隱藏數值。 */
+export function opennessOf(st) {
+  const spoke = st.vars['孩子主動開口'] || 0, silent = st.vars['孩子不再開口'] || 0;
+  return clamp(30 + 7 * spoke - 12 * silent);
+}
+
+/**
+ * 共同的幸福（§7.1 第一個畫面）：孩子、父母、彼此之間。成績、去向不會被加進來（成就和幸福是兩條軸，§7.2）。
+ * 父母那一項是整段時間的樣子（平均＋體力見底的回合比例），不是最後幾回合；錢不算（§2.3：家境改變代價，不改變能不能幸福）。
+ */
 export function wellbeing(st) {
   const h = st.hidden;
   const child = mean([avgVis(st, '心情', 8), h.內在穩定, h.自我效能, h.安全感, 100 - h.期待壓力]);
-  const pv = ['體力', '耐心', '錢', '工作表現'].map((k) => avgVis(st, k, 8));
-  if (st.family.partner.present) pv.push(avgVis(st, '夫妻關係', 8));
-  pv.push(h.父母情緒穩定度);
-  const parent = mean(pv);
-  const between = mean([h.親子信任, h.了解度, h.溫暖陪伴, h.規則一致性]) - 0.25 * Math.max(0, h.期待壓力 - 50);
+  const keys = ['體力', '耐心'];
+  if (st.family.partner.present) keys.push('夫妻關係');
+  const rows = st.vcurves;
+  const whole = mean(rows.map((c) => mean(keys.map((k) => c[k]))));
+  const lowShare = rows.length ? rows.filter((c) => c.體力 < 35).length / rows.length : 0;
+  const parent = mean([whole, avgHidden(st, '父母情緒穩定度')]) - 60 * lowShare;
+  const between = mean([h.親子信任, h.了解度, opennessOf(st)]) - 0.25 * Math.max(0, h.期待壓力 - 50);
   return { child: clamp(child), parent: clamp(parent), between: clamp(between) };
 }
 
@@ -50,32 +67,66 @@ export function wellbeingLine(w, st) {
   return `有好的日子，也有各自撐著的日子。這個家還在繼續。`;
 }
 
-/** 教養路線位置（§3、§7.1 第 5 項）：由整段時間的平均計算，不是玩家宣告的 */
+/** 路線判定的門檻：和開局相比，變化超過這個值才算「往那邊走」 */
+export const ROUTE_DELTA = 8;
+/**
+ * 教養路線位置（§3、§7.1 第 5 項）：看「和開局相比」的變化，不是絕對值；不是玩家宣告的。
+ * 溫暖、規範、替他做主都沒有明顯變化 ⇒ 未成形／混合。
+ */
 export function routePosition(st) {
-  const warm = avgHidden(st, '溫暖陪伴'), firm = avgHidden(st, '規範監督'), control = avgHidden(st, '替他做主');
-  let name;
-  if (control >= 48) name = '高壓做主：替孩子決定很多事';
-  else if (warm < 50 && firm < 50) name = '放任：說是尊重，其實沒怎麼在管';
-  else if (warm < 50) name = '盯但不陪：規矩有，陪伴少';
-  else if (firm < 50) name = '溺愛：關係很近，規矩比較少';
-  else name = '陪又要求：陪著，也有規矩';
-  return { warm: clamp(warm), firm: clamp(firm), control: clamp(control), name };
+  const s0 = st.startHidden || st.hidden;
+  const end = (k) => avgHidden(st, k, 12);
+  const warm = end('溫暖陪伴'), firm = end('規範監督'), control = end('替他做主');
+  const dw = warm - s0.溫暖陪伴, df = firm - s0.規範監督, dc = control - s0.替他做主;
+  let kind, name;
+  if (dc > ROUTE_DELTA) { kind = '高壓做主'; name = '高壓做主：替孩子決定很多事'; }
+  else if (Math.abs(dw) <= ROUTE_DELTA && Math.abs(df) <= ROUTE_DELTA) { kind = '未成形'; name = '未成形／混合：有時陪、有時不陪，還沒有形成固定的樣子'; }
+  else if (dw < 0 && df < 0) { kind = '放任'; name = '放任：說是尊重，其實沒怎麼在管'; }
+  else if (dw < 0) { kind = '盯但不陪'; name = '盯但不陪：規矩有，陪伴少'; }
+  else if (df < 0) { kind = '溺愛'; name = '溺愛：關係很近，規矩比較少'; }
+  else { kind = '陪又要求'; name = '陪又要求：陪著，也有規矩'; }
+  return { warm: clamp(warm), firm: clamp(firm), control: clamp(control), delta: { warm: dw, firm: df, control: dc }, kind, name };
 }
 
-/** 關鍵時刻：對隱藏數值影響最大的幾次選擇 */
+/** §3.1 的七種組合（結局用）。thresholds：好 ≥ 60、差 < 45。 */
+export const COMBOS = ['三邊都顧到', '關係好、人際好，成績普通', '成績好、關係冷', '成績好、人際孤立', '關係好、自律弱', '人際好、在家說不上話', '三邊都垮', '其他'];
+export function comboOf(ax) {
+  const lv = (v) => (v >= 60 ? 'hi' : v < 45 ? 'lo' : 'mid');
+  const a = lv(ax.親子), p = lv(ax.人際), l = lv(ax.學習);
+  if (a === 'lo' && p === 'lo' && l === 'lo') return '三邊都垮';
+  if (a === 'hi' && p === 'hi' && l === 'hi') return '三邊都顧到';
+  if (a === 'hi' && p === 'hi' && l === 'mid') return '關係好、人際好，成績普通';
+  if (a === 'lo' && p !== 'lo' && l === 'hi') return '成績好、關係冷';
+  if (a !== 'hi' && p === 'lo' && l === 'hi') return '成績好、人際孤立';
+  if (a === 'hi' && p !== 'hi' && l === 'lo') return '關係好、自律弱';
+  if (a === 'lo' && p === 'hi' && l !== 'hi') return '人際好、在家說不上話';
+  return '其他';
+}
+
+/** 一組標籤在這個階段大約推動了多少（只看對照表與階段倍率，不含情境與飽和）：給「關鍵時刻」用，不需要存每次選擇的隱藏變化 */
+export function estimateDeltas(tags, stage, T) {
+  const out = {};
+  for (const t of tags || []) {
+    const def = T.tags[t]; if (!def) continue;
+    const m = stageMult(def, stage);
+    for (const [k, d] of Object.entries(def.d || {})) out[k] = (out[k] || 0) + d * m;
+  }
+  return out;
+}
+
+/** 關鍵時刻：對隱藏數值影響最大的幾次選擇（從標籤重新推算，存檔裡不留每次的隱藏變化） */
 export function keyMoments(st, data, n = 5) {
-  const scored = st.hist.map((h) => ({ h, s: Object.entries(h.h || {}).reduce((a, [, d]) => a + Math.abs(d), 0) })).filter((x) => x.s > 0);
+  const scored = st.hist.map((h) => {
+    const est = estimateDeltas(h.tags, data.timeline[h.turn].stage, data.tags);
+    return { h, est, s: Object.values(est).reduce((a, d) => a + Math.abs(d), 0) };
+  }).filter((x) => x.s > 0);
   scored.sort((a, b) => b.s - a.s);
   const pick = scored.slice(0, n).sort((a, b) => a.h.turn - b.h.turn);
-  return pick.map(({ h }) => {
+  return pick.map(({ h, est }) => {
     const tl = data.timeline[h.turn];
-    const moved = Object.entries(h.h).filter(([, d]) => Math.abs(d) >= 0.8).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 3)
+    const moved = Object.entries(est).filter(([, d]) => Math.abs(d) >= 0.8).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 3)
       .map(([k, d]) => ({ key: k, dir: d > 0 ? 1 : -1 }));
-    return {
-      when: tl.label, title: h.title, label: h.label,
-      did: (h.tags || []).map((t) => data.tags.tags[t]?.desc).filter(Boolean),
-      moved,
-    };
+    return { when: tl.label, title: h.title, label: h.label, did: (h.tags || []).map((t) => data.tags.tags[t]?.desc).filter(Boolean), moved };
   });
 }
 
@@ -100,18 +151,20 @@ export function buildEnding(st, data) {
     name: nm,
     wellbeing: w,
     line: wellbeingLine(w, st),
-    achievement: {
-      axes,
+    axes,                                  // 三條結果軸：獨立的一組，不在 achievement 裡，也不進幸福
+    achievement: {                         // 只放成績與學校去向
       scoreWord: score >= 70 ? '課業穩穩跟得上' : score >= 55 ? '課業大致跟得上' : score >= 40 ? '課業有些吃力' : '課業很辛苦',
       note: `${nm}國小畢業了。接下來是國中，這一版先寫到這裡，後面的路還沒有鋪好。`,
     },
     route: routePosition(st),
+    combo: comboOf(axes),
     moments: keyMoments(st, data),
     groups: REVEAL_GROUPS,
     series: curveSeries(st),
     to: stageNow.label,
     resources: [
       { name: '安心專線', tel: '1925', note: '24 小時，心理健康與情緒困擾，免費' },
+      { name: '教育部家庭教育諮詢專線', tel: '412-8185（手機加 02）', note: '親職、親子溝通與家庭相處的諮詢' },
       { name: '1957 福利諮詢專線', tel: '1957', note: '社會福利與經濟協助的諮詢' },
       { name: '各縣市家庭教育中心', tel: '', note: '親職與親子溝通的諮詢，可上教育部家庭教育網查詢所在縣市的專線' },
       { name: '特教通報與鑑定', tel: '', note: '孩子的學習、注意力或情緒讓你擔心時，可向學校輔導室詢問特教通報與鑑定流程' },

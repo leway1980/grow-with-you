@@ -43,6 +43,7 @@ function resolve(name, st, ctx, r, pinned) {
   const v = pickWeighted(r, el, (x) => x.w ?? 1) || el[0];
   st.slotLast[name] = v.t;
   pinned[name] = v.t;
+  if (v.dir) pinned['#dir:' + name] = v.dir; // 這個槽值代表的「方向」（營隊、才藝……），供方向計數用（§3.3）
   for (const [k, x] of Object.entries(v.set || {})) if (!(k in pinned)) { pinned[k] = x; st.slotLast[k] = x; }
   return v.t;
 }

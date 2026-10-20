@@ -27,6 +27,19 @@ export function rngAt(seed, turn, salt) {
   return mulberry32(s)();
 }
 
+/**
+ * 決定性的洗牌：順序只由 (種子, 回合, 卡片 id) 決定，和玩家的選擇無關，存檔重讀、重新整理都一樣。
+ * 每一步都用 rngAt（Fisher–Yates）；回傳「顯示位置 → 原始索引」。引擎內部一律用原始索引。
+ */
+export function shuffleOrder(seed, turn, id, n) {
+  const a = [...Array(n).keys()];
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(rngAt(seed, turn, `${id}#${i}`) * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 /** 以 st[key]（一個整數）為狀態的亂數函式；狀態可直接 JSON 存檔。 */
 export function stateRng(st, key = 'rngS') {
   return function () {

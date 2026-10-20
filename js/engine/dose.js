@@ -14,15 +14,19 @@ export function visibleKeys(st, stage) {
   return { parent, child: stage === '嬰幼兒' ? child.filter((k) => k !== '同學往來') : child };
 }
 
-export const snapshot = (st) => ({ ...st.parent, ...st.child });
+export const emptyAcc = () => ({});
 
 /** 變化量 → 1–3 格（不到 1 點的變化不顯示） */
 export const levelOf = (d) => { const a = Math.abs(d); return a >= 9 ? 3 : a >= 4 ? 2 : a >= 1 ? 1 : 0; };
 
-export function doseView(before, after, st, stage) {
+/**
+ * 劑量表：acc 是這個回合「選項本身想要造成」的變化（intended delta），不是夾在 0–100 之後的實際差。
+ * 例：錢已經是 0，選了錢 −6 的選項，劑量表照樣顯示「錢▼」——玩家看到的是這件事的代價，不是剩餘的空間。
+ */
+export function doseView(acc, st, stage) {
   const vk = visibleKeys(st, stage);
   const row = (k) => {
-    const d = after[k] - before[k];
+    const d = acc[k] || 0;
     const level = levelOf(d);
     if (!level) return null;
     const dir = d > 0 ? 1 : -1;

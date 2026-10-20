@@ -23,7 +23,7 @@ export function newState(seed, data, opts = {}) {
 
   // 隱藏數值的起點：表內預設 + 家庭條件調整（開局條件，不是玩的過程中的改變）
   const hidden = { ...T.hidden };
-  const fctx = familyCtx(fam, role);
+  const fctx = { ...familyCtx(fam, role), 起點: startMode, 托育方式: startMode === 'elementary' ? fam.childcare.mode : '' };
   for (const rule of T.startAdjust) if (evalCond(rule.if, fctx)) for (const [k, d] of Object.entries(rule.d)) hidden[k] = clamp(hidden[k] + d, 0, 100);
 
   const money = data.identities.econStart[fam.econ].錢;
@@ -39,7 +39,9 @@ export function newState(seed, data, opts = {}) {
     interest: { ...fam.child.interests },      // 興趣向量（隱藏）：之後會依接觸經驗改變
     dirCount: {},                              // 父母傳遞的方向計數（§3.3）
     tagCounts: {},                             // 各行為標籤累計次數
-    vars: { 托育方式: '', 幼兒園類型: '', 照顧者: '', 換照顧者次數: 0 },
+    vars: { 托育方式: '', 幼兒園類型: '', 照顧者: '', 換照顧者次數: 0, 孩子主動開口: 0, 孩子不再開口: 0 },
+    costEMA: { 體力: 0, 耐心: 0 },             // 最近幾回合體力、耐心的花費（指數移動平均），父母的回復目標會被它拉低
+    startHidden: null,                         // 開局時的隱藏數值（自然漂移與結局的『相對於開局』用）
     flags: {}, cooldowns: {}, used: {}, openPools: {}, delayed: [], slotLast: {}, cardScope: null,
     hist: [], curves: [], vcurves: [], done: {},
     cur: null, ended: false, endReason: null,
@@ -50,11 +52,10 @@ export function newState(seed, data, opts = {}) {
     st.vars.托育方式 = cc.mode;
     st.vars.幼兒園類型 = cc.kindergarten;
     st.vars.照顧者 = cc.mode === '父母自己帶' ? '父母' : cc.mode === '長輩主要照顧' ? (fam.elders.who ? fam.elders.who.slice(-2) : '長輩') : cc.daycare && cc.daycare.includes('保母') ? '保母' : '托嬰中心老師';
-    for (const [k, d] of Object.entries(data.identities.childcare.startEffects[cc.mode] || {})) st.hidden[k] = clamp(st.hidden[k] + d, 0, 100);
-    st.hidden.閱讀習慣 = clamp(st.hidden.閱讀習慣 + 4, 0, 100);
     st.preschoolRolled = true;
   }
   recomputeDerived(st, T); // 承受度是推算值
+  st.startHidden = { ...st.hidden };
   return st;
 }
 
@@ -65,6 +66,31 @@ export const deserialize = (s) => {
   return st;
 };
 
+/**
+ * 舊存檔升級：補上新欄位的預設值、丟掉已經不存在的後續卡與當前卡、不保存每次選擇的隱藏變化。
+ * 只有『欄位的意思變了、補預設也救不回來』時才提高 SAVE_VERSION；單純新增欄位只要在這裡補預設。
+ */
+export function migrate(st, data) {
+  if (!st || st.v !== SAVE_VERSION) throw new Error('存檔版本不符');
+  const T = data.tags;
+  st.hidden ||= {};
+  for (const k of Object.keys(T.hidden)) if (typeof st.hidden[k] !== 'number' || Number.isNaN(st.hidden[k])) st.hidden[k] = T.hidden[k];
+  st.vars = { 托育方式: '', 幼兒園類型: '', 照顧者: '', 換照顧者次數: 0, 孩子主動開口: 0, 孩子不再開口: 0, ...(st.vars || {}) };
+  st.costEMA = { 體力: 0, 耐心: 0, ...(st.costEMA || {}) };
+  for (const k of ['dirCount', 'tagCounts', 'flags', 'cooldowns', 'used', 'openPools', 'slotLast', 'done']) st[k] ||= {};
+  for (const k of ['delayed', 'hist', 'curves', 'vcurves']) st[k] ||= [];
+  st.slotS ??= (st.seed ^ 0x7f4a7c15) >>> 0;
+  st.autoS ??= (st.seed ^ 0x51ed270b) >>> 0;
+  if (!st.startHidden) st.startHidden = newState(st.seed, data, { role: st.role, startMode: st.startMode }).startHidden;
+  for (const k of Object.keys(T.hidden)) if (typeof st.startHidden[k] !== 'number') st.startHidden[k] = T.hidden[k];
+  st.delayed = st.delayed.filter((d) => d && data.cardIndex[d.card]).map((d) => ({ ...d, from: d.from ?? d.due - 1 }));
+  for (const id of Object.keys(st.cooldowns)) if (!data.cardIndex[id]) delete st.cooldowns[id];
+  for (const e of st.hist) { delete e.h; e.tags ||= []; }
+  if (st.cur && (!st.cur.cardId || !data.cardIndex[st.cur.cardId])) st.cur = null;
+  if (st.cur && st.cur.cardId) { st.cur.acc ||= {}; st.cur.loads ||= []; st.cur.slot ??= 0; }
+  return st;
+}
+
 /* ───── 存檔：所有存取都包 try/catch，壞掉就只存在記憶體（沒有 localStorage 也能玩） ───── */
 const mem = {};
 export const store = {
@@ -73,8 +99,8 @@ export const store = {
   del() { try { localStorage.removeItem(SAVE_KEY); } catch { delete mem[SAVE_KEY]; } },
 };
 export function writeSave(st) { try { store.set(serialize(st)); return true; } catch { return false; } }
-export function readSave() {
+export function readSave(data) {
   const raw = store.get();
   if (!raw) return null;
-  try { return deserialize(raw); } catch { return null; }
+  try { return migrate(deserialize(raw), data); } catch { return null; }
 }

@@ -1,10 +1,9 @@
 // 沿用《高中，只有一次》(leway1980/Game 47wan @ ce1d972) events.js：條件求值器（逐字複製）與兩段式抽卡、grayIf、textIf、後續卡的做法；
 // 改動：移除高中專屬的態度／交往／詐騙邏輯，條件環境改為親子遊戲，新增『池開啟／加重』、選項層級條件（showIf）與機率分支。純函式，無 DOM。
-import { pickWeighted, clamp, rngAt } from './rng.js';
+import { pickWeighted, clamp, rngAt, shuffleOrder } from './rng.js';
 import { fillSlots } from './slots.js';
 import { familyCtx } from './family.js';
 import { applyTags } from './tags.js';
-import { snapshot, doseView } from './dose.js';
 
 /* ───────────── 小型條件求值器 ─────────────
    語法：數字、'字串'、變數名(中文可)、#旗標、== != < <= > >=、and or not（也可用 && || !）、括號、true/false */
@@ -116,6 +115,11 @@ export const evalCond = (expr, ctx) => !!compile(expr)(ctx);
 
 /* ───────────── 條件環境 ───────────── */
 
+/** 具名門檻（tags.json 的 gates）：卡片寫「了解度高」，不寫 55，全遊戲只有一個地方改門檻 */
+let GATES = {};
+export function setGates(g) { GATES = g || {}; }
+export const gateNames = () => Object.entries(GATES).flatMap(([k, m]) => Object.keys(m).map((n) => k + n));
+
 /** 孩子對這件事有多想要（隱藏）：0 還沒決定／1 還好／2 很想要。由興趣、堅持度、主見決定（§3.3） */
 export function willOf(st, topic) {
   if (!topic || !(topic in st.interest)) return 0;
@@ -129,7 +133,7 @@ export function willOf(st, topic) {
 export function buildCtx(st, tl, extra = {}) {
   const f = st.family, P = st.parent, C = st.child;
   const month = tl.month ?? ((f.child.birthMonth - 1 + Math.floor(tl.ageMonths / 12) * 12 + (tl.ageMonths % 12)) % 12) + 1;
-  return {
+  const ctx = {
     __flags: st.flags,
     ...familyCtx(f, st.role),
     ...st.hidden, // 隱藏數值只在引擎內部給條件用（例如選項的門檻）；不會出現在任何畫面
@@ -137,19 +141,33 @@ export function buildCtx(st, tl, extra = {}) {
     心情: C.心情, 成績: C.成績, 作業: C.作業, 三C: C['3C時間'], 睡眠: C.睡眠, 同學往來: C.同學往來,
     回合: st.turn, 階段: tl.stage, 年齡: Math.floor(tl.ageMonths / 12), 年級: tl.grade, 假期: !!tl.vacation, 月: month,
     托育方式: st.vars.托育方式, 幼兒園類型: st.vars.幼兒園類型, 照顧者: st.vars.照顧者, 換照顧者次數: st.vars.換照顧者次數,
+    孩子不再開口: st.vars.孩子不再開口 || 0, 孩子主動開口: st.vars.孩子主動開口 || 0, 起點: st.startMode,
     意願強度: willOf(st, extra.topic),
   };
+  for (const [k, m] of Object.entries(GATES)) for (const [n, thr] of Object.entries(m)) ctx[k + n] = st.hidden[k] >= thr;
+  return ctx;
 }
 
 /* ───────────── 效果（看得見的數值） ───────────── */
 const clampV = (x) => clamp(x, 0, 100);
-export function applyEffects(st, eff) {
+/** 套用可見數值的變化。acc 會記下「想要造成的變化」（不是夾在 0–100 之後的實際差），給劑量表用。 */
+export function applyEffects(st, eff, acc) {
   if (!eff) return;
   for (const [k, d] of Object.entries(eff)) {
-    if (k in st.parent) { if (k === '夫妻關係' && !st.family.partner.present) continue; st.parent[k] = clampV(st.parent[k] + d); }
-    else if (k in st.child) st.child[k] = clampV(st.child[k] + d);
+    if (k in st.parent) {
+      if (k === '夫妻關係' && !st.family.partner.present) continue;
+      st.parent[k] = clampV(st.parent[k] + d);
+    } else if (k in st.child) st.child[k] = clampV(st.child[k] + d);
     else throw new Error('未知的可見數值: ' + k + '（隱藏數值只能經由 tags 改變）');
+    if (acc) acc[k] = (acc[k] || 0) + d;
   }
+}
+
+/* ───────────── 陪伴時段（§2.3）：工作型態決定這個回合的晚餐、睡前、早晨、週末在不在 ───────────── */
+export function slotAvailable(st, data, need, turn = st.turn) {
+  const pat = data.identities.patterns[st.family.pattern];
+  const p = pat && need in pat ? pat[need] : 1;
+  return rngAt(st.seed, turn, 'slot:' + need) < p; // 命運骰：和玩家的選擇無關
 }
 
 /* ───────────── 抽卡 ───────────── */
@@ -170,9 +188,7 @@ export function passes(card, st, ctx) {
   }
   return true;
 }
-function eligible(card, st, ctx, tl) {
-  if (card.pool.startsWith('_')) return false;
-  if (card.stages && !card.stages.includes(tl.stage)) return false;
+function eligible(card, st, ctx) {
   if (card.once && st.used[card.id]) return false;
   if ((st.cooldowns[card.id] ?? -1) > st.turn) return false;
   return passes(card, st, ctx);
@@ -188,30 +204,48 @@ export function poolWeight(st, data, name, ctx) {
   const open = op && op.until > st.turn;
   return ((def.base ?? 0) + (open ? def.follow ?? 0 : 0)) * mulMods(def.mods, ctx) * (open ? op.x : 1);
 }
-/** 兩段式抽卡（沿用 47wan）：先抽池（被選項打開或加重的池權重較高），再抽卡。找不到就回傳 null。 */
-export function drawCard(st, data, ctx, tl, r) {
-  const byPool = {};
-  for (const c of data.events.cards) if (eligible(c, st, ctx, tl)) (byPool[c.pool] ||= []).push(c);
-  const pools = Object.keys(byPool).map((name) => ({ name, w: poolWeight(st, data, name, ctx) })).filter((p) => p.w > 0);
+/** 兩段式抽卡（沿用 47wan）：先抽池（被選項打開或加重的池權重較高），再抽卡。卡片依「階段 × 池」建好索引，不必每回合掃全部。 */
+export function drawCard(st, data, ctx, tl, r, excludeId = null) {
+  const idx = data.index[tl.stage] || {};
+  const pools = [];
+  const live = {};
+  for (const name of Object.keys(idx)) {
+    const cs = idx[name].filter((c) => c.id !== excludeId && eligible(c, st, ctx));
+    if (!cs.length) continue;
+    const w = poolWeight(st, data, name, ctx);
+    if (w > 0) { pools.push({ name, w }); live[name] = cs; }
+  }
   const pool = pickWeighted(r, pools);
   if (!pool) return null;
-  return pickWeighted(r, byPool[pool.name], (c) => (c.weight ?? 1) * mulMods(c.modifiers, ctx));
+  return pickWeighted(r, live[pool.name], (c) => (c.weight ?? 1) * mulMods(c.modifiers, ctx));
 }
 export function pickFixed(st, data, tl, ctx) {
   for (const id of tl.fixed || []) { const c = data.cardIndex[id]; if (c && passes(c, st, ctx)) return c; }
   return null;
 }
-export function pickDelayed(st, data, tl, ctx) {
+/** 到期的後續卡。回傳 { card, delay }（delay＝從排進去到出現隔了幾回合），沒有就是 null。 */
+export function pickDelayed(st, data, tl, ctx, excludeId = null) {
   st.delayed.sort((a, b) => a.due - b.due);
   for (let i = 0; i < st.delayed.length; i++) {
     const d = st.delayed[i];
     if (d.due > st.turn) break;
     const c = data.cardIndex[d.card];
+    if (c && c.id === excludeId) continue;
     st.delayed.splice(i, 1);
-    if (c && passes(c, st, ctx)) return c;
+    if (c && passes(c, st, ctx)) return { card: c, delay: st.turn - (d.from ?? d.due) };
     i--;
   }
   return null;
+}
+
+/** 情境負荷（§4.14）：這個回合附在卡片上的事（帳單……）。命運骰決定，和玩家的選擇無關。 */
+export function rollLoads(st, data, ctx) {
+  const out = [];
+  for (const L of data.loads || []) {
+    if (L.if && !evalCond(L.if, ctx)) continue;
+    if (rngAt(st.seed, st.turn, 'load:' + L.id) < L.p) out.push({ id: L.id, text: L.text, effects: L.effects });
+  }
+  return out;
 }
 
 /* ───────────── 顯示用資料 ───────────── */
@@ -237,19 +271,31 @@ export function choiceState(ch, ctx) {
   for (const g of [].concat(ch.grayIf || [])) if (evalCond(g.if, ctx)) return { hidden: false, disabled: true, reason: g.reason };
   return { hidden: false, disabled: false, reason: '' };
 }
-/** 卡片的顯示資料：只有文字與選項，沒有任何數值、標籤或提示（劑量表在選擇之後才出現）。 */
-export function describeCard(card, st, ctx) {
+/** 選項所在的條件環境：和「套用選擇」用同一個（含這個選項自己的 topic），所以顯示、變灰與結果一致。 */
+export const choiceCtx = (st, tl, card, ch) => buildCtx(st, tl, { topic: ch.topic || card.topic });
+
+/**
+ * 卡片的顯示資料：只有文字與選項，沒有任何數值、標籤或提示（劑量表在選擇之後才出現）。
+ * 選項依 (種子, 回合, 卡片) 決定性洗牌；choices[k].i 是原始索引（只給引擎與機器人用），k 是顯示位置。
+ */
+export function describeCard(card, st, data, tl) {
+  const ctx = buildCtx(st, tl, { topic: card.topic });
   const scope = cardScope(st, card.id);
-  return {
-    id: card.id, title: fill(card.title, st, ctx, scope), text: fill(pickText(card, ctx, st), st, ctx, scope),
-    choices: card.choices.map((ch, i) => ({ ch, i, s: choiceState(ch, ctx) })).filter((x) => !x.s.hidden)
-      .map(({ ch, i, s }) => ({ i, label: fill(ch.label, st, ctx, scope), disabled: s.disabled, reason: fill(s.reason, st) })),
-  };
+  const order = shuffleOrder(st.seed, st.turn, card.id, card.choices.length);
+  const choices = [];
+  for (const i of order) {
+    const ch = card.choices[i];
+    const cctx = choiceCtx(st, tl, card, ch);
+    const s = choiceState(ch, cctx);
+    if (s.hidden) continue;
+    choices.push({ i, pos: choices.length, label: fill(ch.label, st, cctx, scope), disabled: s.disabled, reason: fill(s.reason, st) });
+  }
+  return { id: card.id, title: fill(card.title, st, ctx, scope), text: fill(pickText(card, ctx, st), st, ctx, scope), choices };
 }
 
 /* ───────────── 套用選擇 ───────────── */
-function applyBranch(st, b, turnNo, r, ctx) {
-  applyEffects(st, b.effects);
+function applyBranch(st, b, turnNo, r, ctx, acc) {
+  applyEffects(st, b.effects, acc);
   for (const f of b.setFlags || []) st.flags[f] = true;
   for (const f of b.clearFlags || []) delete st.flags[f];
   for (const [k, v] of Object.entries(b.setVars || {})) st.vars[k] = fill(v, st);
@@ -262,40 +308,51 @@ function applyBranch(st, b, turnNo, r, ctx) {
     if (f.if && !evalCond(f.if, ctx)) continue;
     if (f.chance != null && r() >= f.chance) continue;
     const due = turnNo + f.after[0] + Math.floor(r() * (f.after[1] - f.after[0] + 1));
-    st.delayed.push({ card: f.card, due });
+    st.delayed.push({ card: f.card, due, from: turnNo });
   }
 }
 
-/** 套用玩家的選擇。回傳 { result, dose }。隱藏數值只經由 tags.js 改變。 */
-export function applyChoice(st, data, card, idx, tl, r) {
+/** direction 可以是文字（'升學競爭'）或 '@槽名'（取這張卡抽到的槽值的方向，例如 營隊→科學）；沒寫就用卡片的 direction。 */
+export function resolveDirection(card, ch, scope) {
+  const d = ch.direction ?? card.direction;
+  if (!d) return undefined;
+  if (d[0] === '@') return scope['#dir:' + d.slice(1)] || '_';
+  return d;
+}
+
+/**
+ * 套用玩家的選擇（idx 是 card.choices 的原始索引）。回傳 { result, acc }：acc＝這次想要造成的可見變化（給劑量表）。
+ * 隱藏數值只經由 tags.js 改變。
+ */
+export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
   const ch = card.choices[idx];
   if (!ch) throw new Error(`選項不存在: ${card.id}#${idx}`);
   const topic = ch.topic || card.topic;
-  const ctx = buildCtx(st, tl, { topic });
+  const ctx = choiceCtx(st, tl, card, ch);
   const gs = choiceState(ch, ctx);
   if (gs.hidden || gs.disabled) throw new Error(`選項不可選: ${card.id}#${idx}`);
-  const before = snapshot(st);
+  const acc = {}; // 這個選項自己造成的可見變化；回合的合計由呼叫端累加
   const scope = cardScope(st, card.id);
   const parts = [fill(ch.result, st, ctx, scope)];
-  applyBranch(st, ch, st.turn, r, ctx);
+  // 陪伴時段不在：用體力硬換或請假，代價照實顯示在劑量表上，選項不會消失
+  for (const need of ch.needs || []) if (!slotAvailable(st, data, need)) applyEffects(st, data.tags.slotCost[need], acc);
+  applyBranch(st, ch, st.turn, r, ctx, acc);
   if (ch.chance) {
     const c = ch.chance;
     const p = clamp(c.p * mulMods(c.mods, ctx), 0, 0.97);
     const win = rngAt(st.seed, st.turn, c.id) < p; // 命運骰：和玩家的選擇無關，同一個人生結果相同
     const b = win ? c.win : c.lose;
-    applyBranch(st, b, st.turn, r, ctx);
+    applyBranch(st, b, st.turn, r, ctx, acc);
     parts.push(fill(b.result, st, ctx, scope));
     st.flags[`${c.id}_${win ? '中' : '落'}`] = true;
   }
-  const { deltas } = applyTags(st, ch.tags, data.tags, { turn: st.turn, stage: tl.stage, ctx, topic, direction: ch.direction });
-  const after = snapshot(st);
-  const dose = doseView(before, after, st, tl.stage);
+  applyTags(st, ch.tags, data.tags, { turn: st.turn, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope) });
   if (card.once) st.used[card.id] = true;
   if (card.cooldown) st.cooldowns[card.id] = st.turn + card.cooldown + 1;
-  const vd = {};
-  for (const k of Object.keys(after)) { const d = after[k] - before[k]; if (Math.abs(d) >= 0.05) vd[k] = Math.round(d * 10) / 10; }
-  const hd = {};
-  for (const [k, d] of Object.entries(deltas)) if (Math.abs(d) >= 0.005) hd[k] = Math.round(d * 100) / 100;
-  st.hist.push({ turn: st.turn, card: card.id, title: fill(card.title, st, ctx, scope), ch: idx, label: fill(ch.label, st, ctx, scope), tags: ch.tags || [], d: vd, h: hd });
-  return { result: parts.filter(Boolean).join(' '), dose };
+  const d = {};
+  for (const [k, v] of Object.entries(acc)) if (Math.abs(v) >= 0.05) d[k] = Math.round(v * 10) / 10;
+  const entry = { turn: st.turn, card: card.id, title: fill(card.title, st, ctx, scope), ch: idx, label: fill(ch.label, st, ctx, scope), tags: ch.tags || [], d };
+  if (extra.fu != null) entry.fu = extra.fu;
+  st.hist.push(entry);
+  return { result: parts.filter(Boolean).join(' '), acc, entry };
 }
