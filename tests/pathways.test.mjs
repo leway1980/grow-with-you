@@ -204,18 +204,21 @@ test('特教事實：special.json 與班級卡的 note 是一句中性的事實�
     assert.ok(!/[！!]|應該|必須|一定|最/.test(n), `${id} 的 note 不中性`);
   }
   const y = JSON.parse(readFileSync(join(ROOT, 'data', 'yearly.json'), 'utf8'));
-  assert.ok(y.facts.length >= 6);
+  const facts = Object.entries(y.ages).flatMap(([age, a]) => a.facts.map((f) => ({ ...f, age: +age }))); // B3：以歲數為鍵（ages），不再是扁平的 facts
+  const sn = facts.filter((f) => f.kind === '特教認識');
+  assert.ok(sn.length >= 6);
   const ids = new Set();
-  for (const f of y.facts) {
+  for (const f of facts) {
     assert.ok(!ids.has(f.id)); ids.add(f.id);
-    assert.ok(f.age >= 6 && f.age <= 18, f.id);
+    assert.ok(f.age >= 1 && f.age <= 18, f.id);
     assert.ok([...f.text].length <= 80, `${f.id} 超過 80 字`);
-    assert.ok(f.source && /2026-10-20/.test(f.source + (f.note || '')) || /law\.moj|stats\.moe|dbas/.test(f.source), `${f.id} 沒有出處`);
-    assert.ok(['已核', '已核二手'].includes(f.verified), f.id);
+    assert.ok(f.source && f.source.url && f.source.accessed === '2026-10-20', `${f.id} 沒有出處`);
+    assert.ok(['已核', '已核，已更正'].includes(f.verified), f.id);
     assert.ok(!/未證實|憑記憶/.test(JSON.stringify(f)), f.id);
     assert.ok(!/比別人|排名|較高|較低/.test(f.text), `${f.id} 用了比較的字眼`);
   }
-  const text = y.facts.map((f) => f.text).join('\n');
+  for (const f of sn) assert.ok(f.age >= 6 && f.age <= 18, f.id);
+  const text = sn.map((f) => f.text).join('\n');
   for (const w of ['每 21 位', '每 20 位', '78.4%', '情緒行為障礙']) assert.ok(text.includes(w), w);
 });
 

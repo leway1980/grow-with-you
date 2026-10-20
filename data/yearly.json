@@ -1,83 +1,516 @@
 {
- "_readme": "「這一年」生日小卡的知識資料（DESIGN §6 每年的生日總結）。目前只是 stub：只放特殊教育的認識（DESIGN §5.0），其他年齡的事實（發展里程碑、睡眠、近視……）見 docs/research/yearly.md，上線前逐筆核對再加進來。畫面還沒有生日小卡，這個檔只有資料；卡片上同一組事實也以 note 掛在特教與班級卡（special.json、classroom.json）。欄位：id；age＝孩子的歲數（6＝小一、12＝國一、15＝高一，與 calendar.json 一致）；kind；text（≤80 字，語氣中性、不比較、不排名）；source（官方文件與存取日）；verified（已核＝讀過官方原文或表格；已核二手＝搜尋摘要或新聞轉述）；strength；scope；note（口徑與限制）。不得補寫未核的數字，不得使用 research 筆記標【未證實】的句子。",
- "version": 1,
- "facts": [
-  {
-   "id": "y_sn_categories",
-   "age": 6,
-   "kind": "特教認識",
-   "text": "特殊教育法把特教學生分成兩大類：身心障礙十三類，和資賦優異六類。",
-   "source": "《特殊教育法》第 3、4 條（112-06-21 修正），全國法規資料庫 https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=H0080027 ，存取 2026-10-20",
-   "verified": "已核",
-   "strength": "強",
-   "scope": "全國",
-   "note": "身心障礙十三類依序為智能障礙、視覺障礙、聽覺障礙、語言障礙、肢體障礙、腦性麻痺、身體病弱、情緒行為障礙、學習障礙、自閉症、多重障礙、發展遲緩、其他障礙。"
+ "_readme": "「這一年」生日小卡的知識資料（DESIGN §6 每年的生日總結；M3 B3）。ages 以孩子的歲數為鍵（6＝小一、12＝國一、15＝高一，與 calendar.json 一致），每歲 ≥1 則事實；卡片在每個新的一歲的第一回合出現，用 rngAt(seed, 歲數, \"yearly\") 在條件（if，選填，寫法同卡片條件式）通過的事實裡挑一則。欄位：id；kind（里程碑／指引／調查／研究／統計／制度／特教認識）；evidence（強｜中｜初步｜現場經驗｜里程碑）；text（≤80 字，語氣中性、不比較、不排名）；source{who,year,title,url}（卡片只顯示 who 與 year）；verified（只收 docs/research 標【已核】或【已核，已更正】者）；ref（研究筆記位置）；if（選填）。每歲至少有一則沒有 if 的事實（lint 檢查）。不得補寫未核的數字，不得使用標【已核二手】【未證實】【憑記憶】的句子；二手來源上線前要先換成官方原文。togetherLine 是 M3.5 線上統計的句型（目前不顯示）。",
+ "version": 2,
+ "togetherLine": "今年和你一起陪 {age} 歲孩子的父母有 {n} 位。",
+ "eventsPerYear": 3,
+ "ages": {
+  "1": {
+   "facts": [
+    {
+     "id": "y1_milestone75",
+     "kind": "里程碑",
+     "evidence": "里程碑",
+     "text": "CDC 的發展里程碑清單，列的是七成五以上孩子在該月齡做得到的事；有疑慮可請醫師評估。",
+     "source": {
+      "who": "美國 CDC",
+      "year": 2026,
+      "title": "Learn the Signs. Act Early. 里程碑頁面",
+      "url": "https://www.cdc.gov/act-early/milestones/index.html",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y1_milestone75"
+    },
+    {
+     "id": "y1_screen",
+     "kind": "指引",
+     "evidence": "初步",
+     "text": "衛福部國健署的護眼六招：未滿 2 歲的孩子不看螢幕。",
+     "source": {
+      "who": "衛生福利部",
+      "year": 2015,
+      "title": "新聞稿〈戶外活動 打敗惡視力〉（護眼 6 招）",
+      "url": "https://www.mohw.gov.tw/cp-2651-19671-1.html",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y1_screen"
+    }
+   ]
   },
-  {
-   "id": "y_sn_elem_ratio",
-   "age": 8,
-   "kind": "特教認識",
-   "text": "114 學年，國小約每 21 位學生中，有 1 位是身心障礙類特教學生（不含資賦優異）。",
-   "source": "教育部統計處《教育統計》115 年版（表 B1-2、B6-1、B6-5～B6-7），https://stats.moe.gov.tw/files/ebook/Education_Statistics/115/115年版中華民國教育統計.pdf，存取 2026-10-20",
-   "verified": "已核",
-   "strength": "強",
-   "scope": "全國",
-   "note": "比值為自算：身障類 55,443 人 ÷ 國小學生 1,166,022 人≈4.75%。官方班別口徑，低於特教通報網的全部特教生數，所以「約每 21 人」是下限。"
+  "2": {
+   "facts": [
+    {
+     "id": "y2_words",
+     "kind": "里程碑",
+     "evidence": "里程碑",
+     "text": "CDC 24 個月清單包含：能把兩個字連起來說短句，例如「還要牛奶」。",
+     "source": {
+      "who": "美國 CDC",
+      "year": 2026,
+      "title": "Milestone checklist 2 years",
+      "url": "https://www.cdc.gov/act-early/milestones/2-years.html",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y2_words"
+    },
+    {
+     "id": "y2_screen",
+     "kind": "指引",
+     "evidence": "初步",
+     "text": "衛福部國健署的護眼六招：2 歲以上，每日螢幕時間不超過 1 小時。",
+     "source": {
+      "who": "衛生福利部",
+      "year": 2015,
+      "title": "新聞稿〈戶外活動 打敗惡視力〉（護眼 6 招）",
+      "url": "https://www.mohw.gov.tw/cp-2651-19671-1.html",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y2_screen"
+    }
+   ]
   },
-  {
-   "id": "y_sn_elem_resource",
-   "age": 9,
-   "kind": "特教認識",
-   "text": "國小身心障礙類特教學生有 78.4% 在分散式資源班；資源班的學生平日編在普通班，部分時間到資源班上課。",
-   "source": "教育部統計處《教育統計》115 年版（表 B1-2、B6-1、B6-5～B6-7），https://stats.moe.gov.tw/files/ebook/Education_Statistics/115/115年版中華民國教育統計.pdf，存取 2026-10-20",
-   "verified": "已核",
-   "strength": "強",
-   "scope": "全國",
-   "note": "114 學年一般學校附設特教班 54,679 人中，分散式資源班 42,868 人（78.4%）、集中式特教班 9.4%、巡迴輔導 10.2%、普通班接受特教服務 1.9%。官方表沒有列出資源班學生到資源班的時數。"
+  "3": {
+   "facts": [
+    {
+     "id": "y3_talk",
+     "kind": "里程碑",
+     "evidence": "里程碑",
+     "text": "CDC 36 個月清單包含：能和你一來一往對話至少兩輪，也能在被問時說出自己的名字。",
+     "source": {
+      "who": "美國 CDC",
+      "year": 2026,
+      "title": "Milestone checklist 3 years",
+      "url": "https://www.cdc.gov/act-early/milestones/3-years.html",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核，已更正",
+     "ref": "docs/research/yearly.md#y3_talk"
+    }
+   ]
   },
-  {
-   "id": "y_sn_adhd",
-   "age": 10,
-   "kind": "特教認識",
-   "text": "注意力缺陷過動症（ADHD）在特教鑑定辦法裡，是情緒行為障礙的症狀之一。",
-   "source": "《特殊教育學生及幼兒鑑定辦法》第 10 條（115-04-01 修正），全國法規資料庫 https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=H0080065 ，存取 2026-10-20",
-   "verified": "已核",
-   "strength": "強",
-   "scope": "全國",
-   "note": "ADHD 學生是否同時被鑑定、被鑑定的比例，沒有查到量化資料。"
+  "4": {
+   "facts": [
+    {
+     "id": "y4_story",
+     "kind": "里程碑",
+     "evidence": "里程碑",
+     "text": "CDC 48 個月清單包含：能說四個詞以上的句子，也能說一件今天發生的事。",
+     "source": {
+      "who": "美國 CDC",
+      "year": 2026,
+      "title": "Milestone checklist 4 years",
+      "url": "https://www.cdc.gov/act-early/milestones/4-years.html",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核，已更正",
+     "ref": "docs/research/yearly.md#y4_story"
+    }
+   ]
   },
-  {
-   "id": "y_sn_ld_taichung",
-   "age": 11,
-   "kind": "特教認識",
-   "text": "臺中市 112 學年的身心障礙學生中，學習障礙占 26.63%（單一縣市資料）。",
-   "source": "臺中市政府主計處〈市政統計簡析 113-006 號〉（2024-08），https://www.dbas.taichung.gov.tw/media/1120388/113-006-適性發展-潛能無限-臺中市特殊教育發展現況.pdf",
-   "verified": "已核二手",
-   "strength": "單一縣市",
-   "scope": "臺中市",
-   "note": "全國各障別人數尚未取得；臺中市含學前，發展遲緩的比例因此較高。"
+  "5": {
+   "facts": [
+    {
+     "id": "y5_count",
+     "kind": "里程碑",
+     "evidence": "里程碑",
+     "text": "CDC 5 歲清單包含：能數到 10、能單腳跳。",
+     "source": {
+      "who": "美國 CDC",
+      "year": 2026,
+      "title": "Milestone checklist 5 years",
+      "url": "https://www.cdc.gov/act-early/milestones/5-years.html",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y5_count"
+    }
+   ]
   },
-  {
-   "id": "y_sn_jh_ratio",
-   "age": 13,
-   "kind": "特教認識",
-   "text": "114 學年，國中約每 20 位學生中，有 1 位是身心障礙類特教學生（不含資賦優異）。",
-   "source": "教育部統計處《教育統計》115 年版（表 B1-2、B6-1、B6-5～B6-7），https://stats.moe.gov.tw/files/ebook/Education_Statistics/115/115年版中華民國教育統計.pdf，存取 2026-10-20",
-   "verified": "已核",
-   "strength": "強",
-   "scope": "全國",
-   "note": "比值為自算：（30,096＋745）÷（605,348＋745）≈5.09%。國中一般學校附設特教班的身障學生，82.9% 在分散式資源班。"
+  "6": {
+   "facts": [
+    {
+     "id": "y_sn_categories",
+     "kind": "特教認識",
+     "evidence": "強",
+     "text": "特殊教育法把特教學生分成兩大類：身心障礙十三類，和資賦優異六類。",
+     "source": {
+      "who": "全國法規資料庫",
+      "year": 2023,
+      "title": "《特殊教育法》第 3、4 條",
+      "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=H0080027",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/special-ed.md#1"
+    },
+    {
+     "id": "y6_myopia",
+     "kind": "調查",
+     "evidence": "中",
+     "text": "2017 年國健署調查：幼兒園大班近視盛行率約 9%、小一約 19.8%。",
+     "source": {
+      "who": "衛生福利部",
+      "year": 2019,
+      "title": "新聞稿〈3010120 親子護眼來唱跳〉（引國民健康署 106 年兒童青少年視力監測調查）",
+      "url": "https://www.mohw.gov.tw/cp-4251-50296-1.html",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y6_myopia"
+    },
+    {
+     "id": "y6_checkup",
+     "kind": "制度",
+     "evidence": "現場經驗",
+     "text": "小一新生要做學校健康檢查，項目含身高體重、視力、口腔、脊柱側彎與尿液等。",
+     "source": {
+      "who": "全國法規資料庫",
+      "year": 2020,
+      "title": "《學生健康檢查實施辦法》第 2 條及附表",
+      "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=H0020052",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核，已更正",
+     "ref": "docs/research/yearly.md#y6_checkup"
+    }
+   ]
   },
-  {
-   "id": "y_sn_sh_ratio",
-   "age": 16,
-   "kind": "特教認識",
-   "text": "114 學年，高中職約每 22 位學生中，有 1 位是身心障礙類特教學生；其中約 9 成就讀一般學校附設班。",
-   "source": "教育部統計處《教育統計》115 年版（表 B1-2、B6-1、B6-5～B6-7），https://stats.moe.gov.tw/files/ebook/Education_Statistics/115/115年版中華民國教育統計.pdf，存取 2026-10-20",
-   "verified": "已核",
-   "strength": "強",
-   "scope": "全國",
-   "note": "比值為自算：（21,772＋2,505）÷（532,256＋2,505）≈4.54%；高中職身障 24,277 人中，一般學校附設班 21,772 人（89.7%）。"
+  "7": {
+   "facts": [
+    {
+     "id": "y7_myopia",
+     "kind": "調查",
+     "evidence": "中",
+     "text": "2017 年國健署調查：小二約 38.7% 有近視。",
+     "source": {
+      "who": "衛生福利部",
+      "year": 2019,
+      "title": "新聞稿〈3010120 親子護眼來唱跳〉（引國民健康署 106 年兒童青少年視力監測調查）",
+      "url": "https://www.mohw.gov.tw/cp-4251-50296-1.html",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y7_myopia"
+    },
+    {
+     "id": "y7_outdoor",
+     "kind": "研究",
+     "evidence": "強",
+     "text": "台灣學校的對照試驗發現：下課到戶外活動，可降低新發生近視的機會。",
+     "source": {
+      "who": "Wu PC 等",
+      "year": 2013,
+      "title": "Ophthalmology 120(5):1080–1085",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/23462271/",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y7_outdoor"
+    }
+   ]
+  },
+  "8": {
+   "facts": [
+    {
+     "id": "y_sn_elem_ratio",
+     "kind": "特教認識",
+     "evidence": "強",
+     "text": "114 學年，國小約每 21 位學生中，有 1 位是身心障礙類特教學生（不含資賦優異）。",
+     "source": {
+      "who": "教育部統計處",
+      "year": 2026,
+      "title": "《教育統計》115 年版（表 B1-2、B6-1、B6-5～B6-7）",
+      "url": "https://stats.moe.gov.tw/files/ebook/Education_Statistics/115/115年版中華民國教育統計.pdf",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/special-ed.md#2.2"
+    },
+    {
+     "id": "y8_outdoor",
+     "kind": "研究",
+     "evidence": "中",
+     "text": "國健署 102–103 年介入研究：約千位 7–8 歲學童每週戶外活動 11 小時，近視發生機會平均少 55%。",
+     "source": {
+      "who": "衛生福利部",
+      "year": 2015,
+      "title": "新聞稿〈戶外活動 打敗惡視力〉（護眼 6 招）",
+      "url": "https://www.mohw.gov.tw/cp-2651-19671-1.html",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y8_outdoor"
+    }
+   ]
+  },
+  "9": {
+   "facts": [
+    {
+     "id": "y9_checkup",
+     "kind": "制度",
+     "evidence": "現場經驗",
+     "text": "小四要做學校健康檢查；全國基準表的實施對象含國小四年級，項目有脊柱側彎與口腔。",
+     "source": {
+      "who": "全國法規資料庫",
+      "year": 2020,
+      "title": "《學生健康檢查實施辦法》第 2 條及附表",
+      "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=H0020052",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核，已更正",
+     "ref": "docs/research/yearly.md#y9_checkup"
+    },
+    {
+     "id": "y_sn_elem_resource",
+     "kind": "特教認識",
+     "evidence": "強",
+     "text": "國小身心障礙類特教學生有 78.4% 在分散式資源班；資源班的學生平日編在普通班，部分時間到資源班上課。",
+     "source": {
+      "who": "教育部統計處",
+      "year": 2026,
+      "title": "《教育統計》115 年版（表 B1-2、B6-1、B6-5～B6-7）",
+      "url": "https://stats.moe.gov.tw/files/ebook/Education_Statistics/115/115年版中華民國教育統計.pdf",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/special-ed.md#2.2"
+    }
+   ]
+  },
+  "10": {
+   "facts": [
+    {
+     "id": "y10_asthma",
+     "kind": "調查",
+     "evidence": "中",
+     "text": "國健署 2017 年調查：未滿 12 歲的兒童，氣喘盛行率為 5.6%。",
+     "source": {
+      "who": "國民健康署（衛福部轉載）",
+      "year": 2017,
+      "title": "國民健康訪問調查（106 年）",
+      "url": "https://www.mohw.gov.tw/fp-16-61890-1.html",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y10_asthma"
+    },
+    {
+     "id": "y_sn_adhd",
+     "kind": "特教認識",
+     "evidence": "強",
+     "text": "注意力缺陷過動症（ADHD）在特教鑑定辦法裡，是情緒行為障礙的症狀之一。",
+     "if": "有ADHD || 有情緒行為障礙",
+     "source": {
+      "who": "全國法規資料庫",
+      "year": 2026,
+      "title": "《特殊教育學生及幼兒鑑定辦法》第 10 條",
+      "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=H0080065",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/special-ed.md#1"
+    }
+   ]
+  },
+  "11": {
+   "facts": [
+    {
+     "id": "y11_myopia",
+     "kind": "調查",
+     "evidence": "中",
+     "text": "2017 年國健署調查：小六近視盛行率約 7 成。",
+     "source": {
+      "who": "衛生福利部",
+      "year": 2019,
+      "title": "新聞稿〈3010120 親子護眼來唱跳〉（引國民健康署 106 年兒童青少年視力監測調查）",
+      "url": "https://www.mohw.gov.tw/cp-4251-50296-1.html",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y11_myopia"
+    },
+    {
+     "id": "y11_3010120",
+     "kind": "指引",
+     "evidence": "初步",
+     "text": "衛福部的護眼口訣 3010120：用眼 30 分鐘休息 10 分鐘，每天戶外活動 120 分鐘以上。",
+     "source": {
+      "who": "衛生福利部",
+      "year": 2019,
+      "title": "新聞稿〈3010120 親子護眼來唱跳〉（引國民健康署 106 年兒童青少年視力監測調查）",
+      "url": "https://www.mohw.gov.tw/cp-4251-50296-1.html",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y11_3010120"
+    }
+   ]
+  },
+  "12": {
+   "facts": [
+    {
+     "id": "y12_dmft",
+     "kind": "調查",
+     "evidence": "中",
+     "text": "2012 年衛福部調查：12 歲孩子約 70.6% 有恆牙蛀牙經驗，平均 2.50 顆。",
+     "source": {
+      "who": "衛生福利部",
+      "year": 2012,
+      "title": "99–101 年台灣地區兒童及青少年口腔及衛生狀況調查總報告",
+      "url": "https://mohw.gov.tw/dl-79867-47ed464e-8ec9-43bc-9536-a1c4f3095918.html",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y12_dmft"
+    },
+    {
+     "id": "y12_checkup",
+     "kind": "制度",
+     "evidence": "現場經驗",
+     "text": "國中新生要做學校健康檢查；基準表的對象是小一、小四、國一、高一與大專新生。",
+     "source": {
+      "who": "全國法規資料庫",
+      "year": 2020,
+      "title": "《學生健康檢查實施辦法》第 2 條及附表",
+      "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=H0020052",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y12_checkup"
+    }
+   ]
+  },
+  "13": {
+   "facts": [
+    {
+     "id": "y_sn_jh_ratio",
+     "kind": "特教認識",
+     "evidence": "強",
+     "text": "114 學年，國中約每 20 位學生中，有 1 位是身心障礙類特教學生（不含資賦優異）。",
+     "source": {
+      "who": "教育部統計處",
+      "year": 2026,
+      "title": "《教育統計》115 年版（表 B1-2、B6-1、B6-5～B6-7）",
+      "url": "https://stats.moe.gov.tw/files/ebook/Education_Statistics/115/115年版中華民國教育統計.pdf",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/special-ed.md#2.2"
+    }
+   ]
+  },
+  "14": {
+   "facts": [
+    {
+     "id": "y14_cap",
+     "kind": "制度",
+     "evidence": "現場經驗",
+     "text": "115 年國中教育會考，總報名約 18.3 萬人（182,868 人），考 2 天，5 科加寫作。",
+     "source": {
+      "who": "國立臺灣師範大學心測中心；教育部",
+      "year": 2026,
+      "title": "國中教育會考歷史訊息；新聞稿〈115年國中會考5月16日登場〉",
+      "url": "https://cap.rcpet.edu.tw/history.html",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y14_cap"
+    }
+   ]
+  },
+  "15": {
+   "facts": [
+    {
+     "id": "y15_tracks",
+     "kind": "統計",
+     "evidence": "中",
+     "text": "112 學年高中職學生中，普通科約 50.0%、專業群科約 38.7%、綜合高中 4.0%。",
+     "source": {
+      "who": "教育部統計處",
+      "year": 2024,
+      "title": "112 學年學校基本概況統計結果提要分析",
+      "url": "https://stats.moe.gov.tw/files/analysis/112_all_level.pdf",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y15_tracks"
+    },
+    {
+     "id": "y15_checkup",
+     "kind": "制度",
+     "evidence": "現場經驗",
+     "text": "高一新生要做學校健康檢查，含胸部 X 光、血液與尿液檢驗；家長不同意校內檢查者，需自行到醫療院所。",
+     "source": {
+      "who": "全國法規資料庫",
+      "year": 2020,
+      "title": "《學生健康檢查實施辦法》第 2 條及附表",
+      "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=H0020052",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核，已更正",
+     "ref": "docs/research/yearly.md#y15_checkup"
+    }
+   ]
+  },
+  "16": {
+   "facts": [
+    {
+     "id": "y_sn_sh_ratio",
+     "kind": "特教認識",
+     "evidence": "強",
+     "text": "114 學年，高中職約每 22 位學生中，有 1 位是身心障礙類特教學生；其中約 9 成就讀一般學校附設班。",
+     "source": {
+      "who": "教育部統計處",
+      "year": 2026,
+      "title": "《教育統計》115 年版（表 B1-2、B6-1、B6-5～B6-7）",
+      "url": "https://stats.moe.gov.tw/files/ebook/Education_Statistics/115/115年版中華民國教育統計.pdf",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/special-ed.md#2.2"
+    }
+   ]
+  },
+  "17": {
+   "facts": [
+    {
+     "id": "y17_moto",
+     "kind": "制度",
+     "evidence": "現場經驗",
+     "text": "考領輕型或普通重型機車駕照，法規要求須年滿十八歲；大型重型機車須年滿二十歲。",
+     "source": {
+      "who": "全國法規資料庫",
+      "year": 2026,
+      "title": "《道路交通安全規則》第 60 條",
+      "url": "https://law.moj.gov.tw/LawClass/LawAll.aspx?pcode=K0040013",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y17_moto"
+    }
+   ]
+  },
+  "18": {
+   "facts": [
+    {
+     "id": "y18_adult",
+     "kind": "制度",
+     "evidence": "現場經驗",
+     "text": "民法第 12 條：滿十八歲為成年。",
+     "source": {
+      "who": "全國法規資料庫",
+      "year": 2026,
+      "title": "《民法》第 12 條",
+      "url": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=B0000001&flno=12",
+      "accessed": "2026-10-20"
+     },
+     "verified": "已核",
+     "ref": "docs/research/yearly.md#y18_adult"
+    }
+   ]
   }
- ]
+ }
 }
