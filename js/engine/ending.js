@@ -3,6 +3,7 @@
 
 import { stageMult } from './tags.js';
 import { evalOutcome, opennessFrom, getModel } from './model.js';
+import { evalCond } from './events.js';
 
 const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
 const clamp = (x, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, x));
@@ -66,16 +67,58 @@ export function wellbeing(st, PM = DEFAULT_PM, M) {
   return { child: clamp(child), parent: clamp(parent), between: clamp(between) };
 }
 
-export function wellbeingLine(w, st) {
-  const { child, parent, between } = w;
-  const nm = st.family.child.given;
-  if (child >= 62 && parent >= 58 && between >= 62) return `週末${nm}還是想跟你一起吃飯，吃完會在客廳多坐一會兒。`;
-  if (child >= 60 && parent < 50) return `${nm}長得不錯，你卻累得快認不得自己了。這幾年，你把自己放在最後面。`;
-  if (child < 48 && between < 50) return `你們住在同一個屋簷下，但很少真正說話。${nm}的房門常常是關著的。`;
-  if (parent >= 60 && child < 52) return `你把日子過得還算穩，${nm}卻有些心事沒說出口。`;
-  if (between >= 60) return `事情再難，你們還是會找對方說。這幾年，${nm}知道你在。`;
-  if (child < 48 && parent < 48) return `這幾年，你們兩個都撐得很辛苦，很多話還沒來得及說。`;
-  return `有好的日子，也有各自撐著的日子。這個家還在繼續。`;
+/* ───── 結局句子（data/ending.json；DESIGN §3.7 第 5 層）：只讀第 4 層的結果與決定鏈紀錄 ───── */
+let currentEnding = null;
+export const setEnding = (E) => { if (E) currentEnding = E; };
+export const getEnding = () => {
+  if (!currentEnding) throw new Error('結局句子庫還沒載入（先呼叫 prepareData）');
+  return currentEnding;
+};
+
+/** 在連續 win 回合內，帶有某標籤的選擇最多出現幾次 */
+export function maxInWindow(hist, tag, win) {
+  const turns = hist.filter((h) => (h.tags || []).includes(tag)).map((h) => h.turn);
+  let best = 0;
+  for (let i = 0; i < turns.length; i++) { let j = i; while (j + 1 < turns.length && turns[j + 1] - turns[i] < win) j++; best = Math.max(best, j - i + 1); }
+  return best;
+}
+/** 決定鏈紀錄（ending.json 的 records）：{ 名稱: 0|1 }。結局句子只能讀這些，不能讀單張卡的選擇 */
+export function chainRecords(st, E = getEnding()) {
+  const out = {};
+  for (const r of E.records) out[r.name] = (r.kind === 'var' ? (st.vars[r.key] || 0) >= r.atLeast : maxInWindow(st.hist, r.tag, r.window) >= r.atLeast) ? 1 : 0;
+  return out;
+}
+/** 句子條件的環境：第 4 層的結果（含高中低）＋決定鏈紀錄 */
+export function endingContext({ axes, wellbeing: w, route, combo }, records, E = getEnding(), M = getModel()) {
+  const ctx = { ...records, 親子: axes.親子, 人際: axes.人際, 學習: axes.學習, 孩子幸福: w.child, 父母幸福: w.parent, 彼此之間: w.between, 路線: route.kind, 組合: combo };
+  for (const [ax, name] of Object.entries(E.bandVars)) ctx[name] = E.bandNames[bandOf(axes[ax], M.bands)];
+  return ctx;
+}
+const SLOTS = { home: ['home'] };
+/** 每個 facet 依 slot 各挑第一句符合的（home 只挑一句） */
+export function pickLines(ctx, E = getEnding()) {
+  const out = [];
+  for (const facet of E.facets) for (const slot of SLOTS[facet] || ['record', 'band']) {
+    const s = E.sentences.find((x) => x.facet === facet && x.slot === slot && evalCond(x.when, ctx));
+    if (s) out.push({ facet, slot, id: s.id, text: s.text, claims: s.claims || {}, fallback: !!s.fallback });
+  }
+  return out;
+}
+/** 矛盾：同一個 claimGroup 裡，被挑到的說法差兩格以上 */
+export function lineContradictions(lines, E = getEnding()) {
+  const found = [];
+  for (const [g, order] of Object.entries(E.claimGroups)) {
+    const said = lines.filter((l) => l.claims[g] != null).map((l) => ({ id: l.id, i: order.indexOf(l.claims[g]) }));
+    for (let a = 0; a < said.length; a++) for (let b = a + 1; b < said.length; b++) if (Math.abs(said[a].i - said[b].i) >= 2) found.push({ group: g, a: said[a].id, b: said[b].id });
+  }
+  return found;
+}
+const fillName = (text, st) => text.replace(/\{孩子\}/g, st.family.child.given).replace(/\{他\}/g, st.family.child.pronoun || '他');
+
+export function wellbeingLine(w, st, E = getEnding(), M = getModel()) {
+  const ctx = endingContext({ axes: outcomeAxes(st, M), wellbeing: w, route: { kind: '' }, combo: '' }, chainRecords(st, E), E, M);
+  const s = E.sentences.find((x) => x.facet === 'home' && evalCond(x.when, ctx));
+  return fillName(s.text, st);
 }
 
 /** 路線判定的門檻：和開局相比，變化超過這個值才算「往那邊走」 */
@@ -188,18 +231,22 @@ export function buildEnding(st, data) {
   const nm = st.family.child.given;
   const stageNow = data.timeline[Math.min(st.turn, data.timeline.length - 1)];
   const score = avgVis(st, '成績', 12);
+  const E = data.ending || getEnding(), route = routePosition(st), combo = comboOf(axes);
+  const lines = pickLines(endingContext({ axes, wellbeing: w, route, combo }, chainRecords(st, E), E), E).map((l) => ({ ...l, text: fillName(l.text, st) }));
+  const home = lines.find((l) => l.facet === 'home');
   return {
     name: nm,
     wellbeing: w,
-    line: wellbeingLine(w, st),
+    line: home.text,
     axes,                                  // 三條結果軸：獨立的一組，不在 achievement 裡，也不進幸福
     achievement: {                         // 只放成績與學校去向
       scoreWord: score >= 70 ? '課業穩穩跟得上' : score >= 55 ? '課業大致跟得上' : score >= 40 ? '課業有些吃力' : '課業很辛苦',
       note: `${nm}國小畢業了。接下來是國中，這一版先寫到這裡，後面的路還沒有鋪好。`,
     },
-    route: routePosition(st),
+    route,
     growth: growthSection(st, data.tags),  // 你也重新長大了一次（§7.2b）：UI 放在幸福畫面之後
-    combo: comboOf(axes),
+    combo,
+    lines,                                 // 結局句子（親子、人際、學習，各有一句不靠特定卡片的後備句；home 的那句＝line）
     moments: keyMoments(st, data),
     groups: REVEAL_GROUPS,
     series: curveSeries(st),

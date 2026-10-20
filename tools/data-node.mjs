@@ -12,6 +12,6 @@ export const loadRaw = () => {
   const manifest = rd('manifest.json');
   const files = Object.fromEntries(manifestFiles(manifest).map((f) => [f, rd(f)]));
   const m = mergeData(manifest, files);
-  return { identities: rd('identities.json'), tags: rd('tags.json'), model: rd('model.json'), events: m.events, pools: rd('pools.json'), slots: m.slots, calendar: rd('calendar.json'), manifest, mergeProblems: m.problems };
+  return { identities: rd('identities.json'), tags: rd('tags.json'), model: rd('model.json'), ending: rd('ending.json'), events: m.events, pools: rd('pools.json'), slots: m.slots, calendar: rd('calendar.json'), manifest, mergeProblems: m.problems };
 };
 export const loadData = (raw = loadRaw()) => prepareData(raw);

@@ -1,0 +1,37 @@
+{
+ "_readme": "結局句子庫（DESIGN §3.7 第 5 層、第 6、7 點；§7.1、§11）。句子只能讀第 4 層的結果（三條軸與它們的高中低、孩子／父母／彼此之間的幸福、路線、組合）與『決定鏈紀錄』（records：由行為標籤的連用與計數狀態算出，不是單張卡的選擇）；不能讀隱藏數值、標籤、單張卡（lint 檢查）。每個 facet 依 slot 各挑第一句符合的：home 只挑一句（原本的 wellbeingLine，順序即優先序）；record＝有紀錄時的具體句；band＝依高中低的後備句，每個高中低都一定有一句不靠特定卡片的 fallback。claims 是這句話對『孩子現在的樣子』說了什麼；claimGroups 把會互相矛盾的說法放在同一組（值依序排列，差兩格以上＝矛盾，例如『少』和『多』）。矛盾數必須是 0：lint 在條件的邊界值格子上檢查，check-design 在模擬的局上檢查。句子裡可用 {孩子}、{他}。語氣：陳述，不責備（§11）。",
+ "facets": ["home", "親子", "人際", "學習"],
+ "bandVars": {"親子": "親子帶", "人際": "人際帶", "學習": "學習帶"},
+ "bandNames": {"hi": "高", "mid": "中", "lo": "低"},
+ "outcomeVars": ["親子", "人際", "學習", "孩子幸福", "父母幸福", "彼此之間", "路線", "組合"],
+ "records": [
+  {"name": "曾不太來找你", "kind": "var", "key": "不太來找你_曾", "atLeast": 1, "why": "進入過『不太來找你』的狀態（§4.28 連續才是關鍵）"},
+  {"name": "現在不太來找你", "kind": "var", "key": "不太來找你", "atLeast": 1, "why": "到終局還在這個狀態"},
+  {"name": "三C連用", "kind": "streak", "tag": "3C當保母", "window": 6, "atLeast": 3, "why": "連續幾回合都用螢幕當保母（§4.33）"},
+  {"name": "連續只問成績", "kind": "streak", "tag": "只問成績或學校怎樣", "window": 6, "atLeast": 3, "why": "每天第一句都是分數（§4.34）"},
+  {"name": "連續替他決定", "kind": "streak", "tag": "替他決定", "window": 6, "atLeast": 4, "why": "同一個方向連續好幾次（§3.3、§11 決定鏈）"}
+ ],
+ "claimGroups": {"開口": ["少", "一半", "多"], "朋友": ["少", "一般", "多"], "自律": ["低", "中", "高"], "螢幕": ["少", "多"]},
+ "sentences": [
+  {"id": "home-1", "facet": "home", "slot": "home", "when": "孩子幸福 >= 62 and 父母幸福 >= 58 and 彼此之間 >= 62", "text": "週末{孩子}還是想跟你一起吃飯，吃完會在客廳多坐一會兒。", "claims": {"開口": "多"}},
+  {"id": "home-2", "facet": "home", "slot": "home", "when": "孩子幸福 >= 60 and 父母幸福 < 50", "text": "{孩子}長得不錯，你卻累得快認不得自己了。這幾年，你把自己放在最後面。"},
+  {"id": "home-3", "facet": "home", "slot": "home", "when": "孩子幸福 < 48 and 彼此之間 < 50", "text": "你們住在同一個屋簷下，但很少真正說話。{孩子}的房門常常是關著的。", "claims": {"開口": "少"}},
+  {"id": "home-4", "facet": "home", "slot": "home", "when": "父母幸福 >= 60 and 孩子幸福 < 52", "text": "你把日子過得還算穩，{孩子}卻有些心事沒說出口。", "claims": {"開口": "一半"}},
+  {"id": "home-5", "facet": "home", "slot": "home", "when": "彼此之間 >= 60", "text": "事情再難，你們還是會找對方說。這幾年，{孩子}知道你在。", "claims": {"開口": "多"}},
+  {"id": "home-6", "facet": "home", "slot": "home", "when": "孩子幸福 < 48 and 父母幸福 < 48", "text": "這幾年，你們兩個都撐得很辛苦，很多話還沒來得及說。", "claims": {"開口": "一半"}},
+  {"id": "home-7", "facet": "home", "slot": "home", "when": "true", "text": "有好的日子，也有各自撐著的日子。這個家還在繼續。", "fallback": true},
+  {"id": "rel-lost", "facet": "親子", "slot": "record", "when": "曾不太來找你 and 現在不太來找你 and 彼此之間 < 60", "text": "有好幾年，{孩子}不太來找你了。到現在，那扇門還是只開了一半。", "claims": {"開口": "少"}},
+  {"id": "rel-repaired", "facet": "親子", "slot": "record", "when": "曾不太來找你 and not 現在不太來找你", "text": "有一段時間，{孩子}不太來找你。後來你一次一次停下來聽，他又慢慢走回來了。", "claims": {"開口": "一半"}},
+  {"id": "rel-open", "facet": "親子", "slot": "record", "when": "親子帶 == '高' and 彼此之間 >= 60 and not 現在不太來找你", "text": "有事的時候，{孩子}還是會先找你。", "claims": {"開口": "多"}},
+  {"id": "rel-hi", "facet": "親子", "slot": "band", "when": "親子帶 == '高'", "text": "這些年累積下來的信任，是你們之間最穩的東西。", "fallback": true},
+  {"id": "rel-mid", "facet": "親子", "slot": "band", "when": "親子帶 == '中'", "text": "你們之間有靠得近的時候，也有各自隔著一點距離的時候。", "fallback": true},
+  {"id": "rel-lo", "facet": "親子", "slot": "band", "when": "親子帶 == '低'", "text": "你們之間有些距離，要很長的時間才補得回來。", "fallback": true},
+  {"id": "peer-hi", "facet": "人際", "slot": "band", "when": "人際帶 == '高'", "text": "{孩子}身邊有幾個真心的朋友，放學後常有人約。", "claims": {"朋友": "多"}, "fallback": true},
+  {"id": "peer-mid", "facet": "人際", "slot": "band", "when": "人際帶 == '中'", "text": "{孩子}有談得來的朋友，也有還在摸索怎麼相處的人。", "claims": {"朋友": "一般"}, "fallback": true},
+  {"id": "peer-lo", "facet": "人際", "slot": "band", "when": "人際帶 == '低'", "text": "{孩子}在同學之間常常是一個人，要交到朋友，需要有人從旁邊陪著。", "claims": {"朋友": "少"}, "fallback": true},
+  {"id": "learn-3c", "facet": "學習", "slot": "record", "when": "三C連用", "text": "有一陣子，螢幕成了{孩子}最常待的地方。", "claims": {"螢幕": "多"}},
+  {"id": "learn-hi", "facet": "學習", "slot": "band", "when": "學習帶 == '高'", "text": "{孩子}學東西有自己的方法，卡住的時候知道去哪裡找答案。", "claims": {"自律": "高"}, "fallback": true},
+  {"id": "learn-mid", "facet": "學習", "slot": "band", "when": "學習帶 == '中'", "text": "功課大致跟得上，有些地方要有人從旁邊提醒。", "claims": {"自律": "中"}, "fallback": true},
+  {"id": "learn-lo", "facet": "學習", "slot": "band", "when": "學習帶 == '低'", "text": "功課常常要有人在旁邊才動得了，靠自己的時候很快就卡住。", "claims": {"自律": "低"}, "fallback": true}
+ ]
+}

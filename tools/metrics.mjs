@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 // 卡片選項的「可見分數」與「隱藏分數」（資料檢查與策略機器人共用）。
 // 可見分數＝劑量表上看起來多好；隱藏分數＝標籤對照表（未含情境調整）累積起來多好。兩者拉開，就是 DESIGN §3.6 要的「陷阱」。
 export const VISIBLE_KEYS = ['體力', '耐心', '錢', '工作表現', '夫妻關係', '心情', '成績', '作業', '3C時間', '睡眠', '同學往來'];
@@ -68,7 +69,7 @@ export function cardCorrelation(T, card) {
   return spearman(card.choices.map(doseScore), card.choices.map((ch) => hiddenScore(T, ch, stg)));
 }
 /** 全部卡片的平均相關（lint 的全域檢查） */
-export const CORRELATION_BOUND = 0.3;
+export const CORRELATION_BOUND = JSON.parse(readFileSync(new URL('./design-targets.json', import.meta.url), 'utf8')).calibration['dose-hidden-corr'].absMax; // 範圍寫在 tools/design-targets.json（§3.7 第 5 點）
 export function meanCorrelation(T, cards) {
   return cards.reduce((s, c) => s + cardCorrelation(T, c), 0) / cards.length;
 }

@@ -10,6 +10,7 @@ import { FIXED_TOKENS } from '../js/engine/slots.js';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadRaw, loadData, ROOT } from './data-node.mjs';
+import { lintModel } from './lint-model.mjs';
 import { VISIBLE_KEYS, BAD_WHEN_UP, PLAYED_STAGES, CORRELATION_BOUND, tagVec, hiddenScore, doseScore, costOf, cardCorrelation, meanCorrelation } from './metrics.mjs';
 
 const STYLE_PHRASES = [/開明/, /民主式/, /權威式/, /威權/, /放任式/, /我是.{0,6}的(父母|爸爸|媽媽)/, /尊重孩子的教養/, /當個.{0,4}的父母/, /採(用)?.{0,3}(式|型)(教養|溝通)/];
@@ -340,7 +341,10 @@ export function lintData(raw = loadRaw()) {
     if (share > 0.5) warns.push(`隱藏數值「${k}」被 ${(share * 100).toFixed(0)}% 的選項推動（超過一半），會主導結局`);
     if (exposure[k] === 0) warns.push(`隱藏數值「${k}」沒有任何選項推動，在結局等於擺設`);
   }
-  return { errors, warns, stats: { cards: cards.length, choices: nChoices, exposure, ...stats0 } };
+  // 因果模型與防呆（DESIGN §3.7）：方向一致、層次、上限、結局句子
+  const lm = lintModel(raw, data, cards);
+  errors.push(...lm.errors); warns.push(...lm.warns);
+  return { errors, warns, stats: { cards: cards.length, choices: nChoices, exposure, ...stats0, model: lm.stats } };
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

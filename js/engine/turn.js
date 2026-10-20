@@ -7,6 +7,7 @@ import { buildCtx, passes, pickFixed, pickDelayed, drawCard, describeCard, apply
 import { driftHidden, applyTags } from './tags.js';
 import { doseView } from './dose.js';
 import { setModel } from './model.js';
+import { setEnding } from './ending.js';
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 
@@ -74,10 +75,10 @@ export function prepareData(raw) {
     for (const st of c.stages || raw.tags.stages) ((index[st] ||= {})[c.pool] ||= []).push(c);
   }
   // 因果圖（data/model.json，§3.7）掛在標籤對照表上，tags.js 只認 T.model
-  setModel(raw.model);
+  setModel(raw.model); setEnding(raw.ending);
   const tags = raw.model ? { ...raw.tags, model: raw.model } : raw.tags;
   const data = {
-    identities: raw.identities, tags, model: raw.model, events, pools: raw.pools.pools, loads: raw.pools.loads || [], calendar: raw.calendar,
+    identities: raw.identities, tags, model: raw.model, ending: raw.ending, events, pools: raw.pools.pools, loads: raw.pools.loads || [], calendar: raw.calendar,
     cardIndex: Object.fromEntries(events.cards.map((c) => [c.id, c])), index,
     timeline: buildTimeline(raw.calendar),
   };
