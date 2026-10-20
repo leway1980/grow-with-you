@@ -114,7 +114,21 @@ try {
       assert.equal(await page.locator('#ending-yearly').count(), 1, '結局有「這些年你看過的小知識」');
       assert.equal(await page.locator('#ending-yearly li').count(), yl.length, '結局列出看過的每一則小知識');
       assert.equal(await page.evaluate(() => document.querySelector('#ending-yearly').open), false, '結局的小知識預設收合');
-      if (shots) await page.screenshot({ path: join(shots, 'ending-1366.png') });
+      // 決定鏈（M3 B5）：「回頭看」在成就之前；桌面兩欄、字夠大、沒有水平捲軸；每條鏈有年齡、選擇、小曲線、研究小卡
+      const ch = await page.evaluate(() => {
+        const sec = document.querySelector('#ending-chains'), cards = [...sec.querySelectorAll('article.chain:not(.classroom)')], r = (e) => e.getBoundingClientRect();
+        const fs = (e) => parseFloat(getComputedStyle(e).fontSize);
+        return {
+          before: sec.getBoundingClientRect().top < document.querySelector('#ending-achievement').getBoundingClientRect().top, n: cards.length,
+          twoCols: cards.length < 2 || Math.abs(r(cards[0]).top - r(cards[1]).top) < 4 && r(cards[0]).right <= r(cards[1]).left + 1,
+          minFont: Math.min(...[...sec.querySelectorAll('li, p, summary')].map(fs)), noOverflow: document.documentElement.scrollWidth <= innerWidth && cards.every((c) => r(c).right <= innerWidth + 1),
+          parts: cards.every((c) => c.querySelector('.chain-head b') && c.querySelectorAll('.chain-choices li').length >= 3 && c.querySelector('svg.chain-spark') && c.querySelector('.research .level')),
+          cls: !!sec.querySelector('#ending-classroom li'),
+        };
+      });
+      assert.ok(ch.before && ch.n >= 3 && ch.twoCols && ch.noOverflow && ch.parts && ch.cls && ch.minFont >= 13, `桌面結局的決定鏈 ${JSON.stringify(ch)}`);
+      console.log(name, `結局決定鏈 ${ch.n} 條，兩欄，最小字 ${ch.minFont}px`);
+      if (shots) { await page.screenshot({ path: join(shots, 'ending-1366.png') }); await page.locator('#ending-chains').scrollIntoViewIfNeeded(); await page.locator('#ending-chains').screenshot({ path: join(shots, 'ending-chains-1366.png') }); await page.evaluate(() => scrollTo(0, 0)); }
       await page.click('#ending-yearly summary'); await page.locator('#ending-yearly').scrollIntoViewIfNeeded();
       if (shots) await page.screenshot({ path: join(shots, 'ending-yearly-1366.png') });
     }

@@ -29,15 +29,15 @@ test('成就不會被加進幸福：把成績與學習軸的材料全部改掉�
   assert.ok(outcomeAxes(st).學習 < a0.學習 - 5); // 學習軸有跟著掉，所以上面不是沒改到
 });
 
-test('終局畫面的順序：先是你們一起的幸福，然後成就，然後回頭看，最後是資源', () => {
+test('終局畫面的順序：先是你們一起的幸福，然後決定鏈（回頭看），然後成就，最後是資源', () => {
   const { root } = installFakeDom();
   return import('../js/ui.js').then((ui) => {
     try {
       ui.renderEnding(root, buildEnding(played(), data), { seed: 4, onSame() {}, onNew() {} });
       const ids = root.querySelectorAll('section').map((s) => s.attrs.id);
-      assert.deepEqual(ids, ['ending-wellbeing', 'ending-growth', 'ending-achievement', 'ending-review', 'ending-resources']);
+      assert.deepEqual(ids, ['ending-wellbeing', 'ending-growth', 'ending-chains', 'ending-achievement', 'ending-review', 'ending-resources']);
       const txt = root.textContent;
-      assert.ok(txt.indexOf('你們一起的幸福') < txt.indexOf('你也重新長大了一次') && txt.indexOf('你也重新長大了一次') < txt.indexOf('孩子的學習與去向') && txt.indexOf('孩子的學習與去向') < txt.indexOf('回頭看') && txt.indexOf('回頭看') < txt.indexOf('如果你或孩子需要幫忙'));
+      assert.ok(txt.indexOf('你們一起的幸福') < txt.indexOf('你也重新長大了一次') && txt.indexOf('你也重新長大了一次') < txt.indexOf('回頭看') && txt.indexOf('回頭看') < txt.indexOf('孩子的學習與去向') && txt.indexOf('孩子的學習與去向') < txt.indexOf('回頭看：所有的曲線') && txt.indexOf('回頭看：所有的曲線') < txt.indexOf('如果你或孩子需要幫忙'));
       // 幸福那一區沒有成績或去向
       const wb = root.querySelector('#ending-wellbeing').textContent;
       assert.ok(!/課業|成績|國中/.test(wb));

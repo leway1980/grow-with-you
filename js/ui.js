@@ -220,6 +220,47 @@ export function spark(key, s) {
   return svg;
 }
 
+/** 決定鏈的小曲線：整個童年的一條隱藏數值，這一段的起訖用底色標出來（橫軸是月齡，不是筆數） */
+export function chainSpark(c) {
+  const cv = c.curve, pts = cv.pts, W = 200, Hh = 54;
+  const m0 = pts[0].m, m1 = pts[pts.length - 1].m || 1;
+  const x = (m) => 2 + ((m - m0) / Math.max(1, m1 - m0)) * (W - 4);
+  const y = (v) => Hh - 3 - (Math.max(0, Math.min(100, v)) / 100) * (Hh - 6);
+  const ns = 'http://www.w3.org/2000/svg', el = (t, a) => { const n = document.createElementNS(ns, t); for (const [k, v] of Object.entries(a)) n.setAttribute(k, v); return n; };
+  const svg = el('svg', { viewBox: `0 0 ${W} ${Hh}`, class: 'spark chain-spark', role: 'img', 'aria-label': `${cv.node}：${c.ages}這段從 ${cv.v0} 到 ${cv.v1}` });
+  svg.append(
+    el('rect', { x: x(c.m0).toFixed(1), y: 0, width: Math.max(3, x(Math.max(c.m1, cv.m1)) - x(c.m0)).toFixed(1), height: Hh, class: 'win' }),
+    el('line', { x1: 0, x2: W, y1: y(50), y2: y(50), class: 'mid' }),
+    el('polyline', { points: pts.map((p) => `${x(p.m).toFixed(1)},${y(p.v).toFixed(1)}`).join(' '), class: 'line ' + (cv.up ? 'up' : 'dn'), fill: 'none' }),
+    el('circle', { cx: x(cv.m0).toFixed(1), cy: y(cv.v0).toFixed(1), r: 3, class: 'dot' }),
+    el('circle', { cx: x(cv.m1).toFixed(1), cy: y(cv.v1).toFixed(1), r: 3, class: 'dot' }));
+  return svg;
+}
+
+/** 一條決定鏈：年齡、處境、選擇、曲線、後來的痕跡、研究小卡（DESIGN §11、§7.4）。陳述，不責備 */
+export function chainCard(c) {
+  const r = c.research;
+  return h('article', { class: 'chain ' + (c.positive ? 'pos' : 'neg'), 'data-theme': c.theme },
+    h('div', { class: 'chain-head' }, h('b', null, c.ages), h('span', { class: 'chain-theme' }, c.label), h('span', { class: 'chain-dir' }, c.positive ? '往好的方向' : '往吃力的方向')),
+    c.situation && h('p', { class: 'small muted chain-sit' }, c.situation),
+    h('ol', { class: 'chain-choices' }, c.choices.map((x) => h('li', { class: x.auto ? 'auto' : '' }, h('span', { class: 'age' }, x.age), '　', x.text,
+      x.formedBy && x.formedBy.length > 0 && h('div', { class: 'small muted formed' }, '這個習慣是這幾次形成的：' + x.formedBy.map((f) => `${f.age}「${f.text}」`).join('、'))))),
+    c.curve && h('figure', { class: 'chain-fig' }, chainSpark(c), h('figcaption', { class: 'small muted' }, `${c.curve.node}　${c.curve.v0} → ${c.curve.v1}（底色是這一段）`)),
+    c.trace && h('p', { class: 'chain-trace small' }, h('b', null, '後來　'), c.trace.text),
+    r && h('div', { class: 'research' },
+      h('div', { class: 'rh' }, h('b', null, '研究怎麼說'), h('span', { class: 'level', title: r.strength }, `證據強度：${r.level}`)),
+      h('p', { class: 'small' }, r.plain),
+      r.facts && r.facts.length > 0 && h('p', { class: 'small muted' }, r.facts[0].text, '（', r.facts[0].url ? h('a', { href: r.facts[0].url, target: '_blank', rel: 'noopener' }, r.facts[0].cite) : r.facts[0].cite, '）'),
+      h('p', { class: 'small try' }, h('b', null, '下一次可以試試　'), r.tip),
+      (r.limits || c.note) && h('details', { class: 'small muted' }, h('summary', null, '限制'), r.limits, c.note && h('div', null, c.note))));
+}
+
+/** 「這些年，孩子的班上」：只陳述發生過的事，不下結論（DESIGN §1 第二主軸） */
+export function classroomCard(cl) {
+  return h('article', { class: 'chain classroom', id: 'ending-classroom' }, h('div', { class: 'chain-head' }, h('b', null, '這些年，孩子的班上')),
+    h('ul', { class: 'cl-lines' }, cl.lines.map((l) => h('li', null, l))));
+}
+
 export function renderEnding(root, e, { seed, onSame, onNew, portrait, album, yearly = [] }) {
   const w = e.wellbeing;
   root.replaceChildren(h('main', { class: 'wrap end wide stack' },
@@ -239,12 +280,18 @@ export function renderEnding(root, e, { seed, onSame, onNew, portrait, album, ye
       e.growth.lines.length > 0
         ? h('div', null, h('p', { class: 'muted small' }, '陪著孩子的這些年，你自己也跟著學了、玩了一些新東西：'), h('ul', null, e.growth.lines.map((l) => h('li', null, l))))
         : h('p', null, e.growth.none)),
+    h('section', { class: 'paper stack', id: 'ending-chains' },
+      h('h2', { class: 'sec' }, '回頭看'),
+      h('p', { class: 'small muted' }, '單一個決定很少改變什麼；改變軌跡的是同一個方向、連續好幾次的小決定。當時那樣選，多半有當時的理由——累、忙、資訊不夠。下面把這些年連續出現的做法串起來。'),
+      e.chains && e.chains.length > 0
+        ? h('div', { class: 'chains' }, e.chains.map(chainCard), e.classroom && classroomCard(e.classroom))
+        : h('div', { class: 'chains' }, h('p', null, '這一局沒有哪一種做法連續出現三次以上。大多數的日子，是一次一次不一樣的選擇。'), e.classroom && classroomCard(e.classroom))),
     h('section', { class: 'paper', id: 'ending-achievement' },
       h('h2', { class: 'sec' }, '孩子的學習與去向'),
       h('p', null, `${e.name}：${e.achievement.scoreWord}。`), e.lines.filter((l) => l.facet === '學習').map((l) => h('p', { class: 'small' }, l.text)), h('p', { class: 'muted small' }, e.achievement.note),
       h('p', { class: 'muted small' }, '這一項和上面的幸福分開看，兩者沒有直接加減。')),
     h('section', { class: 'paper stack', id: 'ending-review' },
-      h('h2', { class: 'sec' }, '回頭看'),
+      h('h2', { class: 'sec' }, '回頭看：所有的曲線'),
       h('p', { class: 'small muted' }, '遊戲中一直看不到的東西，現在攤開來。每一條曲線是這些年的變化，橫線是中間值。'),
       h('div', { class: 'route' }, h('h3', null, '你這幾年陪伴的位置'),
         bar3('溫暖陪伴', e.route.warm), bar3('規範監督', e.route.firm), bar3('替他做主', e.route.control),

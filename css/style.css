@@ -262,3 +262,27 @@ p.yearly-events { padding-left: 0; }
 .yearly-seen summary { cursor: pointer; font-weight: 700; color: var(--muted); }
 .yearly-seen ul { margin-top: 8px; display: grid; gap: 6px; font-size: 14px; }
 @media (max-width: 480px) { .yearly-btns { grid-template-columns: 1fr; } }
+
+/* 終局的決定鏈（M3 B5）：每條鏈一張小卡；桌機兩欄，手機一欄 */
+.chains { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 768px) { .chains { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.chain { border: 1px solid var(--line); border-left-width: 4px; border-radius: 12px; padding: 12px 14px; background: var(--bg); display: grid; gap: 8px; min-width: 0; }
+.chain.pos { border-left-color: var(--good); } .chain.neg { border-left-color: var(--bad); } .chain.classroom { border-left-color: var(--line); }
+.chain-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.chain-theme { font-size: 14px; color: var(--muted); }
+.chain-dir { margin-left: auto; font-size: 12.5px; font-weight: 600; }
+.chain.pos .chain-dir { color: var(--good); } .chain.neg .chain-dir { color: var(--bad); }
+.chain p, .chain ol, .chain ul, .chain figure { margin: 0; }
+.chain-choices, .cl-lines { padding-left: 1.2em; display: grid; gap: 4px; font-size: 14.5px; line-height: 1.55; }
+.chain-choices li.auto { color: var(--muted); }
+.chain-choices .age { font-weight: 600; font-size: 13px; }
+.formed { margin-top: 2px; }
+.chain-fig { display: grid; gap: 2px; }
+.chain-spark { height: 54px; }
+.chain-spark .win { fill: var(--line); opacity: .55; }
+.chain-spark .dot { fill: var(--accent); }
+.research { border-top: 1px dashed var(--line); padding-top: 8px; display: grid; gap: 4px; }
+.research .rh { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; font-size: 14px; }
+.research .level { font-size: 12.5px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
+.research summary { cursor: pointer; }
+.research a { color: inherit; }
