@@ -19,7 +19,7 @@ test('隔代：另一半在外地工作（幾乎不在家、不同住），開�
     const f = generateFamily(s, idn);
     assert.equal(f.partner.present, true); assert.equal(f.partner.status, '在外地工作'); assert.equal(f.partner.attitude, '幾乎不在家');
     assert.ok(['同住', '住附近會幫忙'].includes(f.elders.status), '隔代的長輩一定在孩子身邊');
-    const ctx = familyCtx(f, '爸爸', 5);
+    const ctx = familyCtx(f, '爸爸', 15);
     assert.equal(ctx.有同住的另一半, false);
     const text = openingText(f, '媽媽').join('');
     assert.match(text, /也在外地工作/); assert.doesNotMatch(text, /對方願意一起帶|很少在家，家裡的事幾乎是你一個人在顧/);
@@ -47,7 +47,7 @@ test('隔代：日常池的卡改成長輩＋週末＋視訊的版本；平日�
   for (const s of seeds.slice(0, 30)) {
     const st = newState(s, data, { role: '爸爸' });
     const r = stateRng(st, 'rngS');
-    for (let t = 0; t < 56; t++) {
+    for (let t = 0; t < data.calendar.playableTurns; t++) {
       st.turn = t;
       const tl = at(t), ctx = buildCtx(st, tl);
       for (let k = 0; k < 8; k++) { const c = drawCard(st, data, ctx, tl, r); if (c) { seen.add(c.id); assert.ok(!ban.has(c.id), `隔代 seed ${s} turn ${t} 抽到 ${c.id}`); } }

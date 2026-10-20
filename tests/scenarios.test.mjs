@@ -11,7 +11,7 @@ import { outcomeWeights, edgeForTagEffect, AXES } from '../js/engine/model.js';
 
 const data = loadData();
 const T = data.tags, M = data.model;
-const START = 40;
+const START = data.timeline.findIndex((t) => t.stage === '國小中高') + 4; // 國小中高第二年（四年級）開學；之後的回合超出時間軸時用最後一回合
 const STAGE = data.timeline[START].stage;
 const SEEDS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const EPS = 1e-9;
@@ -38,7 +38,7 @@ function world(seed, setup) {
 }
 function play(st, steps) {
   for (const s of steps) {
-    const tl = data.timeline[st.turn];
+    const tl = data.timeline[Math.min(st.turn, data.timeline.length - 1)];
     applyTags(st, s.tags, T, { turn: st.turn, stage: tl.stage, ctx: buildCtx(st, tl), approach: !!s.approach, direction: s.direction });
     driftHidden(st, T);
     st.vcurves.push({ t: st.turn, ...st.parent, ...st.child });

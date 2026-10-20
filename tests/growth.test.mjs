@@ -93,7 +93,7 @@ test('終局畫面：幸福之後有『你也重新長大了一次』；沒有�
   const ui = await import('../js/ui.js');
   const { root } = installFakeDom();
   try {
-    const st = fresh(); st.turn = 56;
+    const st = fresh(); st.turn = data.calendar.playableTurns;
     const e = buildEnding(st, data);
     ui.renderEnding(root, e, { seed: 5, onSame() {}, onNew() {} });
     assert.deepEqual(root.querySelectorAll('section').map((s) => s.attrs.id).slice(0, 2), ['ending-wellbeing', 'ending-growth']);
@@ -105,7 +105,7 @@ test('終局畫面：幸福之後有『你也重新長大了一次』；沒有�
 });
 
 test('父母幸福算進父母的收穫：權重中等，補回一部分犧牲，不會抵消全部', () => {
-  const st = newState(5, data, { role: '媽媽' }); st.turn = 56; // 這個測試要直接改隱藏數值，所以不用 guardHidden
+  const st = newState(5, data, { role: '媽媽' }); st.turn = data.calendar.playableTurns; // 這個測試要直接改隱藏數值，所以不用 guardHidden
   for (let i = 0; i < 30; i++) st.vcurves.push({ t: i, 體力: 60, 耐心: 55, 夫妻關係: 60, 錢: 50, 心情: 60 });
   for (let i = 0; i < 30; i++) st.curves.push({ t: i, ...st.hidden });
   const M = data.identities.parentModel;

@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadData, loadRaw } from '../tools/data-node.mjs';
-import { newState } from '../js/engine/state.js';
-import { startTurn, chooseCard, nextCard, finishTurn, playTurn, buildTimeline, gradeName, ageLabel } from '../js/engine/turn.js';
+import { newState, startTurnOf } from '../js/engine/state.js';
+import { startTurn, chooseCard, nextCard, finishTurn, playTurn, buildTimeline, gradeName, ageLabel, playedStages } from '../js/engine/turn.js';
 import { describeCard, buildCtx, poolWeight, applyChoice, slotAvailable, gateNames, choiceCtx, choiceState, applyEffects } from '../js/engine/events.js';
 import { shuffleOrder } from '../js/engine/rng.js';
 import { doseView } from '../js/engine/dose.js';
@@ -12,6 +12,10 @@ import { hiddenScore } from '../tools/metrics.mjs';
 
 const data = loadData();
 const fresh = (seed = 5, mode = 'birth') => newState(seed, data, { role: '媽媽', startMode: mode });
+const PLAYABLE = data.calendar.playableTurns;
+const E = startTurnOf(data, 'elementary'); // 一年級第一回合（由日曆算出）
+const gradeTurn = (g, name) => data.timeline.find((t) => t.grade === g && (!name || t.fixed.includes(name))).turn;
+const quietLowTurn = data.timeline.find((t) => t.stage === '國小低' && !t.fixed.length).turn; // 國小低、沒有固定事件的回合
 const pickFirst = { choose: (s, v) => v.choices.find((c) => !c.disabled).i };
 
 /* ───── 洗牌 ───── */
@@ -79,18 +83,18 @@ test('錢往家境的目標回歸（吃緊 25、小康 50、寬裕 70），不�
     const st = fresh(seed);
     if (seen.has(st.family.econ)) continue;
     seen.add(st.family.econ);
-    st.parent.錢 = 0; st.turn = 20;
-    for (let i = 0; i < 40; i++) { st.turn = 20 + (i % 30); finishTurn(st, data); }
+    st.parent.錢 = 0; st.turn = E;
+    for (let i = 0; i < 40; i++) { st.turn = E + (i % 30); finishTurn(st, data); }
     assert.ok(Math.abs(st.parent.錢 - target[st.family.econ]) < 1.5, `${st.family.econ}: ${st.parent.錢}`);
-    st.parent.錢 = 100; st.turn = 20;
-    for (let i = 0; i < 40; i++) { st.turn = 20 + (i % 30); finishTurn(st, data); }
+    st.parent.錢 = 100; st.turn = E;
+    for (let i = 0; i < 40; i++) { st.turn = E + (i % 30); finishTurn(st, data); }
     assert.ok(Math.abs(st.parent.錢 - target[st.family.econ]) < 1.5);
   }
   assert.equal(seen.size, 3);
 });
 
 test('花費會累積：同樣的總花費，連續幾回合付出比一次付出更難恢復；單次花費不會在一回合內被洗掉', () => {
-  const base = () => { const st = fresh(3); st.turn = 20; return st; };
+  const base = () => { const st = fresh(3); st.turn = E; return st; };
   const A = base(), B = base();
   // A：一次付出 −24；B：每回合 −4 連續 6 回合
   const full = 74 + data.identities.patterns[A.family.pattern].體力;
@@ -98,8 +102,8 @@ test('花費會累積：同樣的總花費，連續幾回合付出比一次付�
   A.parent.體力 -= 24; A.cur = { acc: { 體力: -24 } }; finishTurn(A, data);
   const afterOne = A.parent.體力;
   assert.ok(afterOne < full - 24 + 0.1 * 24 + 1, `一回合只回復一小部分：${afterOne}`);
-  for (let i = 0; i < 5; i++) { A.turn = 21 + i; finishTurn(A, data); }
-  for (let i = 0; i < 6; i++) { B.turn = 20 + i; B.parent.體力 -= 4; B.cur = { acc: { 體力: -4 } }; finishTurn(B, data); }
+  for (let i = 0; i < 5; i++) { A.turn = E + 1 + i; finishTurn(A, data); }
+  for (let i = 0; i < 6; i++) { B.turn = E + i; B.parent.體力 -= 4; B.cur = { acc: { 體力: -4 } }; finishTurn(B, data); }
   assert.ok(B.costEMA.體力 > 2.5 && A.costEMA.體力 < B.costEMA.體力, `${A.costEMA.體力} vs ${B.costEMA.體力}`);
   // 回復目標被近期花費拉低
   const M = data.identities.parentModel;
@@ -107,7 +111,7 @@ test('花費會累積：同樣的總花費，連續幾回合付出比一次付�
 });
 
 test('花費的回復速度大約 0.1：閒置一回合，離目標的差距縮小約一成', () => {
-  const st = fresh(3); st.turn = 20;
+  const st = fresh(3); st.turn = E;
   const full = 74 + data.identities.patterns[st.family.pattern].體力;
   st.parent.體力 = full - 30; st.cur = null;
   finishTurn(st, data);
@@ -128,7 +132,8 @@ test('劑量表顯示「想要造成的變化」：錢已經是 0，選了錢 �
 
 /* ───── 固定事件的回合有第二張卡 ───── */
 test('有固定事件的回合有第二張卡（日常或後續卡）；劑量表等第二張選完才合計', () => {
-  const st = fresh(6, 'elementary'); st.turn = 21; // 回合 21：一年級的運動會（fx_sports_day，只有一個固定事件）
+  const SPORTS = gradeTurn(1, 'fx_sports_day');
+  const st = fresh(6, 'elementary'); st.turn = SPORTS; // 一年級的運動會（fx_sports_day，只有一個固定事件）
   const res = startTurn(st, data);
   assert.equal(res.raw.id, 'fx_sports_day'); assert.equal(res.twoSlot, true);
   const out1 = chooseCard(st, data, res.card.choices.find((c) => !c.disabled).i);
@@ -139,15 +144,16 @@ test('有固定事件的回合有第二張卡（日常或後續卡）；劑量�
   assert.equal(out2.more, false);
   // 合計＝兩張卡各自的變化相加
   const sum = {};
-  for (const h of st.hist.filter((x) => x.turn === 21)) for (const [k, v] of Object.entries(h.d)) sum[k] = (sum[k] || 0) + v;
+  for (const h of st.hist.filter((x) => x.turn === SPORTS)) for (const [k, v] of Object.entries(h.d)) sum[k] = (sum[k] || 0) + v;
   const shown = Object.fromEntries([...out2.dose.parent, ...out2.dose.child].map((r) => [r.key, r.dir]));
   for (const k of Object.keys(shown)) assert.equal(Math.sign(sum[k] || 0) || shown[k], shown[k], k);
-  assert.equal(st.hist.filter((x) => x.turn === 21).length, 2);
+  assert.equal(st.hist.filter((x) => x.turn === SPORTS).length, 2);
   finishTurn(st, data);
 });
 
 test('一年級開學日有兩個固定事件：開學第一天、每天怎麼去學校；第二個排成第二張卡（上下學方式存進 st.vars）', () => {
-  const st = fresh(6, 'elementary'); // 回合 20
+  const st = fresh(6, 'elementary'); // 一年級開學日（回合 E）
+  assert.equal(st.turn, E);
   const res = startTurn(st, data);
   assert.equal(res.raw.id, 'fx_enroll'); assert.equal(res.twoSlot, true);
   assert.equal(chooseCard(st, data, res.card.choices.find((c) => !c.disabled).i).more, true);
@@ -280,8 +286,8 @@ test('門檻有名字：卡片裡不寫「了解度 >= 55」這種裸數字，�
 
 /* ───── 後續卡 ───── */
 test('後續卡記下排進去的回合；出現時記下延遲；到期的後續卡比抽卡優先', () => {
-  const st = fresh(5); st.turn = 25;
-  st.delayed.push({ card: 'fu_ask_again', due: 25, from: 23 });
+  const st = fresh(5); st.turn = quietLowTurn;
+  st.delayed.push({ card: 'fu_ask_again', due: quietLowTurn, from: quietLowTurn - 2 });
   st.flags.參加球類社團 = false; st.flags.社團_被擋 = true; // 後續卡要有前因（規則 14）
   const res = startTurn(st, data);
   assert.equal(res.raw.id, 'fu_ask_again');
@@ -294,7 +300,7 @@ test('一整局玩下來，每回合都玩完（含固定事件的第二張）�
     const st = fresh(12);
     let guard = 0;
     while (!st.ended && guard++ < 100) playTurn(st, data, botPolicy(bot, 3));
-    assert.equal(st.turn, 56);
+    assert.equal(st.turn, PLAYABLE);
   }
 });
 void applyEffects; void choiceCtx; void loadRaw;
@@ -383,6 +389,7 @@ test('不敏感的孩子，壓力有時真的把成績撐住；敏感的孩子�
 
 /* ───── 日曆 v2（A1）：舊 92 回合表達成 v2 後，時間軸要和舊實作逐欄位一致 ───── */
 const LEGACY_CAL = {"totalTurns":92,"playableTurns":56,"stages":[{"id":"嬰幼兒","turns":8,"startMonths":0,"stepMonths":3},{"id":"幼兒園","turns":12,"startMonths":24,"stepMonths":4},{"id":"國小低","grades":[1,2]},{"id":"國小中高","grades":[3,4,5,6]},{"id":"國中","grades":[7,8,9]},{"id":"高中","grades":[10,11,12]}],"segments":[{"name":"開學之後","months":"9–10 月","month":9,"vacation":false},{"name":"期中之後","months":"11–12 月","month":11,"vacation":false},{"name":"寒假前後","months":"1–2 月","month":1,"vacation":true},{"name":"下學期","months":"3–4 月","month":3,"vacation":false},{"name":"期末之前","months":"5–6 月","month":5,"vacation":false},{"name":"暑假","months":"7–8 月","month":7,"vacation":true}],"fixed":[{"turn":1,"event":"fx_leave_end"},{"turn":1,"event":"fx_leave_end_gen"},{"turn":10,"event":"fx_kindergarten"},{"turn":20,"event":"fx_enroll"}],"schoolFixed":[{"grade":[1],"seg":0,"event":"fx_commute"},{"grade":[2,3,4,5,6],"seg":0,"event":"fx_teacher_meet"},{"grade":[1,2,3,4,5,6],"seg":1,"event":"fx_sports_day"},{"grade":[1,2,3,4,5,6],"seg":3,"event":"fx_field_trip"},{"grade":[6],"seg":4,"event":"fx_graduation"}]};
+const LEGACY_V2 = {"totalTurns":92,"playableTurns":56,"segmentSets":{"舊6":[{"name":"開學之後","months":"9–10 月","month":9,"vacation":false},{"name":"期中之後","months":"11–12 月","month":11,"vacation":false},{"name":"寒假前後","months":"1–2 月","month":1,"vacation":true},{"name":"下學期","months":"3–4 月","month":3,"vacation":false},{"name":"期末之前","months":"5–6 月","month":5,"vacation":false},{"name":"暑假","months":"7–8 月","month":7,"vacation":true}]},"stages":[{"id":"嬰幼兒","turns":8,"startMonths":0,"stepMonths":3},{"id":"幼兒園","turns":12,"startMonths":24,"stepMonths":4},{"id":"國小低","grades":[{"g":1,"segs":"舊6"},{"g":2,"segs":"舊6"}]},{"id":"國小中高","grades":[{"g":3,"segs":"舊6"},{"g":4,"segs":"舊6"},{"g":5,"segs":"舊6"},{"g":6,"segs":"舊6"}]},{"id":"國中","grades":[{"g":7,"segs":"舊6"},{"g":8,"segs":"舊6"},{"g":9,"segs":"舊6"}]},{"id":"高中","grades":[{"g":10,"segs":"舊6"},{"g":11,"segs":"舊6"},{"g":12,"segs":"舊6"}]}],"fixed":[{"atMonths":3,"event":"fx_leave_end"},{"atMonths":3,"event":"fx_leave_end_gen"},{"atMonths":32,"event":"fx_kindergarten"},{"at":{"stage":"國小低","i":0},"event":"fx_enroll"}],"schoolFixed":[{"grade":[1],"seg":"開學之後","event":"fx_commute"},{"grade":[2,3,4,5,6],"seg":"開學之後","event":"fx_teacher_meet"},{"grade":[1,2,3,4,5,6],"seg":"期中之後","event":"fx_sports_day"},{"grade":[1,2,3,4,5,6],"seg":"下學期","event":"fx_field_trip"},{"grade":[6],"seg":"期末之前","event":"fx_graduation"}]}; // 同一份舊日曆（92 回合）的 v2 形式（A1 的 data/calendar.json，flavor 省略）
 function legacyTimeline(cal) { // A1 之前的 buildTimeline（凍結的參考實作）
   const tl = [];
   for (const s of cal.stages) {
@@ -402,9 +409,9 @@ function legacyTimeline(cal) { // A1 之前的 buildTimeline（凍結的參考�
   return tl;
 }
 
-test('日曆 v2：目前的 92 回合表和舊實作逐回合逐欄位一致（只多 newAge）', () => {
-  const oldTl = legacyTimeline(LEGACY_CAL), newTl = buildTimeline(data.calendar);
-  assert.equal(data.calendar.totalTurns, 92); assert.equal(data.calendar.playableTurns, 56);
+test('日曆 v2：92 回合舊日曆（v2 形式）和舊實作逐回合逐欄位一致（只多 newAge）', () => {
+  const oldTl = legacyTimeline(LEGACY_CAL), newTl = buildTimeline(LEGACY_V2);
+  assert.equal(LEGACY_V2.totalTurns, 92); assert.equal(LEGACY_V2.playableTurns, 56);
   assert.equal(newTl.length, oldTl.length);
   for (let i = 0; i < oldTl.length; i++) {
     const { newAge, ...rest } = newTl[i];
@@ -415,10 +422,13 @@ test('日曆 v2：目前的 92 回合表和舊實作逐回合逐欄位一致（�
 });
 
 test('日曆 v2：newAge 只標在每個新的一歲的第一回合', () => {
-  const tl = buildTimeline(data.calendar);
-  assert.equal(tl[0].newAge, false);
-  for (let i = 1; i < tl.length; i++) assert.equal(tl[i].newAge, Math.floor(tl[i].ageMonths / 12) > Math.floor(tl[i - 1].ageMonths / 12), `回合 ${i}`);
-  assert.equal(tl.filter((t) => t.newAge).length, 17); // 1–17 歲各一次
+  for (const cal of [LEGACY_V2, data.calendar]) {
+    const tl = buildTimeline(cal);
+    assert.equal(tl[0].newAge, false);
+    for (let i = 1; i < tl.length; i++) assert.equal(tl[i].newAge, Math.floor(tl[i].ageMonths / 12) > Math.floor(tl[i - 1].ageMonths / 12), `回合 ${i}`);
+  }
+  assert.equal(buildTimeline(LEGACY_V2).filter((t) => t.newAge).length, 17); // 1–17 歲各一次
+  assert.equal(data.timeline.filter((t) => t.newAge).length, 18); // 72 回合的日曆最後一回合滿 18 歲
 });
 
 const MINI = () => ({
@@ -454,4 +464,44 @@ test('日曆 v2：schoolFixed 用段名找段，不同年級用不同段落組�
   assert.deepEqual(at('up'), [[2, 0]]);
   assert.throws(() => buildTimeline(mini({ schoolFixed: [{ grade: [1], seg: '不存在', event: 'x' }] })), /不存在|沒有叫/);
   assert.equal(tl.find((t) => t.grade === 1 && t.seg === 2).vacation, true);
+});
+
+/* ───── 日曆 72 回合（A2）───── */
+test('日曆 72：總回合數、各階段回合數、playableTurns 剛好接在國小六年級之後', () => {
+  const tl = data.timeline;
+  assert.equal(tl.length, 72); assert.equal(data.calendar.totalTurns, 72);
+  const count = (stage) => tl.filter((t) => t.stage === stage).length;
+  assert.deepEqual(['嬰幼兒', '幼兒園', '國小低', '國小中高', '國中', '高中', '離家'].map(count), [8, 16, 10, 16, 13, 6, 3]);
+  assert.equal(data.calendar.playableTurns, 50);
+  assert.equal(tl[PLAYABLE - 1].stage, '國小中高'); assert.equal(tl[PLAYABLE - 1].grade, 6); assert.equal(tl[PLAYABLE].stage, '國中');
+  assert.deepEqual(tl.map((t) => t.ageMonths), [...tl.map((t) => t.ageMonths)].sort((a, b) => a - b), '月齡單調不減');
+  assert.deepEqual(playedStages(data.calendar), ['嬰幼兒', '幼兒園', '國小低', '國小中高']);
+});
+
+test('日曆 72：起點回合由時間軸算出（從國小開始＝第一個一年級回合），從國小開始玩 PLAYABLE − E 回合', () => {
+  assert.equal(startTurnOf(data, 'birth'), 0);
+  assert.equal(E, 24); assert.equal(data.timeline[E].grade, 1); assert.equal(data.timeline[E - 1].grade, 0);
+  assert.equal(newState(3, data, { startMode: 'elementary' }).turn, E);
+  assert.equal(PLAYABLE - E, 26);
+  assert.equal(startTurnOf(buildTimeline(LEGACY_V2) && { timeline: buildTimeline(LEGACY_V2) }, 'elementary'), 20, '舊日曆算出來仍是 20');
+});
+
+test('日曆 72：每個固定事件的月齡和舊 92 回合日曆相差在 ±3 個月內；每個 schoolFixed 都排得進時間軸', () => {
+  const oldTl = buildTimeline(LEGACY_V2), newTl = data.timeline;
+  const evs = new Set(newTl.flatMap((t) => t.fixed));
+  for (const ev of evs) {
+    const olds = oldTl.filter((t) => t.fixed.includes(ev));
+    assert.ok(olds.length, `${ev} 在舊日曆裡有`);
+    for (const t of newTl.filter((x) => x.fixed.includes(ev))) {
+      const o = olds.filter((x) => x.grade === t.grade);
+      assert.ok(o.length === 1 && Math.abs(o[0].ageMonths - t.ageMonths) <= 3, `${ev} 年級 ${t.grade}：新 ${t.ageMonths} 個月，舊 ${o.map((x) => x.ageMonths)}`);
+    }
+  }
+  for (const f of data.calendar.schoolFixed) for (const g of f.grade) assert.ok(newTl.some((t) => t.grade === g && t.fixed.includes(f.event)), `${f.event} 年級 ${g} 排不進時間軸`);
+  // 國小中高變稀：家長會 3、5 年級；校外教學 4、6 年級；運動會每年；畢業典禮 6 年級；國小低全留
+  const gs = (ev) => [...new Set(newTl.filter((t) => t.fixed.includes(ev)).map((t) => t.grade))];
+  assert.deepEqual(gs('fx_teacher_meet'), [2, 3, 5]); assert.deepEqual(gs('fx_field_trip'), [1, 2, 4, 6]);
+  assert.deepEqual(gs('fx_sports_day'), [1, 2, 3, 4, 5, 6]); assert.deepEqual(gs('fx_graduation'), [6]); assert.deepEqual(gs('fx_commute'), [1]);
+  // 國小中高每學年 4 回合裡固定的：3、4、5 年級 2 個，6 年級 3 個（運動會、校外教學、畢業典禮）；合計 9／16
+  assert.deepEqual([3, 4, 5, 6].map((g) => newTl.filter((t) => t.grade === g && t.fixed.length).length), [2, 2, 2, 3]);
 });

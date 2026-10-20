@@ -22,14 +22,14 @@ test('整局在守衛下玩完：每種策略、從出生與從國小開始，�
     for (const [seed, mode] of [[3, 'birth'], [8, 'elementary']]) {
       const st = guardHidden(newState(seed, data, { role: seed % 2 ? '爸爸' : '媽媽', startMode: mode }));
       playToEnd(st, data, botPolicy(bot, 1));
-      assert.equal(st.turn, 56, `${bot}/${mode}`);
+      assert.equal(st.turn, data.calendar.playableTurns, `${bot}/${mode}`);
     }
   }
   // 讓他自己過（auto.js）也一樣
   const st = guardHidden(newState(5, data, {}));
   playTurn(st, data, { choose: (s, v) => selfChoice(s, v) });
   playRestAuto(st, data);
-  assert.equal(st.turn, 56);
+  assert.equal(st.turn, data.calendar.playableTurns);
 });
 
 test('同一個種子、同一個策略 → 完全一樣的一局；不同策略 → 不一樣', () => {

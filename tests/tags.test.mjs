@@ -10,7 +10,7 @@ const data = loadData();
 const T = data.tags;
 const fresh = (seed = 5) => newState(seed, data, { role: '媽媽' });
 const tlAt = (turn) => data.timeline[turn];
-const apply = (st, tags, turn, extra = {}) => { const tl = tlAt(Math.min(turn, 55)); return applyTags(st, tags, T, { turn, stage: tl.stage, ctx: buildCtx(st, tl, {}), ...extra }); };
+const apply = (st, tags, turn, extra = {}) => { const tl = tlAt(Math.min(turn, data.calendar.playableTurns - 1)); return applyTags(st, tags, T, { turn, stage: tl.stage, ctx: buildCtx(st, tl, {}), ...extra }); };
 // 把「飽和」與「增益」排除，直接算對照表的預期值
 const expected = (def, k, st, tl, ctx, tag, mult = 1) => saturate(st.hidden[k], def.d[k] * (T.gain ?? 1) * (st.family?.child.responsive ?? 1) * stageMult(def, tl.stage) * modifierFactor(T, tag, ctx) * mult);
 

@@ -9,6 +9,7 @@ import { generateFamily, siblingRelations } from '../js/engine/family.js';
 
 const data = loadData();
 const at = (turn) => data.timeline[turn];
+const G3 = data.timeline.find((t) => t.grade === 3).turn; // 三年級開學（hi_pet 之類中高年級的卡用）
 const choose = (st, id, idx) => {
   const card = cardById(data, id), tl = at(st.turn);
   const r = stateRng(st, 'rngS');
@@ -20,11 +21,11 @@ const cleanState = (seed, turn, mut) => {
 };
 
 test('hi_pet：養了什麼、叫什麼名字，存進 vars；之後的 {寵物}、{寵物名}、有寵物、寵物種類 都讀同一個值', () => {
-  let st = cleanState(11, 36, (s) => { s.family.pet = null; });
-  assert.equal(buildCtx(st, at(36)).有寵物, false);
+  let st = cleanState(11, G3, (s) => { s.family.pet = null; });
+  assert.equal(buildCtx(st, at(G3)).有寵物, false);
   const card = cardById(data, 'hi_pet');
   const scope = cardScope(st, 'hi_pet');
-  const shown = describeCard(card, st, data, at(36)); // 抽出這張卡的 {寵物}、{領養寵物名}
+  const shown = describeCard(card, st, data, at(G3)); // 抽出這張卡的 {寵物}、{領養寵物名}
   const wanted = scope.寵物;
   assert.ok(wanted, '卡片文字抽到一個寵物');
   choose(st, 'hi_pet', 0);
@@ -41,9 +42,9 @@ test('hi_pet：養了什麼、叫什麼名字，存進 vars；之後的 {寵物}
 });
 
 test('hi_pet 選「先從小動物開始」：養的是小動物，父母的收穫也記同一個', () => {
-  const st = cleanState(12, 36, (s) => { s.family.pet = null; });
+  const st = cleanState(12, G3, (s) => { s.family.pet = null; });
   const card = cardById(data, 'hi_pet');
-  describeCard(card, st, data, at(36));
+  describeCard(card, st, data, at(G3));
   choose(st, 'hi_pet', 2);
   assert.ok(['倉鼠', '魚', '烏龜'].includes(st.vars.養的寵物), st.vars.養的寵物);
   const g = st.parentGrowth.find((x) => x.slot === '寵物');
@@ -51,8 +52,8 @@ test('hi_pet 選「先從小動物開始」：養的是小動物，父母的收�
 });
 
 test('家裡本來就有寵物：{寵物} 一律是那一種（不再隨機）', () => {
-  const st = cleanState(13, 36, (s) => { s.family.pet = { kind: '小動物', type: '兔子', name: '麻糬' }; });
-  const ctx = buildCtx(st, at(36));
+  const st = cleanState(13, G3, (s) => { s.family.pet = { kind: '小動物', type: '兔子', name: '麻糬' }; });
+  const ctx = buildCtx(st, at(G3));
   assert.equal(ctx.寵物種類, '兔子');
   for (let k = 0; k < 30; k++) { st.slotLast = {}; assert.equal(fill('{寵物}', st, ctx, {}), '兔子'); }
   assert.equal(fill('{寵物名}', st, ctx, {}), '麻糬');
@@ -114,23 +115,25 @@ test('cm_car：停才藝課的選項只給有在學才藝的孩子，沒有寫�
 test('手足：手足數是目前已經在的全部（含弟弟妹妹出生之後）、年長手足／年幼手足／下一胎回合差', () => {
   const idn = data.identities;
   let seen = { younger: 0, older: 0 };
+  const STEP = 3, due = (m, ys) => { const d = ys.filter((q) => q.arriveMonths > m).map((q) => Math.ceil((q.arriveMonths - m) / STEP)); return d.length ? Math.min(...d) : 99; };
   for (let seed = 1; seed <= 400; seed++) {
     const fam = generateFamily(seed, idn);
     const ys = fam.siblings.filter((s) => !s.older);
     if ((fam.structure === '離異' || fam.structure === '喪親')) assert.equal(ys.length, 0, `單親（${fam.structure}）不排弟弟妹妹：seed ${seed}`);
+    for (const s of fam.siblings) assert.ok(!('arriveTurn' in s) && (s.older ? s.arriveMonths === null : s.arriveMonths >= idn.siblings.youngerMonths[0] && s.arriveMonths <= idn.siblings.youngerMonths[1]), JSON.stringify(s));
     if (!ys.length) continue;
     seen.younger++;
-    const y = ys[0];
-    const before = siblingRelations(fam, y.arriveTurn - 1), after = siblingRelations(fam, y.arriveTurn);
-    const dueAt = (t) => { const d = ys.filter((q) => q.arriveTurn > t).map((q) => q.arriveTurn - t); return d.length ? Math.min(...d) : 99; };
-    assert.equal(before.下一胎回合差, dueAt(y.arriveTurn - 1)); assert.equal(siblingRelations(fam, y.arriveTurn - 2).下一胎回合差, dueAt(y.arriveTurn - 2));
+    const y = ys[0], m = y.arriveMonths;
+    const before = siblingRelations(fam, m - 1), after = siblingRelations(fam, m);
+    assert.equal(before.下一胎回合差, due(m - 1, ys)); assert.equal(siblingRelations(fam, m - 6).下一胎回合差, due(m - 6, ys));
     assert.ok(before.下一胎回合差 >= 1);
-    const later = ys.filter((s) => s.arriveTurn > y.arriveTurn).map((s) => s.arriveTurn - y.arriveTurn);
+    const later = ys.filter((s) => s.arriveMonths > m).map((s) => Math.ceil((s.arriveMonths - m) / STEP));
     assert.equal(after.下一胎回合差, later.length ? Math.min(...later) : 99); // 這一胎出生了；還有更小的弟弟妹妹就算下一個
     assert.ok(after.手足數 >= before.手足數 + 1 - 0, '出生之後手足數多一個');
     assert.ok(after.年幼手足數 >= 1 && after.年幼手足 !== '');
-    assert.equal(before.年幼手足數, ys.filter((s) => s.arriveTurn <= y.arriveTurn - 1).length);
+    assert.equal(before.年幼手足數, ys.filter((s) => s.arriveMonths <= m - 1).length);
     assert.equal(after.手足數, after.年長手足數 + after.年幼手足數);
+    assert.equal(siblingRelations(fam).年幼手足數, ys.length, '沒給月齡（開局抽籤）時全部都算');
   }
   assert.ok(seen.younger > 20, `有弟弟妹妹的家庭夠多（${seen.younger}）`);
 });
@@ -139,15 +142,16 @@ test('kid_newborn：只在弟弟妹妹出生前一、兩個回合出現；單親
   const card = cardById(data, 'kid_newborn');
   assert.match(card.requires.expr, /下一胎回合差 >= 1 and 下一胎回合差 <= 2/);
   let eligible = 0;
+  const preschool = data.timeline.filter((t) => t.stage === '幼兒園');
   for (let seed = 1; seed <= 300; seed++) {
     const st = newState(seed, data, { role: '爸爸' });
-    for (let t = 8; t < 20; t++) {
-      st.turn = t;
-      const ctx = buildCtx(st, at(t));
+    for (const tl of preschool) {
+      st.turn = tl.turn;
+      const ctx = buildCtx(st, tl);
       const ok = require_ok(card, ctx);
-      const due = st.family.siblings.filter((s) => !s.older && s.arriveTurn > t).map((s) => s.arriveTurn - t);
+      const dueIn = st.family.siblings.filter((s) => !s.older && s.arriveMonths > tl.ageMonths).map((s) => Math.ceil((s.arriveMonths - tl.ageMonths) / 3));
       const gen = st.family.structure === '隔代'; // 隔代：孩子跟長輩住，家裡『多一個人』不是這個故事
-      assert.equal(passes(card, st, ctx) && !gen, due.some((d) => d >= 1 && d <= 2) && !gen, `seed ${seed} turn ${t}`);
+      assert.equal(passes(card, st, ctx) && !gen, dueIn.some((d) => d >= 1 && d <= 2) && !gen, `seed ${seed} turn ${tl.turn}`);
       if (ok && !gen) { eligible++; assert.ok(st.family.structure !== '離異' && st.family.structure !== '喪親'); }
     }
   }
