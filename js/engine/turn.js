@@ -55,9 +55,10 @@ export function withTagCosts(events, tagCosts) {
     choices: c.choices.map((ch) => {
       const add = (ch.tags || []).filter((t) => tagCosts[t]);
       if (!add.length) return ch;
-      const eff = { ...(ch.effects || {}) };
-      for (const t of add) for (const [k, d] of Object.entries(tagCosts[t])) eff[k] = (eff[k] || 0) + d;
-      return { ...ch, effects: eff };
+      const plus = (e) => { const eff = { ...(e || {}) }; for (const t of add) for (const [k, d] of Object.entries(tagCosts[t])) eff[k] = (eff[k] || 0) + d; return eff; };
+      const out = { ...ch, effects: plus(ch.effects) };
+      if (ch.effectsIf) out.effectsIf = ch.effectsIf.map((v) => ({ ...v, value: plus(v.value) })); // 情境版本的效果也加上標籤自帶的代價（tagsIf 不能換掉有代價的標籤，lint 檢查）
+      return out;
     }),
   }));
   return { ...events, cards };

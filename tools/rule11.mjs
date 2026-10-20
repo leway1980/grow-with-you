@@ -44,7 +44,7 @@ export function rule11(cards, T, fileOf = {}) {
   for (const c of cards) {
     const a = analyzeCard(c, T);
     if (!a) continue;
-    const f = fileOf[c.id] || '(?)', p = (perFile[f] ||= { cards: 0, strictly: 0, longFail: 0, markFail: 0, shortest: 0, trapLongest: 0 });
+    const f = fileOf[c.id] || fileOf[c._variantOf] || '(?)', p = (perFile[f] ||= { cards: 0, strictly: 0, longFail: 0, markFail: 0, shortest: 0, trapLongest: 0 });
     for (const o of [p, total]) { o.cards++; o.strictly += a.strictlyLongest; o.longFail += a.longFail; o.markFail += a.markFail; o.shortest += a.strictlyShortest; o.trapLongest += a.trapLongest; }
     if (a.markFail) { errors.push(`卡片 ${c.id}：規則 11(b)：研究選項用了「${a.rMarks.join('、')}」，同一張卡的非研究選項都沒有標記詞`); failCards.push(c.id); }
     if (a.longFail) failCards.push(c.id);

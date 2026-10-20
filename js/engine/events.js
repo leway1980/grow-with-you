@@ -296,6 +296,18 @@ export function cardScope(st, cardId) {
   if (!st.cardScope || st.cardScope.k !== k) st.cardScope = { k, v: {} };
   return st.cardScope.v;
 }
+/** 選項的情境版本（規則 17／21）：labelIf／resultIf／tagsIf／effectsIf＝[{if, value}, …]，每個欄位各自由上往下第一個成立的版本取代原值（沒寫 if＝一律成立）；都不成立就用原本的欄位。和 textIf 同一個求值器。 */
+export const VARIANT_FIELDS = { labelIf: 'label', resultIf: 'result', tagsIf: 'tags', effectsIf: 'effects' };
+export function resolveChoice(ch, ctx) {
+  let out = ch;
+  for (const [key, field] of Object.entries(VARIANT_FIELDS)) {
+    const list = ch[key];
+    if (!list || !ctx) continue;
+    const v = list.find((x) => !x.if || evalCond(x.if, ctx));
+    if (v) { if (out === ch) out = { ...ch }; out[field] = v.value; }
+  }
+  return out;
+}
 export function choiceState(ch, ctx) {
   if (ch.showIf && !evalCond(ch.showIf, ctx)) return { hidden: true, disabled: true, reason: '' };
   for (const g of [].concat(ch.grayIf || [])) if (evalCond(g.if, ctx)) return { hidden: false, disabled: true, reason: g.reason };
@@ -318,7 +330,7 @@ export function describeCard(card, st, data, tl) {
     const cctx = choiceCtx(st, tl, card, ch);
     const s = choiceState(ch, cctx);
     if (s.hidden) continue;
-    choices.push({ i, pos: choices.length, label: fill(ch.label, st, cctx, scope), disabled: s.disabled, reason: fill(s.reason, st) });
+    choices.push({ i, pos: choices.length, label: fill(resolveChoice(ch, cctx).label, st, cctx, scope), disabled: s.disabled, reason: fill(s.reason, st) });
   }
   return { id: card.id, title: fill(card.title, st, ctx, scope), text: fill(pickText(card, ctx, st), st, ctx, scope), choices };
 }
@@ -386,10 +398,11 @@ export function recordGrowth(st, T, ch, scope) {
  * 隱藏數值只經由 tags.js 改變。
  */
 export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
-  const ch = card.choices[idx];
-  if (!ch) throw new Error(`選項不存在: ${card.id}#${idx}`);
-  const topic = ch.topic || card.topic;
-  const ctx = choiceCtx(st, tl, card, ch);
+  const base = card.choices[idx];
+  if (!base) throw new Error(`選項不存在: ${card.id}#${idx}`);
+  const topic = base.topic || card.topic;
+  const ctx = choiceCtx(st, tl, card, base);
+  const ch = resolveChoice(base, ctx); // 情境版本：同一個選項在不同年級、孩子特質下的文字、標籤與效果
   const gs = choiceState(ch, ctx);
   if (gs.hidden || gs.disabled) throw new Error(`選項不可選: ${card.id}#${idx}`);
   const acc = {}; // 這個選項自己造成的可見變化；回合的合計由呼叫端累加

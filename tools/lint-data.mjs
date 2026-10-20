@@ -3,7 +3,7 @@
 // 每個選項要有 ≥1 個可見效果與 ≥1 個標籤、選項不能有 hidden、標籤必須在詞彙表、不能寫教養風格宣告。
 // 用法：node tools/lint-data.mjs（有錯誤時 exit 1）；tests 也會呼叫 lintData()
 import { fileURLToPath } from 'node:url';
-import { tokenize, compile, buildCtx, evalCond, gateNames, choiceState, PING_BIG_ID, PING_BIG_P } from '../js/engine/events.js';
+import { tokenize, compile, buildCtx, evalCond, gateNames, choiceState, PING_BIG_ID, PING_BIG_P, VARIANT_FIELDS } from '../js/engine/events.js';
 import { newState } from '../js/engine/state.js';
 import { isGrowthChoice } from '../js/engine/tags.js';
 import { FIXED_TOKENS } from '../js/engine/slots.js';
@@ -13,6 +13,7 @@ import { loadRaw, loadData, ROOT } from './data-node.mjs';
 import { lintModel } from './lint-model.mjs';
 import { lintContent } from './lint-content.mjs';
 import { rule11, cardFileMap } from './rule11.mjs';
+import { expandVariantCards } from './variants.mjs';
 import { VISIBLE_KEYS, BAD_WHEN_UP, PLAYED_STAGES, CORRELATION_BOUND, tagVec, hiddenScore, doseScore, costOf, cardCorrelation, meanCorrelation } from './metrics.mjs';
 
 const STYLE_PHRASES = [/開明/, /民主式/, /權威式/, /威權/, /放任式/, /我是.{0,6}的(父母|爸爸|媽媽)/, /尊重孩子的教養/, /當個.{0,4}的父母/, /採(用)?.{0,3}(式|型)(教養|溝通)/];
@@ -39,8 +40,9 @@ export function lintData(raw = loadRaw()) {
   const st = newState(1, data, {});
   const ctx = buildCtx(st, data.timeline[0], { topic: '運動' });
   const ctxKeys = new Set(Object.keys(ctx));
-  const cards = raw.events.cards;
-  const ids = new Set(cards.map((c) => c.id));
+  const baseCards = raw.events.cards;
+  const cards = [...baseCards, ...expandVariantCards(baseCards)]; // 情境版本（labelIf 等）展開成虛擬卡，跟一般的卡跑同一套規則
+  const ids = new Set(baseCards.map((c) => c.id));
   const pools = raw.pools.pools;
   const hiddenKeys = Object.keys(T.hidden);
   const stages = new Set(T.stages);
@@ -146,8 +148,8 @@ export function lintData(raw = loadRaw()) {
 
   // ── 事件卡 ──
   const leakRe = new RegExp(hiddenKeys.join('|'));
-  const allowedChoiceKeys = new Set(['label', 'effects', 'tags', 'result', 'showIf', 'grayIf', 'opens', 'followUp', 'chance', 'setFlags', 'clearFlags', 'setVars', 'incVars', 'direction', 'topic', 'needs']);
-  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldown', 'requires', 'excludes', 'modifiers', 'stages', 'topic', 'direction', 'approach', 'initiate']);
+  const allowedChoiceKeys = new Set(['label', 'effects', 'tags', 'result', 'showIf', 'grayIf', 'opens', 'followUp', 'chance', 'setFlags', 'clearFlags', 'setVars', 'incVars', 'direction', 'topic', 'needs', 'labelIf', 'resultIf', 'tagsIf', 'effectsIf']);
+  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldown', 'requires', 'excludes', 'modifiers', 'stages', 'topic', 'direction', 'approach', 'initiate', '_variantOf', '_variantIf']);
   const gateVars = new Set(gateNames());
   const seeds = [1, 2, 3, 4, 5, 6, 7, 8].map((sd) => newState(sd, data, {}));
   const dirSlotOk = (d) => d[0] !== '@' || (slots[d.slice(1)] && slots[d.slice(1)].every((v) => v.dir));
@@ -189,7 +191,7 @@ export function lintData(raw = loadRaw()) {
     const avail = (c.choices || []).filter((ch) => !ch.grayIf).length;
     if (avail < 2) warns.push(`${W}：不會變灰的選項少於 2 個`);
     for (const ch of c.choices || []) {
-      nChoices++;
+      if (!c._variantOf) nChoices++;
       const WC = `${W}／${ch.label}`;
       for (const k of Object.keys(ch)) if (!allowedChoiceKeys.has(k)) errors.push(`${WC}：不認得的欄位「${k}」${k === 'hidden' ? '（選項不能寫 hidden，隱藏數值只能由 tags 換算，見 DESIGN §3.6）' : ''}`);
       if ('hidden' in ch) errors.push(`${WC}：選項不能有 hidden`);
@@ -201,9 +203,9 @@ export function lintData(raw = loadRaw()) {
       if (!ch.tags || !ch.tags.length) errors.push(`${WC}：至少要有 1 個行為標籤`);
       for (const t of ch.tags || []) {
         if (!T.tags[t]) errors.push(`${WC}：標籤「${t}」不在詞彙表`);
-        else for (const k of Object.keys(T.tags[t].d || {})) exposure[k]++;
+        else if (!c._variantOf) for (const k of Object.keys(T.tags[t].d || {})) exposure[k]++;
       }
-      if (isGrowthChoice(T, ch.tags)) exposure.父母的收穫++;
+      if (isGrowthChoice(T, ch.tags) && !c._variantOf) exposure.父母的收穫++;
       if ((ch.tags || []).some((t) => dirTags.has(t)) && !ch.direction) warns.push(`${WC}：用了「轉述消息」類標籤，但沒有 direction`);
       if (ch.direction && !(ch.tags || []).some((t) => dirTags.has(t))) warns.push(`${WC}：有 direction 但沒有轉述消息類標籤`);
       if (ch.topic && !(ch.topic in st.interest)) errors.push(`${WC}：topic「${ch.topic}」不是興趣類別`);
@@ -223,6 +225,27 @@ export function lintData(raw = loadRaw()) {
       checkTokens(ch.label, WC + '標籤'); checkTokens(ch.result, WC);
       if (leakRe.test(ch.label || '') || leakRe.test(ch.result || '')) errors.push(`${WC}：文字出現隱藏數值的名稱`);
       if (ch.showIf) checkExpr(ch.showIf, WC);
+      // 情境版本：if 要能求值、值要合法；tagsIf 不能換掉有『自帶代價』的標籤（代價在載入時加到 effects，換標籤會對不上）
+      if (!c._variantOf) for (const [key, field] of Object.entries(VARIANT_FIELDS)) {
+        if (!(key in ch)) continue;
+        if (!Array.isArray(ch[key]) || !ch[key].length) { errors.push(`${WC}：${key} 要是非空的 [{if, value}, …]`); continue; }
+        ch[key].forEach((v, k) => {
+          const WV = `${WC}／${key}[${k}]`;
+          if (v.if) checkExpr(v.if, WV); else if (k < ch[key].length - 1) errors.push(`${WV}：沒有 if 的版本只能放最後一個（前面的會一律成立）`);
+          if (!('value' in v)) { errors.push(`${WV}：缺少 value`); return; }
+          for (const x of Object.keys(v)) if (!['if', 'value'].includes(x)) errors.push(`${WV}：不認得的欄位「${x}」`);
+          if (field === 'label' || field === 'result') { checkTokens(v.value, WV); if (leakRe.test(v.value || '')) errors.push(`${WV}：文字出現隱藏數值的名稱`); }
+          if (field === 'tags') {
+            if (!Array.isArray(v.value) || !v.value.length) errors.push(`${WV}：tags 版本要有至少 1 個標籤`);
+            else {
+              const cost = (a) => [...new Set((a || []).filter((t) => (T.tagCosts || {})[t]))].sort().join('、');
+              if (cost(v.value) !== cost(ch.tags)) errors.push(`${WV}：tagsIf 不能改變有自帶代價的標籤（原本「${cost(ch.tags)}」，版本「${cost(v.value)}」）`);
+            }
+          }
+          if (field === 'effects') for (const [kk, vv] of Object.entries(v.value || {})) if (!VISIBLE.includes(kk) || typeof vv !== 'number') errors.push(`${WV}：效果「${kk}」不合法`);
+          for (const base of seeds.slice(0, 3)) { try { if (v.if) evalCond(v.if, choiceCtxFor(base, ch, c)); } catch (e) { errors.push(`${WV}：條件求值失敗：${e.message}`); } }
+        });
+      }
       for (const g of [].concat(ch.grayIf || [])) checkExpr(g.if, WC);
       // 用這張卡＋這個選項自己的 topic 建條件環境，實際算一次（引擎顯示與套用用的是同一個環境）
       for (const base of seeds.slice(0, 3)) {
@@ -273,7 +296,7 @@ export function lintData(raw = loadRaw()) {
     }
     const restCh = all.filter((ch) => (ch.tags || []).includes(R.restTag));
     if (c.pool !== R.restPool && restCh.length) {
-      restCards++;
+      if (!c._variantOf) restCards++;
       if (restCh.length > 1) errors.push(`${W}：孩子的事件卡裡「${R.restTag}」的選項最多一個（現在 ${restCh.length}）`);
     }
     for (const ch of restCh) if (-costOf(ch) < R.restMinRecover) errors.push(`${W}／${ch.label}：${R.restTag}的選項，體力＋耐心要真的回 ${R.restMinRecover} 以上`);
@@ -324,7 +347,7 @@ export function lintData(raw = loadRaw()) {
     stats0.meanCorrelation = mc;
   }
   {
-    const childCards = cards.filter((c) => c.pool !== R.restPool && !c.pool.startsWith('_')).length + cards.filter((c) => c.pool.startsWith('_')).length;
+    const childCards = baseCards.filter((c) => c.pool !== R.restPool && !c.pool.startsWith('_')).length + baseCards.filter((c) => c.pool.startsWith('_')).length;
     if (restCards > R.restCardShareMax * childCards + 1e-9) errors.push(`孩子的事件卡裡有「${R.restTag}」選項的有 ${restCards}/${childCards} 張，超過 ${R.restCardShareMax * 100}%（DESIGN §11 寫卡規則 6）`);
     stats0.restCards = restCards; stats0.childCards = childCards;
   }
@@ -351,7 +374,7 @@ export function lintData(raw = loadRaw()) {
   const r11 = rule11(cards, T, cardFileMap());
   if (R.rule11Enforce) errors.push(...r11.errors);
   warns.push(...r11.warns);
-  return { errors, warns, rule11: r11, stats: { cards: cards.length, choices: nChoices, exposure, ...stats0, model: lm.stats } };
+  return { errors, warns, rule11: r11, stats: { cards: baseCards.length, variantCards: cards.length - baseCards.length, choices: nChoices, exposure, ...stats0, model: lm.stats } };
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
