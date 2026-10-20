@@ -23,6 +23,12 @@
 - random 路線最大變動 未成形 35.6% → 40.5%（+4.9），controlling、warmFirm、warmFirmRest 的路線不變。
 - 不是機制方向改變：check-design 的方向檢查（不太來找你、3C、事故、父母休息、父母的收穫、壓力）全 ✓，沒有改任何標籤、邊或權重。
 
+**全體：B5 結局的『整個童年』混合（data/ending.json 的 outcomeBlend；2026-10-20）**
+- 規則：每條結果軸（親子、人際、學習、孩子幸福、彼此之間）＝ 0.6 × 近期（隱藏數值的終點、可見數值最近 16–24 個月）＋ 0.4 × 整個童年的月份加權平均（讀 curves／vcurves 的月齡）。理由：十八歲時的幸福反映整個童年，不只最後兩年；B1 量測補救比例 0.77、早期放手的差被近期主導。
+- 範圍：appliesTo:'preview'——只有預覽（72 回合）混合。黃金範例是國小為止的 50 回合版，**15 個家庭的類別全部不變，沒有 sig 的改動**（所以下面各家庭沒有新增條目）。
+- 反事實（appliesTo 改成 'all'，量測給 E1 參考）：4 個黃金範例的類別會變——adhd-child-warmfirm（axes hi/hi/mid → hi/mid/mid；組合 關係好、人際好，成績普通 → 其他）、gifted-child-warmfirm（同上）、traveling-single-commonreaction（axes lo/mid/lo → lo/mid/mid）、special-needs-warmfirmrest（axes hi/hi/hi → hi/mid/hi；組合 三邊都顧到 → 其他）；組合只剩 2 種（『黃金範例：結局組合要有變化』的 ≥ 3 失敗）；校準（種子 1–200）warmFirm 親子 77.5 → 74.3（目標 75–85）、warmFirm 三邊都顧到 27% → 11%（≥ 20%）、permissive 三邊都垮 27% → 14%（≥ 20%）。原因：50 回合版只到小六，整個童年的平均有一半是還沒長出來的嬰幼兒期起點值，混合把極端的組合壓向中間；E1 把 72 回合設為標準時再改成 'all' 並重設這些目標。
+- 預覽局（plasticity 檢查，byStage 全 1、600 局）：補救比例 0.77 → 0.59、earlyGood − lateStarter +8.9 → +14.5、veryLateStarter − neverChange +17.9 → +11.1、earlyHarshLate 比值 0.74 → 0.73、earlyGood − earlyLapse +19.8 → +13.4；check-design 3000 全 ✓。
+
 **全體：A2.5 時間正規化的整體說明與偏差記錄**
 - 不變量：同一個策略，每個月的教養效果一樣（α＝1，合成日曆測試 tests/timescale.test.mjs）。所有每回合的比率、窗口、冷卻、後續卡延遲、特殊需求的發作都改成月（清單見 docs/plans/M3-A2.5-inventory.md）。
 - 路線窗口從最近 12 個點改成最近 24 個月：A2 的路線漂移（doseGreedy 高壓做主 88%→66%）回到 A0 的水準（82%）。

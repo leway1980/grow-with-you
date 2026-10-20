@@ -2,7 +2,8 @@
 // 『教養路線』由行為累積出來的位置計算，從不由玩家宣告。簡單的句子產生；組合式的信（47wan 的面向句庫）留到後面的里程碑。
 
 import { stageMult } from './tags.js';
-import { evalOutcome, opennessFrom, getModel } from './model.js';
+import { evalOutcome, opennessFrom, getModel, plasticityOf } from './model.js';
+import { buildChains, classroomSummary } from './chains.js';
 import { evalCond } from './events.js';
 
 const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
@@ -30,10 +31,34 @@ export function lastMonths(rows, months) {
 function avgHidden(st, key, months) { return mean(lastMonths(st.curves, months).map((c) => c[key]).filter((x) => x != null)); }
 function avgVis(st, key, months) { return mean(lastMonths(st.vcurves, months).map((c) => c[key]).filter((x) => x != null)); }
 
-/** 結果節點的輸入怎麼讀：hidden＝終點的隱藏數值；vis＝可見數值最近 months 個月的平均（A2.5：以月計）；開口度由兩個計數算出（公式與權重在 data/model.json 的 outcomes） */
+/** 整個童年的月份加權平均：每一筆的權重＝它和前一筆相差的月數（第一筆從 0 歲算起），所以 1 個月和 6 個月的回合不會因為筆數不同而失衡 */
+export function wholeAvg(rows, key) {
+  let num = 0, den = 0, prev = 0;
+  for (const c of rows) {
+    const m = c.m ?? prev + 2, w = Math.max(1, m - prev);
+    prev = m;
+    if (c[key] == null) continue;
+    num += w * c[key]; den += w;
+  }
+  return den ? num / den : null;
+}
+/** 結局軸的『整個童年』權重（data/ending.json 的 outcomeBlend）：軸＝recent × 近期（隱藏數值的終點、可見數值最近 months 個月）＋ whole × 整個童年的月份加權平均 */
+function blendOf(st) {
+  let b = { recent: 0.6, whole: 0.4 };
+  try { b = getEnding().outcomeBlend || b; } catch { /* 句子庫還沒載入 */ }
+  return b.appliesTo === 'preview' && !st.preview ? { recent: 1, whole: 0 } : b; // appliesTo:'preview'＝只有預覽（玩到離家的 72 回合）混合；E1 改成 'all'
+}
+const blend = (recent, whole, B) => (whole == null || !B.whole ? recent : B.recent * recent + B.whole * whole);
+
+/** 結果節點的輸入怎麼讀：hidden＝終點的隱藏數值；vis＝可見數值最近 months 個月的平均（A2.5：以月計）；開口度由兩個計數算出（公式與權重在 data/model.json 的 outcomes）。
+ *  開口度以外的輸入都再和『整個童年的月份加權平均』混合（0.6 近期＋0.4 整個童年；十八歲時的幸福反映整個童年，不只最後兩年） */
 function reader(st, M) {
-  const h = st.hidden;
-  return (it) => (it.as === 'vis' ? avgVis(st, it.from, it.months) : it.from === '開口度' ? opennessOf(st, M) : h[it.from]);
+  const h = st.hidden, B = blendOf(st);
+  return (it) => {
+    if (it.from === '開口度') return opennessOf(st, M);
+    if (it.as === 'vis') return blend(avgVis(st, it.from, it.months), wholeAvg(st.vcurves, it.from), B);
+    return blend(h[it.from], wholeAvg(st.curves, it.from), B);
+  };
 }
 const modelOf = (st, M) => M || getModel();
 
@@ -170,13 +195,13 @@ export function comboOf(ax) {
   return '其他';
 }
 
-/** 一組標籤在這個階段大約推動了多少（只看對照表與階段倍率，不含情境與飽和）：給「關鍵時刻」用，不需要存每次選擇的隱藏變化 */
+/** 一組標籤在這個階段大約推動了多少（只看對照表、階段倍率與階段可塑性，不含情境與飽和）：給「關鍵時刻」與決定鏈用，不需要存每次選擇的隱藏變化 */
 export function estimateDeltas(tags, stage, T) {
   const out = {};
   for (const t of tags || []) {
     const def = T.tags[t]; if (!def) continue;
     const m = stageMult(def, stage);
-    for (const [k, d] of Object.entries(def.d || {})) out[k] = (out[k] || 0) + d * m;
+    for (const [k, d] of Object.entries(def.d || {})) out[k] = (out[k] || 0) + d * m * plasticityOf(T.model, stage, k, def, Math.sign(d * m)); // 階段可塑性（B1）：和 tags.js applyTags 同一個倍率
   }
   return out;
 }
@@ -266,6 +291,8 @@ export function buildEnding(st, data) {
     combo,
     lines,                                 // 結局句子（親子、人際、學習，各有一句不靠特定卡片的後備句；home 的那句＝line）
     moments: keyMoments(st, data),
+    chains: buildChains(st, data).chains,   // 決定鏈（M3 B5）：最多 5 條，附年齡、處境、選擇、曲線、痕跡、研究小卡
+    classroom: classroomSummary(st, data),  // 這些年，孩子的班上（§1 第二主軸）：只陳述
     groups: REVEAL_GROUPS,
     series: curveSeries(st),
     to: lastTl.stage === '離家' ? '離家' : lastTl.label,
