@@ -11,6 +11,8 @@ import { playToEnd } from '../js/engine/turn.js';
 import { outcomeAxes, wellbeing, routePosition, comboOf, COMBOS, estimateDeltas } from '../js/engine/ending.js';
 import { loadRaw, loadData } from './data-node.mjs';
 import { tagVec, doseScore } from './metrics.mjs';
+import { avg, pct, median, paired } from './stats.mjs';
+export { avg, pct, median, se, paired, share } from './stats.mjs';
 
 const hasTag = (ch, set) => (ch.tags || []).filter((t) => set.includes(t)).length;
 const sum = (o, w) => Object.entries(w).reduce((a, [k, x]) => a + x * (o[k] || 0), 0);
