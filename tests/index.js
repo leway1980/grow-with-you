@@ -8,5 +8,7 @@ import('./turn.test.mjs');
 import('./ending.test.mjs');
 import('./ui.test.mjs');
 import('./lint.test.mjs');
+import('./parent_self.test.mjs');
+import('./obviousness.test.mjs');
 import('./perf.test.mjs');
 import('./calibration.test.mjs');
