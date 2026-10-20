@@ -15,7 +15,8 @@
   "events/jh.json",
   "events/sh.json",
   "events/leave.json",
-  "events/fixed_teen.json"
+  "events/fixed_teen.json",
+  "events/classroom.json"
  ],
  "slots": [
   "slots/core.json",

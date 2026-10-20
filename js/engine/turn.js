@@ -8,6 +8,7 @@ import { driftHidden } from './tags.js';
 import { doseView } from './dose.js';
 import { setModel } from './model.js';
 import { setEnding } from './ending.js';
+import { syncClassroom, driftClassroom } from './classroom.js';
 import { refRate, perSpan, monthlyFromRef, REF_MONTHS } from './timescale.js';
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
@@ -161,6 +162,7 @@ function quietLine(st, data, tl, ctx) {
 export function startTurn(st, data) {
   if (st.turn >= endOf(st, data)) { st.ended = true; st.endReason = '待續'; return { ended: true, tl: timelineOf(st, data) }; }
   const tl = data.timeline[st.turn];
+  syncClassroom(st, data, tl); // 換老師的年級（小一、小三、小五、國一、高一）重抽班級（§4.38）
   for (const [k, v] of Object.entries(st.openPools)) if (v.until < tl.ageMonths) delete st.openPools[k]; // until＝最後一個還開著的月齡
   const ctx = buildCtx(st, tl);
   const r = stateRng(st, 'rngS');
@@ -261,6 +263,7 @@ function drift(st, data, tl) {
 export function finishTurn(st, data) {
   const tl = data.timeline[st.turn];
   drift(st, data, tl);
+  driftClassroom(st, data, tl);
   driftHidden(st, data.tags, { span: tl.span, months: tl.ageMonths });
   const r1 = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.round(v * 10) / 10]));
   st.curves.push({ t: st.turn, m: tl.ageMonths, ...r1(st.hidden) });

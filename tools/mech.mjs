@@ -16,6 +16,8 @@ export function maxInWindow(hist, tag, win = WINDOW) {
 /** 訊號卡 → 對應的特殊需求（§11 規則 16：訊號卡要多半出現在真的有該狀況的孩子身上） */
 export const SIGNAL_COND = { lo_signal_adhd: ['ADHD'], hi_signal_attention: ['ADHD'], hi_signal_reading: ['學習障礙'], lo_signal_read: ['學習障礙'], kid_unclear: ['自閉症', '發展遲緩'], kid_route: ['自閉症'], inf_late_talk: ['自閉症', '發展遲緩'] };
 const GEN = /_gen$/;
+/** 『消極班級』的後果卡（data/events/classroom.json）：老師投入度低時才會出現 */
+export const CLASS_EPISODE = ['cl_noisy', 'cl_bully', 'cl_stamp', 'cl_hate_class'];
 /** 一局的機制紀錄：每個機制「有沒有發生」與「發生幾次」 */
 export function mechRecord(st, data, extra = {}) {
   const hist = st.hist.map((h) => (h.m != null ? h : { ...h, m: data.timeline[Math.min(h.turn, data.timeline.length - 1)].ageMonths })), idx = data.cardIndex;
@@ -40,6 +42,8 @@ export function mechRecord(st, data, extra = {}) {
     c3: { count: st.tagCounts['3C當保母'] || 0, window: maxInWindow(hist, '3C當保母') },
     acc: { mode, scrape: ids('cm_scrape'), near: ids('cm_near'), hospital: ids('cm_hospital'), any: ids('cm_scrape') + ids('cm_near') + ids('cm_hospital'), any01: accTurns.length ? 1 : 0, awareBefore: aw.length ? aw.reduce((a, b) => a + b, 0) / aw.length : 0 },
     self: { cards: pool('父母自己'), rest: hist.filter((h) => (h.tags || []).includes('父母自己休息')).length, relief },
+    // 班級共享狀態（§4.38）：episode＝出現過『消極班級』的後果卡（班上很吵、同學欺負沒人處理、聯絡簿只剩蓋章、討厭那一科）；unverified＝沒查證就投訴／施壓的次數
+    class: { episode: hist.some((h) => CLASS_EPISODE.includes(h.card)) ? 1 : 0, episodes: hist.filter((h) => CLASS_EPISODE.includes(h.card)).length, unverified: (st.classroom && st.classroom.unverified) || 0, v: st.classroom ? st.classroom.v : 0, resets: st.classroom ? st.classroom.resets : 0 },
     growth: { entries: (st.parentGrowth || []).length, hidden: st.hidden.父母的收穫 ?? 0 },
     press: { share: gap.length ? gap.filter((g) => g > 0).length / gap.length : 0, max: gap.length ? Math.max(...gap) : 0 },
   };

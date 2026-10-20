@@ -4,6 +4,7 @@
 import { generateFamily, familyCtx, rollWork, rollBackground } from './family.js';
 import { evalCond } from './events.js';
 import { recomputeDerived } from './tags.js';
+import { newClassroom } from './classroom.js';
 
 export const SAVE_VERSION = 3;
 export const SAVE_KEY = 'gwy.save.v1';
@@ -48,6 +49,7 @@ export function newState(seed, data, opts = {}) {
     vars: { 托育方式: '', 幼兒園類型: '', 照顧者: '', 換照顧者次數: 0, 孩子主動開口: 0, 孩子不再開口: 0, 上學方式: '', 孩子來找_連續錯過: 0, 孩子來找_回來連續: 0, 不太來找你: 0, 不太來找你_曾: 0, 養的寵物: '', 養的寵物名: '', 想要的球類: '', 選的才藝: '', 校隊項目: '', 校隊比賽層級: '' },
     costEMA: { 體力: 0, 耐心: 0 },             // 最近幾回合體力、耐心的花費（指數移動平均），父母的回復目標會被它拉低
     startHidden: null,                         // 開局時的隱藏數值（自然漂移與結局的『相對於開局』用）
+    classroom: newClassroom(T),                // 班級共享狀態（§4.38）：老師投入度；換老師時重抽
     flags: {}, cooldowns: {}, used: {}, openPools: {}, delayed: [], slotLast: {}, cardScope: null,
     hist: [], curves: [], vcurves: [], done: {},
     parentGrowth: [],                          // 父母一起參與過的活動（§7.2b）：{turn, slot, value} 或 {turn, tag}
@@ -159,6 +161,7 @@ export function migrate(st, data) {
   st.vars = { 托育方式: '', 幼兒園類型: '', 照顧者: '', 換照顧者次數: 0, 孩子主動開口: 0, 孩子不再開口: 0, 上學方式: '', 孩子來找_連續錯過: 0, 孩子來找_回來連續: 0, 不太來找你: 0, 不太來找你_曾: 0, 養的寵物: '', 養的寵物名: '', 想要的球類: '', 選的才藝: '', 校隊項目: '', 校隊比賽層級: '', ...(st.vars || {}) };
   st.costEMA = { 體力: 0, 耐心: 0, ...(st.costEMA || {}) };
   for (const k of ['dirCount', 'tagCounts', 'flags', 'cooldowns', 'used', 'openPools', 'slotLast', 'done']) st[k] ||= {};
+  st.classroom = { ...newClassroom(T), ...(st.classroom || {}) }; // 舊存檔沒有班級狀態：下一個換老師的年級會重抽；在那之前用預設值
   for (const k of ['delayed', 'hist', 'curves', 'vcurves', 'parentGrowth']) st[k] ||= [];
   // 舊存檔沒有職位、交通工具、通勤距離：用同一個種子補上（各自獨立的亂數流，不影響已經抽好的其他東西）
   const f = st.family, jd = data.identities.jobs.find((j) => j.name === f.job.name);

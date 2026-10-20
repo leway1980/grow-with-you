@@ -161,6 +161,8 @@ export const driftHidden = writer((st, T, opts = {}) => {
     const target = def.to === 'start' ? (st.startHidden?.[k] ?? T.hidden[k]) : def.to;
     st.hidden[k] = clamp(st.hidden[k] + (target - st.hidden[k]) * perSpan(def.rateMonth, span), 0, 100);
   }
+  // 班級共享狀態（§4.38）：老師投入度（不是隱藏數值）經由因果圖的邊推班級風氣；每月的推力 = w × (投入度 − center)
+  if (st.classroom) for (const e of T.model.edges) if (e.from === '老師投入度') st.hidden[e.to] = clamp(st.hidden[e.to] + (e.sign === '+' ? 1 : -1) * e.w * (st.classroom.v - e.center) * span, 0, 100);
   for (const rule of T.model.rules || []) {
     const now = st.parent[rule.stat];
     if (!(now < rule.lt)) continue;

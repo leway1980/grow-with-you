@@ -5,6 +5,7 @@ import { fillSlots, persistedSlots } from './slots.js';
 import { familyCtx } from './family.js';
 import { applyTags, isGrowthChoice } from './tags.js';
 import { cardDoseK, scaleEffects, turnAtOrAfter, REF_MONTHS } from './timescale.js';
+import { applyClassroomTags, resetClassroom, classroomCtx, CARE_P, CARE_P_CONCERNED } from './classroom.js';
 
 /* ───────────── 小型條件求值器 ─────────────
    語法：數字、'字串'、變數名(中文可)、#旗標、== != < <= > >=、and or not（也可用 && || !）、括號、true/false */
@@ -158,6 +159,9 @@ export function buildCtx(st, tl, extra = {}) {
     有寵物: !!f.pet || !!st.vars.養的寵物, 寵物種類: f.pet ? f.pet.type : st.vars.養的寵物 || '',
     養的寵物: st.vars.養的寵物 || '', 想要的球類: st.vars.想要的球類 || '', 選的才藝: st.vars.選的才藝 || '', 校隊項目: st.vars.校隊項目 || '',
     意願強度: willOf(st, extra.topic),
+    班級骰: rngAt(st.seed, st.turn, 'cl_dice'), // 命運骰：老師真的體罰或羞辱的事件只在骰子夠小時才可能出現（§4.38 查證後正式反映）
+    對方在意: rngAt(st.seed, st.turn, 'cl_care') < (st.flags.關心過對方家長 ? CARE_P_CONCERNED : CARE_P), // 命運骰：被提醒的那一家在不在意（設計估計 0.3；有人私下關心過是 0.5）
+    ...classroomCtx(st), 對象: extra.toward || '', // 班級共享狀態（§4.38）：老師投入度、班上常投訴的家長人數；對象＝這個選項的做法是對著誰（'老師'＝老師或學校）
     疲勞: Math.round(((st.costEMA && st.costEMA.體力) || 0) + ((st.costEMA && st.costEMA.耐心) || 0)), // 最近幾回合體力與耐心花費的累積（「父母自己」池的權重用）
   };
   for (const [k, m] of Object.entries(GATES)) for (const [n, thr] of Object.entries(m)) ctx[k + n] = st.hidden[k] >= thr;
@@ -319,7 +323,7 @@ export function choiceState(ch, ctx) {
   return { hidden: false, disabled: false, reason: '' };
 }
 /** 選項所在的條件環境：和「套用選擇」用同一個（含這個選項自己的 topic），所以顯示、變灰與結果一致。 */
-export const choiceCtx = (st, tl, card, ch) => buildCtx(st, tl, { topic: ch.topic || card.topic });
+export const choiceCtx = (st, tl, card, ch) => buildCtx(st, tl, { topic: ch.topic || card.topic, toward: ch.toward || card.toward });
 
 /**
  * 卡片的顯示資料：只有文字與選項，沒有任何數值、標籤或提示（劑量表在選擇之後才出現）。
@@ -435,6 +439,8 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
   const allTags = [...(ch.tags || []), ...branchTags];
   applyTags(st, allTags, data.tags, { turn: st.turn, months: tl.ageMonths, span: tl.span ?? 2, scale: k, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope), approach: !!card.approach, initiate: !!card.initiate });
   if (isGrowthChoice(data.tags, ch.tags)) recordGrowth(st, data.tags, ch, scope);
+  applyClassroomTags(st, allTags, data.tags, ctx, k); // 班級共享狀態（§4.38）：標籤自帶的老師投入度效果，不是孩子的隱藏數值
+  if (ch.classroom && ch.classroom.reset) resetClassroom(st, data.tags, tl, 'transfer'); // 轉班：換老師，重抽班上的家長
   if (card.once) st.used[card.id] = true;
   if (card.cooldownMonths) st.cooldowns[card.id] = tl.ageMonths + card.cooldownMonths; // 最早可以再出現的月齡
   const d = {};
