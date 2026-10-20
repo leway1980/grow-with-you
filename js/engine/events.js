@@ -143,7 +143,7 @@ export function buildCtx(st, tl, extra = {}) {
     ...st.hidden, // 隱藏數值只在引擎內部給條件用（例如選項的門檻）；不會出現在任何畫面
     體力: P.體力, 耐心: P.耐心, 錢: P.錢, 工作表現: P.工作表現, 夫妻關係: P.夫妻關係,
     心情: C.心情, 成績: C.成績, 作業: C.作業, 三C: C['3C時間'], 睡眠: C.睡眠, 同學往來: C.同學往來,
-    回合: st.turn, 階段: tl.stage, 年齡: Math.floor(tl.ageMonths / 12), 年級: tl.grade, 假期: !!tl.vacation, 月: month,
+    回合: st.turn, 階段: tl.stage, 月齡: tl.ageMonths, 年齡: Math.floor(tl.ageMonths / 12), 年級: tl.grade, 假期: !!tl.vacation, 月: month,
     托育方式: st.vars.托育方式, 幼兒園類型: st.vars.幼兒園類型, 照顧者: st.vars.照顧者, 換照顧者次數: st.vars.換照顧者次數,
     孩子不再開口: st.vars.孩子不再開口 || 0, 孩子主動開口: st.vars.孩子主動開口 || 0, 起點: st.startMode,
     上學方式: st.vars.上學方式 || '', 孩子來找_連續錯過: st.vars.孩子來找_連續錯過 || 0, 不太來找你: !!st.vars.不太來找你,
