@@ -14,7 +14,7 @@ import { lintModel } from './lint-model.mjs';
 import { lintContent } from './lint-content.mjs';
 import { rule11, cardFileMap } from './rule11.mjs';
 import { expandVariantCards } from './variants.mjs';
-import { VISIBLE_KEYS, BAD_WHEN_UP, PLAYED_STAGES, CORRELATION_BOUND, tagVec, hiddenScore, doseScore, costOf, cardCorrelation, meanCorrelation } from './metrics.mjs';
+import { fixedShareByStage, VISIBLE_KEYS, BAD_WHEN_UP, PLAYED_STAGES, CORRELATION_BOUND, tagVec, hiddenScore, doseScore, costOf, cardCorrelation, meanCorrelation } from './metrics.mjs';
 
 const STYLE_PHRASES = [/開明/, /民主式/, /權威式/, /威權/, /放任式/, /我是.{0,6}的(父母|爸爸|媽媽)/, /尊重孩子的教養/, /當個.{0,4}的父母/, /採(用)?.{0,3}(式|型)(教養|溝通)/];
 const VISIBLE = VISIBLE_KEYS;
@@ -132,6 +132,15 @@ export function lintData(raw = loadRaw()) {
   for (const f of raw.calendar.schoolFixed) if (!ids.has(f.event)) errors.push(`日曆 schoolFixed：事件「${f.event}」不存在`);
   for (const s of raw.calendar.stages) if (!stages.has(s.id)) errors.push(`日曆階段「${s.id}」不在 tags.json 的 stages`);
 
+  // ── 節奏：每個階段有固定事件的回合比例（design-targets.json 的 rhythm.fixedShareMax）──
+  {
+    const share = fixedShareByStage(data.timeline), R = JSON.parse(readFileSync(join(ROOT, 'tools', 'design-targets.json'), 'utf8')).rhythm;
+    for (const [stage, max] of Object.entries((R && R.fixedShareMax) || {})) {
+      const o = share[stage];
+      if (o && o.share > max + 1e-9) errors.push(`日曆節奏：${stage} 有 ${o.fixed}/${o.turns}＝${(o.share * 100).toFixed(0)}% 的回合有固定事件，超過上限 ${max * 100}%`);
+    }
+  }
+
   // ── 情境負荷 ──
   for (const L of raw.pools.loads || []) {
     if (L.if) checkExpr(L.if, `loads ${L.id}`);
@@ -149,7 +158,7 @@ export function lintData(raw = loadRaw()) {
   // ── 事件卡 ──
   const leakRe = new RegExp(hiddenKeys.join('|'));
   const allowedChoiceKeys = new Set(['label', 'effects', 'tags', 'result', 'showIf', 'grayIf', 'opens', 'followUp', 'chance', 'setFlags', 'clearFlags', 'setVars', 'incVars', 'direction', 'topic', 'needs', 'labelIf', 'resultIf', 'tagsIf', 'effectsIf']);
-  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldown', 'requires', 'excludes', 'modifiers', 'stages', 'topic', 'direction', 'approach', 'initiate', '_variantOf', '_variantIf']);
+  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldownMonths', 'scale', 'requires', 'excludes', 'modifiers', 'stages', 'topic', 'direction', 'approach', 'initiate', '_variantOf', '_variantIf']);
   const gateVars = new Set(gateNames());
   const seeds = [1, 2, 3, 4, 5, 6, 7, 8].map((sd) => newState(sd, data, {}));
   const dirSlotOk = (d) => d[0] !== '@' || (slots[d.slice(1)] && slots[d.slice(1)].every((v) => v.dir));
@@ -165,6 +174,10 @@ export function lintData(raw = loadRaw()) {
     seen.add(c.id);
     for (const k of Object.keys(c)) if (!allowedCardKeys.has(k)) errors.push(`${W}：不認得的欄位「${k}」`);
     if (!pools[c.pool]) errors.push(`${W}：池「${c.pool}」不存在`);
+    // 時間單位（A2.5）：冷卻是『月』；scale:false＝一次性的固定事件，劑量不隨回合長度放大
+    if ('cooldownMonths' in c && !(Number.isInteger(c.cooldownMonths) && c.cooldownMonths >= 0)) errors.push(`${W}：cooldownMonths 要是 ≥ 0 的整數（月）`);
+    if ('scale' in c && c.scale !== false) errors.push(`${W}：scale 只能寫 false（預設隨回合長度放大）`);
+    if (c.pool.startsWith('_') && c.scale !== false) errors.push(`${W}：固定事件（池 ${c.pool}）是一次性的，要寫 scale:false（劑量不隨回合長度放大）`);
     for (const s of c.stages || []) if (!stages.has(s)) errors.push(`${W}：階段「${s}」不存在`);
     if (c.topic && !(c.topic in st.interest)) errors.push(`${W}：topic「${c.topic}」不是興趣類別`);
     if (c.requires?.expr) checkExpr(c.requires.expr, W);
@@ -265,11 +278,15 @@ export function lintData(raw = loadRaw()) {
         for (const [k, v] of Object.entries(b.effects || {})) if (!VISIBLE.includes(k) || typeof v !== 'number') errors.push(`${WC}：分支效果「${k}」不合法`);
         for (const f of b.setFlags || []) note(flagSet, f, WC);
         for (const f of b.clearFlags || []) note(flagRead, f, WC);
-        for (const [p] of Object.entries(b.opens || {})) if (!pools[p]) errors.push(`${WC}：opens 的池「${p}」不存在`);
+        for (const [p, o] of Object.entries(b.opens || {})) {
+          if (!pools[p]) errors.push(`${WC}：opens 的池「${p}」不存在`);
+          if (!(Number.isInteger(o.months) && o.months > 0) || 'turns' in o) errors.push(`${WC}：opens「${p}」要寫 months（整數月），不能寫 turns`);
+        }
         for (const f of b.followUp || []) {
           if (!ids.has(f.card)) errors.push(`${WC}：followUp 的卡「${f.card}」不存在`);
           if (f.if) checkExpr(f.if, WC);
-          if (!f.after) errors.push(`${WC}：followUp 要有 after`);
+          const am = f.afterMonths;
+          if (!(Array.isArray(am) && am.length === 2 && am.every((x) => Number.isInteger(x) && x >= 0) && am[0] <= am[1]) || 'after' in f) errors.push(`${WC}：followUp 要有 afterMonths:[最少月, 最多月]（整數，最少 ≤ 最多），不能寫 after（回合）`);
         }
         for (const k of Object.keys(b.setVars || {})) if (!(k in st.vars)) errors.push(`${WC}：setVars 的「${k}」不存在`);
         for (const k of Object.keys(b.incVars || {})) if (!(k in st.vars)) errors.push(`${WC}：incVars 的「${k}」不存在`);

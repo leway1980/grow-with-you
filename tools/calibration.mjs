@@ -48,6 +48,9 @@ export function evaluateCalibration(games) {
   const rr = rangeOf('random-route');
   out.push({ id: 'random-route', desc: 'random 路線最大類別 / 陪又要求', value: `${(rmax * 100).toFixed(0)}% / ${(rwf * 100).toFixed(0)}%（${Object.entries(rc).map(([k, v]) => `${k} ${(v / R.length * 100).toFixed(0)}%`).join('、')}）`, target: `≤ ${rr.maxLargest * 100}% / ≤ ${rr.maxWarmFirm * 100}%`, ok: rmax <= rr.maxLargest && rwf <= rr.maxWarmFirm });
   chk('permissive-collapse', 'permissive 走到「三邊都垮」的比例', share(P, (g) => g.combo === '三邊都垮'), null, true);
+  // A2.5 護欄：時間尺度改了之後，兩條路線／組合的比例不能掉出範圍
+  chk('dose-high-route', 'doseGreedy 走到「高壓做主」路線的比例', share(D, (g) => g.route === '高壓做主'), null, true);
+  chk('wf-all-good', 'warmFirm 走到「三邊都顧到」的比例', share(W, (g) => g.combo === '三邊都顧到'), null, true);
   const classified = new Set(Object.values(games).flat().map((g) => g.combo));
   out.push({ id: 'combos-classified', desc: '七種組合都有被分類到（其他：不在七種之內）', value: `${COMBOS.filter((c) => c !== '其他' && classified.has(c)).length}/7`, target: '分類器可運作（七種都可達）', ok: true });
   // 家境：同一個機器人，寬裕 vs 吃緊
@@ -91,6 +94,6 @@ export function evaluateCalibration(games) {
   chk('nonfixed-share', '非固定事件的卡 ÷ 國小回合數（warmFirm 平均／最低）', ns, `${f1(ns * 100)}% / ${f1(nsMin * 100)}%`, true);
   const fu = Object.values(games).flat().flatMap((g) => g.fu);
   const fr = rangeOf('followup-delay');
-  out.push({ id: 'followup-delay', desc: '後續卡的延遲（從排進去到出現）中位數', value: fu.length ? f1(median(fu)) : 'NaN', target: rangeText(fr), ok: fu.length > 0 && inRange(median(fu), fr) });
+  out.push({ id: 'followup-delay', desc: '後續卡的延遲（從排進去到出現，月）中位數', value: fu.length ? f1(median(fu)) : 'NaN', target: rangeText(fr), ok: fu.length > 0 && inRange(median(fu), fr) });
   return out;
 }

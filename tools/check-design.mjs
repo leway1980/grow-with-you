@@ -11,6 +11,7 @@ import { loadRaw, loadData } from './data-node.mjs';
 import { lintModel } from './lint-model.mjs';
 import { readModel, writeModel } from './model-io.mjs';
 import { AXES } from '../js/engine/model.js';
+import { fixedShareByStage } from './metrics.mjs';
 
 const CLASSES = [['tag', 'perTag', '標籤'], ['card', 'perCard', '卡片'], ['pool', 'perPool', '池']];
 
@@ -75,6 +76,15 @@ export async function checkDesign(N = 3000, s0 = 1, opts = {}) {
   }
   add(edgeBad.length === 0, '影響上限', '因果圖每條邊的單回合／整局變動量都在 maxTurn／maxGame 內', edgeBad.length ? `${edgeBad.length} 條超出` : `最高使用率 ${(edgeWorst.r * 100).toFixed(0)}%（${edgeWorst.id}）`, '全部 ≤ 100%', edgeBad.slice(0, 4).join('；'));
 
+  // ── 節奏：每個階段『有固定事件的回合』的比例（由日曆算，不需要玩；M3 計畫 §8 第 11 項）──
+  {
+    const R = TARGETS.rhythm && TARGETS.rhythm.fixedShareMax, share = fixedShareByStage(data.timeline);
+    for (const [stage, max] of Object.entries(R || {})) {
+      const o = share[stage];
+      if (!o) { add(false, '節奏', `${stage}：固定事件回合的比例`, '這個階段不在日曆裡', `≤ ${max * 100}%`); continue; }
+      add(o.share <= max + 1e-9, '節奏', `${stage}：有固定事件的回合 ÷ 回合數（${o.fixed}/${o.turns}）`, (o.share * 100).toFixed(0) + '%', `≤ ${max * 100}%`, '日曆直接算，不是模擬');
+    }
+  }
   // ── 只看字面的機器人（DESIGN §3.7 第 5 點）──
   for (const [bot, B] of Object.entries(TARGETS.bots || {})) {
     if (bot.startsWith('_')) continue;

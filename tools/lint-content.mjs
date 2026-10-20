@@ -120,12 +120,12 @@ export function lintContent(raw, data, cards, ctxKeys, st0) {
     const zero = new Set(Object.entries(pools).filter(([n, d]) => d.base === 0 && !n.startsWith('_')).map(([n]) => n));
     const branches = (ch) => [ch, ...(ch.chance ? [ch.chance.win, ch.chance.lose] : [])];
     const setters = new Map(); // 旗標 → [{ opens:Set, follow:Set }]
-    const later = new Map();   // 卡片 id → 最早排在幾個回合以後（followUp 的 after[0]）
+    const later = new Map();   // 卡片 id → 最早排在幾個月以後（followUp 的 afterMonths[0]）
     for (const c of cards) for (const ch of c.choices) {
       const opens = new Set(), follow = new Set(), flags = [];
       for (const b of branches(ch)) {
         for (const p of Object.keys(b.opens || {})) opens.add(p);
-        for (const f of b.followUp || []) { follow.add(f.card); later.set(f.card, Math.min(later.get(f.card) ?? 99, f.after[0])); }
+        for (const f of b.followUp || []) { follow.add(f.card); later.set(f.card, Math.min(later.get(f.card) ?? 99, f.afterMonths[0])); }
         for (const f of b.setFlags || []) flags.push(f);
       }
       for (const f of flags) (setters.get(f) || setters.set(f, []).get(f)).push({ opens, follow });

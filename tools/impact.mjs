@@ -12,7 +12,7 @@ import { ROOT } from './data-node.mjs';
 import { evaluateMechanisms, stratifiedDiff } from './mech.mjs';
 import { avg } from './stats.mjs';
 
-const OVERLAY = ['impact-run.mjs', 'bots.mjs', 'mech.mjs', 'stats.mjs'];
+const OVERLAY = ['impact-run.mjs', 'bots.mjs', 'mech.mjs', 'stats.mjs', 'approach-log.mjs'];
 const sh = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: ROOT, stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: 1 << 28, ...opts });
 
 /** 把某個版本放進一個資料夾（work＝直接用目前的工作目錄） */

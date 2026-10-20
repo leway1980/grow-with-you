@@ -86,3 +86,14 @@ export function compositeWeights(model) {
   for (const name of ['孩子幸福', '彼此之間']) for (const [k, v] of Object.entries(W[name] || {})) out[k] = (out[k] || 0) + v / 3;
   return out;
 }
+
+/** 每個階段『有固定事件的回合』占該階段回合數的比例（由時間軸直接算；M3 計畫 §8 第 11 項，上限在 design-targets.json 的 rhythm.fixedShareMax） */
+export function fixedShareByStage(timeline) {
+  const out = {};
+  for (const t of timeline) {
+    const o = (out[t.stage] ||= { turns: 0, fixed: 0, share: 0 });
+    o.turns++; if ((t.fixed || []).length) o.fixed++;
+  }
+  for (const o of Object.values(out)) o.share = o.fixed / o.turns;
+  return out;
+}

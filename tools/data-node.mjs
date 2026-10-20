@@ -12,6 +12,8 @@ export const loadRaw = () => {
   const manifest = rd('manifest.json');
   const files = Object.fromEntries(manifestFiles(manifest).map((f) => [f, rd(f)]));
   const m = mergeData(manifest, files);
-  return { identities: rd('identities.json'), tags: rd('tags.json'), model: rd('model.json'), ending: rd('ending.json'), events: m.events, pools: rd('pools.json'), slots: m.slots, calendar: rd('calendar.json'), manifest, mergeProblems: m.problems };
+  const model = rd('model.json');
+  if (process.env.GWY_ALPHA !== undefined && model.timeScale) model.timeScale.alpha = Number(process.env.GWY_ALPHA); // 只給 α 掃描用（tools/alpha-sweep.mjs）；遊戲與 CI 不設定這個環境變數
+  return { identities: rd('identities.json'), tags: rd('tags.json'), model, ending: rd('ending.json'), events: m.events, pools: rd('pools.json'), slots: m.slots, calendar: rd('calendar.json'), manifest, mergeProblems: m.problems };
 };
 export const loadData = (raw = loadRaw()) => prepareData(raw);

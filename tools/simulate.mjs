@@ -7,7 +7,8 @@ import { Worker, isMainThread, parentPort, workerData } from 'node:worker_thread
 import { availableParallelism } from 'node:os';
 import { stateRng } from '../js/engine/rng.js';
 import { newState, startTurnOf } from '../js/engine/state.js';
-import { playToEnd } from '../js/engine/turn.js';
+import { playTurn } from '../js/engine/turn.js';
+import { approachTracker } from './approach-log.mjs';
 import { outcomeAxes, wellbeing, routePosition, comboOf, COMBOS, estimateDeltas, chainRecords, endingContext, pickLines, lineContradictions } from '../js/engine/ending.js';
 import { setTagObserver } from '../js/engine/tags.js';
 import { outcomeWeights, AXES, edgeForTagEffect } from '../js/engine/model.js';
@@ -55,7 +56,8 @@ export function moneyAtSchoolPlus(st, data, e, months = 6) {
 export function playGame(data, bot, seed, opts = {}) {
   const st = newState(seed, data, { role: opts.role || (seed % 2 ? '媽媽' : '爸爸'), startMode: opts.startMode || 'birth' });
   const meter = opts.influence ? influenceMeter(st, data) : null;
-  try { playToEnd(st, data, botPolicy(bot, SALT, opts.only ? new Set(opts.only) : null)); } finally { if (meter) meter.stop(); }
+  const tracker = approachTracker(data), policy = botPolicy(bot, SALT, opts.only ? new Set(opts.only) : null);
+  try { let guard = 0; while (!st.ended && guard++ < 200) { const t = st.turn; playTurn(st, data, policy); tracker.observe(st, t); } } finally { if (meter) meter.stop(); } // = playToEnd，另外記下『不太來找你』的進出
   const ax = outcomeAxes(st), w = wellbeing(st, data.identities.parentModel), rp = routePosition(st);
   const f = st.family;
   const e = startTurnOf(data, 'elementary'); // 國小開始的回合（由日曆算出）
@@ -66,10 +68,10 @@ export function playGame(data, bot, seed, opts = {}) {
     bot, seed, partner: f.partner.attitude || '無', econ: f.econ, pattern: f.pattern, support: f.support, struct: f.structure,
     ax: [ax.親子, ax.人際, ax.學習], w: [w.child, w.parent, w.between], route: rp.kind, combo: comboOf(ax),
     hid: { ...st.hidden }, money30: moneyAtSchoolPlus(st, data, e), lowBody: st.vcurves.filter((c) => c.體力 < 35).length / st.vcurves.length,
-    elemTurns, elemNonFixed, nTurnsElem, fu: st.hist.filter((h) => h.fu != null).map((h) => h.fu), cards: st.hist.length,
+    elemTurns, elemNonFixed, nTurnsElem, fu: st.hist.filter((h) => h.fu != null).map((h) => h.fu), // 後續卡的延遲（月） cards: st.hist.length,
   };
   if (opts.mech) {
-    rec.mech = mechRecord(st, data);
+    rec.mech = mechRecord(st, data, { approachEpisodes: tracker.episodes });
     const lines = pickLines(endingContext({ axes: ax, wellbeing: w, route: rp, combo: rec.combo }, chainRecords(st, data.ending), data.ending), data.ending);
     rec.ending = { ids: lines.map((l) => l.id), facets: lines.map((l) => l.facet), contra: lineContradictions(lines, data.ending).length };
   }

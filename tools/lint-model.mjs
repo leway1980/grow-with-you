@@ -136,11 +136,17 @@ export function lintModel(raw, data, cards) {
   // ── 靜態上限：每個選項對每條邊的名義變動量 ≤ maxTurn；對每條結果軸的名義影響 ≤ perChoiceStatic ──
   const cap = M.influenceCaps || {};
   const worstEdge = {}, worstAxis = Object.fromEntries(AXES.map((a) => [a, { v: 0, who: '' }]));
+  // A2.5：劑量倍率 (回合月數/2)^α 讓一張卡在 3 個月的回合裡放大；靜態上限要用這張卡可能出現的階段裡最大的倍率（一次性的固定事件 scale:false 不放大）
+  const alpha = (M.timeScale && M.timeScale.alpha) || 0, stageK = {};
+  for (const t of data.timeline.slice(0, raw.calendar.playableTurns)) stageK[t.stage] = Math.max(stageK[t.stage] || 0, Math.pow(t.span / 2, alpha));
   for (const c of cards) {
     const stg = c.stages || PLAYED_STAGES;
+    const k = c.scale === false ? 1 : Math.max(1, ...stg.map((s) => stageK[s] || 1));
     for (const ch of c.choices || []) {
       if (!(ch.tags || []).every((t) => raw.tags.tags[t])) continue;
       const nom = nominalChoice(T, W, ch.tags, stg);
+      for (const id of Object.keys(nom.edges)) nom.edges[id] *= k;
+      for (const a of AXES) nom.axes[a] *= k;
       for (const [id, v] of Object.entries(nom.edges)) {
         if (!worstEdge[id] || v > worstEdge[id].v) worstEdge[id] = { v, who: `${c.id}／${ch.label.slice(0, 10)}` };
         const e = byId.get(id);
