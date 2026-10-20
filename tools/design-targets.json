@@ -417,8 +417,7 @@
    "axis": "ax.0",
    "axisName": "親子",
    "maxOver": 8,
-   "games": 240,
-   "pendingContentRewrite": true
+   "games": 240
   }
  }
 }

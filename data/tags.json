@@ -137,7 +137,7 @@
   "signalCards_why": "規則 16：訊號卡（孩子有某種特殊需求才會出現的行為）要有『一般孩子版』（_gen），因為沒有特殊需求的孩子也會有類似的一天；一般版不提供申請評估或鑑定的選項，研究支持的選項是『兩週各自觀察再一起看』。訊號卡要有條件旗標才能出現（機制檢驗：出現在有該狀況孩子身上的比例 ≥ 60%）。",
   "researchLongestMax": 0.3,
   "markerWords": ["蹲下來", "聽完", "說完", "再決定", "不評論", "一起", "約好", "說好", "問他"],
-  "rule11Enforce": false,
+  "rule11Enforce": true,
   "rule11_why": "規則 11（表面對等）：帶 research:true 標籤的選項＝研究支持的選項。(a) 一張卡裡研究選項不能是嚴格最長（除非有非研究選項只短 1 字內），這種卡占全體 ≤ researchLongestMax；(b) 研究選項含 markerWords 時，同卡至少一個非研究選項也要含。rule11Enforce=false 時只報告（獨立的『rule 11』類別，不擋 CI）；內容改寫完成後改成 true。tools/surface.mjs 逐檔報告。",
   "restTag": "父母自己休息",
   "restPool": "父母自己",
