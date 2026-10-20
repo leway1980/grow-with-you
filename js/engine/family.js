@@ -6,7 +6,7 @@ import { mulberry32, pickWeighted, gauss } from './rng.js';
 export const STREAMS = {
   county: 0x1a2b3c4d, job: 0x2b3c4d5e, econ: 0x3c4d5e6f, struct: 0x4d5e6f70, partner: 0x5e6f7081, elders: 0x6f708192,
   housing: 0x708192a3, support: 0x8192a3b4, upbringing: 0x92a3b4c5, child: 0xa3b4c5d6, childNeeds: 0xb4c5d6e7, childInterest: 0xc5d6e7f8,
-  childName: 0xd6e7f809, siblings: 0xe7f8091a, space: 0xf8091a2b, pet: 0x091a2b3c, school: 0x1a2b3c5d, childcare: 0x2b3c4d6e,
+  childName: 0xd6e7f809, childResp: 0xc3d4e5f6, siblings: 0xe7f8091a, space: 0xf8091a2b, pet: 0x091a2b3c, school: 0x1a2b3c5d, childcare: 0x2b3c4d6e,
 };
 const rs = (seed, name) => mulberry32(((seed >>> 0) ^ STREAMS[name]) >>> 0);
 const wpick = (r, opts, ws) => pickWeighted(r, opts.map((o, i) => ({ o, w: ws[i] })), (x) => x.w)?.o ?? opts[0];
@@ -107,7 +107,10 @@ export function generateFamily(seed, idn) {
   const surname = pickWeighted(rnm, idn.surnames.map((n, k) => ({ n, w: idn.surnameW[k] })), (x) => x.w).n;
   const gl = sex === '男' ? idn.givenNamesM : idn.givenNamesF;
   const given = gl[Math.floor(rnm() * gl.length)];
-  const child = { name: surname + given, given, sex, pronoun: sex === '男' ? '他' : '她', birthMonth, temperament, talents, interests, needs };
+  // 孩子對教養的「接受度」：同樣的做法，有的孩子反應大、有的小（個別差異；用自己的亂數流，不影響其他抽籤）
+  const RS = C.responsive, rr = rs(seed, 'childResp');
+  const responsive = Math.round(Math.max(RS.min, Math.min(RS.max, 1 + gauss(rr) * RS.sd)) * 100) / 100;
+  const child = { name: surname + given, given, sex, pronoun: sex === '男' ? '他' : '她', birthMonth, temperament, talents, interests, needs, responsive };
 
   // 12 手足（受城鄉略微影響）；孩子出生時只有哥哥姐姐，弟弟妹妹排在之後的某個回合
   const S = idn.siblings;

@@ -1780,7 +1780,13 @@
     ]
    }
   },
-  "specialNeedsNote": "ADHD 有 8%、其中約三成會被診斷（DATA §1）；特教生全部約 4.5%，學障約四分之一、自閉症約 15%（男女 6:1 近似）；資優比例待確認。"
+  "specialNeedsNote": "ADHD 有 8%、其中約三成會被診斷（DATA §1）；特教生全部約 4.5%，學障約四分之一、自閉症約 15%（男女 6:1 近似）；資優比例待確認。",
+  "responsive": {
+   "sd": 0.35,
+   "min": 0.55,
+   "max": 1.5,
+   "_why": "孩子對教養的接受度（個別差異）：所有標籤的影響都乘上它；§3.1、§10：教養是機率，不是必然"
+  }
  },
  "siblings": {
   "countW": [
@@ -1989,13 +1995,16 @@
   "_why": "父母的可見數值模型（DESIGN §3.4 修訂版）：體力、耐心每回合以 recover 的速度回到 target = base − k × 最近花費的指數移動平均；錢往家境的目標值回歸。花費不會一回合就被洗掉。",
   "recover": 0.1,
   "emaTurns": 6,
-  "kBody": 3.0,
-  "kPatience": 3.8,
+  "kBody": 2.5,
+  "kPatience": 3.5,
   "moneyTarget": {
    "寬裕": 70,
    "小康": 50,
    "吃緊": 25
   },
-  "moneyRate": 0.1
+  "moneyRate": 0.1,
+  "lowShareWeight": 40.0,
+  "lowThreshold": 35.0,
+  "levelWeight": 0.3
  }
 }

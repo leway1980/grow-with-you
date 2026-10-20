@@ -58,7 +58,7 @@ export const applyTags = writer((st, tags, T, opts) => {
   for (const tag of tags || []) {
     const def = T.tags[tag];
     if (!def) throw new Error('未知的行為標籤: ' + tag);
-    let mult = (T.gain ?? 1) * stageMult(def, stage) * modifierFactor(T, tag, ctx);
+    let mult = (T.gain ?? 1) * (st.family.child.responsive ?? 1) * stageMult(def, stage) * modifierFactor(T, tag, ctx);
     // 重複加速：只有「害處會累積」的標籤（accel:true）才會在短時間內越來越快
     if (def.accel) mult *= repetitionMult(st, tag, turn, T);
     // 方向加速（§3.3）：同一個方向一直被提到，壓力那一側越來越快；順口的權重比特地小，但不是零
@@ -76,6 +76,7 @@ export const applyTags = writer((st, tags, T, opts) => {
       deltas[k] = (deltas[k] || 0) + (st.hidden[k] - before);
     }
     if (def.interest && topic && topic in st.interest) st.interest[topic] = clamp(st.interest[topic] + (def.interest / 100) * mult, 0, 1);
+    if (def.relief) for (const k of ['體力', '耐心']) st.costEMA[k] *= 1 - def.relief; // 真的休息：累積的疲勞減輕（不是隱藏數值）
     for (const [k, n] of Object.entries(def.counts || {})) st.vars[k] = (st.vars[k] || 0) + n;
     st.tagCounts[tag] = (st.tagCounts[tag] || 0) + 1;
   }

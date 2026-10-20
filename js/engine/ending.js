@@ -28,7 +28,7 @@ export function outcomeAxes(st) {
   const h = st.hidden;
   const parent = mean([h.親子信任, h.了解度, h.溫暖陪伴, h.規則一致性]) - 0.3 * Math.max(0, h.期待壓力 - 50) - 0.3 * Math.max(0, 50 - h.父母情緒穩定度);
   const peer = mean([avgVis(st, '同學往來', 12), h.師親信任, h.內在穩定, h.承受度]) - 0.15 * Math.max(0, h.試探度 - 40);
-  const learn = mean([avgVis(st, '成績', 12), avgVis(st, '作業', 12), h.自我效能, h.閱讀習慣, h.家庭學習環境, avgVis(st, '睡眠', 12)]) - 0.3 * Math.max(0, avgVis(st, '3C時間', 12) - 35);
+  const learn = mean([avgVis(st, '成績', 12), avgVis(st, '成績', 12), avgVis(st, '作業', 12), h.自我效能, h.閱讀習慣, h.家庭學習環境, avgVis(st, '睡眠', 12)]) - 0.3 * Math.max(0, avgVis(st, '3C時間', 12) - 35);
   return { 親子: clamp(parent), 人際: clamp(peer), 學習: clamp(learn) };
 }
 
@@ -38,19 +38,22 @@ export function opennessOf(st) {
   return clamp(30 + 7 * spoke - 12 * silent);
 }
 
+/** 父母幸福的參數預設值（正式的值在 data/identities.json 的 parentModel；buildEnding 會帶進來） */
+const DEFAULT_PM = { lowShareWeight: 60, lowThreshold: 35, levelWeight: 1 };
 /**
  * 共同的幸福（§7.1 第一個畫面）：孩子、父母、彼此之間。成績、去向不會被加進來（成就和幸福是兩條軸，§7.2）。
  * 父母那一項是整段時間的樣子（平均＋體力見底的回合比例），不是最後幾回合；錢不算（§2.3：家境改變代價，不改變能不能幸福）。
  */
-export function wellbeing(st) {
+export function wellbeing(st, M = DEFAULT_PM) {
   const h = st.hidden;
   const child = mean([avgVis(st, '心情', 8), h.內在穩定, h.自我效能, h.安全感, 100 - h.期待壓力]);
   const keys = ['體力', '耐心'];
   if (st.family.partner.present) keys.push('夫妻關係');
   const rows = st.vcurves;
-  const whole = mean(rows.map((c) => mean(keys.map((k) => c[k]))));
-  const lowShare = rows.length ? rows.filter((c) => c.體力 < 35).length / rows.length : 0;
-  const parent = mean([whole, avgHidden(st, '父母情緒穩定度')]) - 60 * lowShare;
+  // 平均水準只算一半的權重（往 50 收）：辛苦但可持續——撐不住的那幾回合（體力或耐心見底）才是主要的扣分
+  const whole = 50 + M.levelWeight * (mean(rows.map((c) => mean(keys.map((k) => c[k])))) - 50);
+  const lowShare = rows.length ? rows.filter((c) => c.體力 < M.lowThreshold || c.耐心 < M.lowThreshold).length / rows.length : 0;
+  const parent = mean([whole, avgHidden(st, '父母情緒穩定度')]) - M.lowShareWeight * lowShare;
   const between = mean([h.親子信任, h.了解度, opennessOf(st)]) - 0.25 * Math.max(0, h.期待壓力 - 50);
   return { child: clamp(child), parent: clamp(parent), between: clamp(between) };
 }
@@ -142,7 +145,7 @@ export function curveSeries(st) {
 }
 
 export function buildEnding(st, data) {
-  const w = wellbeing(st);
+  const w = wellbeing(st, data.identities.parentModel);
   const axes = outcomeAxes(st);
   const nm = st.family.child.given;
   const stageNow = data.timeline[Math.min(st.turn, data.timeline.length - 1)];

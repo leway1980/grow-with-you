@@ -243,7 +243,7 @@ export function rollLoads(st, data, ctx) {
   const out = [];
   for (const L of data.loads || []) {
     if (L.if && !evalCond(L.if, ctx)) continue;
-    if (rngAt(st.seed, st.turn, 'load:' + L.id) < L.p) out.push({ id: L.id, text: L.text, effects: L.effects });
+    if (rngAt(st.seed, st.turn, 'load:' + L.id) < L.p) out.push({ id: L.id, text: L.text, effects: L.effects, tags: L.tags || [] });
   }
   return out;
 }
@@ -312,6 +312,20 @@ function applyBranch(st, b, turnNo, r, ctx, acc) {
   }
 }
 
+/**
+ * 花費的情境倍率（tags.json 的 costMods）：同一個選項，不同的孩子與家庭要付的體力、耐心不一樣
+ * （有 ADHD 傾向的孩子，訂規則與跟進更累；另一半一起陪，什麼都比較省力）。只放大或縮小「花費」（負的效果），不改好處。
+ */
+export function scaleCosts(costMods, ch, ctx) {
+  const eff = { ...(ch.effects || {}) };
+  for (const m of costMods || []) {
+    if (m.tags && !(ch.tags || []).some((t) => m.tags.includes(t))) continue;
+    if (m.if && !evalCond(m.if, ctx)) continue;
+    for (const k of m.keys || ['體力', '耐心']) if (eff[k] < 0) eff[k] *= m.x;
+  }
+  return eff;
+}
+
 /** direction 可以是文字（'升學競爭'）或 '@槽名'（取這張卡抽到的槽值的方向，例如 營隊→科學）；沒寫就用卡片的 direction。 */
 export function resolveDirection(card, ch, scope) {
   const d = ch.direction ?? card.direction;
@@ -336,7 +350,7 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
   const parts = [fill(ch.result, st, ctx, scope)];
   // 陪伴時段不在：用體力硬換或請假，代價照實顯示在劑量表上，選項不會消失
   for (const need of ch.needs || []) if (!slotAvailable(st, data, need)) applyEffects(st, data.tags.slotCost[need], acc);
-  applyBranch(st, ch, st.turn, r, ctx, acc);
+  applyBranch(st, { ...ch, effects: scaleCosts(data.tags.costMods, ch, ctx) }, st.turn, r, ctx, acc);
   if (ch.chance) {
     const c = ch.chance;
     const p = clamp(c.p * mulMods(c.mods, ctx), 0, 0.97);

@@ -4,7 +4,7 @@
 import { stateRng, rngAt } from './rng.js';
 import { setSlotData } from './slots.js';
 import { buildCtx, pickFixed, pickDelayed, drawCard, describeCard, applyChoice, applyEffects, rollLoads, fill, cardById, setGates } from './events.js';
-import { driftHidden } from './tags.js';
+import { driftHidden, applyTags } from './tags.js';
 import { doseView } from './dose.js';
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
@@ -89,7 +89,7 @@ export function startTurn(st, data) {
   const loads = rollLoads(st, data, ctx);
   st.cur = { cardId: card.id, slot: 0, twoSlot, fu, acc: {}, loads };
   const view = describeCard(card, st, data, tl);
-  view.loads = loads.map((l) => l.text);
+  view.loads = loads.map((l) => fill(l.text, st, ctx, {}));
   return { tl, card: view, raw: card, twoSlot };
 }
 
@@ -102,7 +102,12 @@ export function chooseCard(st, data, idx) {
   const cur = st.cur;
   const card = cardById(data, cur.cardId);
   const r = stateRng(st, 'rngS');
-  if (cur.slot === 0) for (const l of cur.loads || []) applyEffects(st, l.effects, cur.acc);
+  if (cur.slot === 0) {
+    for (const l of cur.loads || []) {
+      applyEffects(st, l.effects, cur.acc);
+      if (l.tags && l.tags.length) applyTags(st, l.tags, data.tags, { turn: st.turn, stage: tl.stage, ctx: buildCtx(st, tl) }); // 家庭變故也經由標籤改變隱藏數值（唯一的寫入口）
+    }
+  }
   const out = applyChoice(st, data, card, idx, tl, r, { fu: cur.fu });
   for (const [k, v] of Object.entries(out.acc)) cur.acc[k] = (cur.acc[k] || 0) + v;
   cur.chosen = idx;
@@ -151,8 +156,10 @@ function drift(st, data, tl) {
   to(C, '心情', 62 + (C.睡眠 - 60) * 0.1 - Math.max(0, C['3C時間'] - 60) * 0.1 + (h.安全感 - 55) * 0.1 + (h.內在穩定 - 50) * 0.08, 0.35);
   if (tl.stage !== '嬰幼兒') to(C, '同學往來', 50 + f.child.talents.人際 * 6 + (C.心情 - 60) * 0.2 + (h.內在穩定 - 50) * 0.1 - (h.試探度 - 25) * 0.3, 0.15);
   if (school) {
-    to(C, '成績', 50 + (f.child.talents.國語 + f.child.talents.數學) * 3 + (h.家庭學習環境 - 45) * 0.25 + (h.閱讀習慣 - 40) * 0.2 + (h.自我效能 - 50) * 0.2 + (C.睡眠 - 60) * 0.1 - Math.max(0, C['3C時間'] - 50) * 0.1 - (adhd ? 3 : 0), 0.12);
-    to(C, '作業', 55 + (h.自理與責任 - 40) * 0.3 + (h.規範監督 - 50) * 0.15 + (C.睡眠 - 60) * 0.05 - (adhd ? 6 : 0), 0.25);
+    // 壓力有時候「有用」（§3.1：盯成績在國小常常真的把分數撐住）：不敏感的孩子，期待壓力與替他做主會推高成績與作業；敏感的孩子反過來被拖累
+    const press = (h.期待壓力 - 30) * (tp.敏感度 <= 2 ? 0.35 : tp.敏感度 >= 4 ? -0.12 : 0.12) + (h.替他做主 - 30) * (tp.敏感度 <= 3 ? 0.12 : -0.04);
+    to(C, '成績', 50 + (f.child.talents.國語 + f.child.talents.數學) * 3 + press + (h.家庭學習環境 - 45) * 0.25 + (h.閱讀習慣 - 40) * 0.2 + (h.自我效能 - 50) * 0.2 + (C.睡眠 - 60) * 0.1 - Math.max(0, C['3C時間'] - 50) * 0.1 - (adhd ? 3 : 0), 0.12);
+    to(C, '作業', 55 + press * 0.8 + (h.自理與責任 - 40) * 0.3 + (h.規範監督 - 50) * 0.15 + (C.睡眠 - 60) * 0.05 - (adhd ? 6 : 0), 0.25);
   }
 }
 
