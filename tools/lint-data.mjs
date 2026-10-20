@@ -259,9 +259,10 @@ export function lintData(raw = loadRaw()) {
       let r = 0;
       for (let i = 1; i < chs.length; i++) if (hs[i] > hs[r] + 1e-9 || (Math.abs(hs[i] - hs[r]) <= 1e-9 && cs[i] > cs[r])) r = i;
       const trap = chs.findIndex((_, i) => i !== r && ds[i] >= ds[r] + 3 && hs[i] < hs[r]);
-      if (trap < 0) errors.push(`${W2}：V2 沒有陷阱選項（需要劑量表分數比研究支持的選項「${chs[r].label.slice(0, 12)}」高 3 以上、隱藏分數卻較低；劑量 ${ds.map((x) => x.toFixed(1)).join('/')}、隱藏 ${hs.map((x) => x.toFixed(1)).join('/')}）`);
+      const ex = (k) => c.pool === R.restPool && (R.restPoolExempt || []).includes(k);
+      if (trap < 0 && !ex('V2')) errors.push(`${W2}：V2 沒有陷阱選項（需要劑量表分數比研究支持的選項「${chs[r].label.slice(0, 12)}」高 3 以上、隱藏分數卻較低；劑量 ${ds.map((x) => x.toFixed(1)).join('/')}、隱藏 ${hs.map((x) => x.toFixed(1)).join('/')}）`);
       const minCost = Math.min(...cs);
-      if (cs[r] < minCost + 3) errors.push(`${W2}：V3 研究支持的選項體力＋耐心的花費（${cs[r]}）要比最省力的選項（${minCost}）多 3 以上`);
+      if (cs[r] < minCost + 3 && !ex('V3')) errors.push(`${W2}：V3 研究支持的選項體力＋耐心的花費（${cs[r]}）要比最省力的選項（${minCost}）多 3 以上`);
       // V4b：整張卡所有選項平均推動每個隱藏數值的量要接近 0，才不會「這張卡一律往同一邊推」
       const mean = {};
       for (const ch of chs) for (const [k, d] of Object.entries(tagVec(T, ch, stg))) mean[k] = (mean[k] || 0) + d / chs.length;
@@ -276,7 +277,7 @@ export function lintData(raw = loadRaw()) {
           const ge = keys.every((k) => vecs[a][k] >= vecs[b][k] - 1e-9), gt = keys.some((k) => vecs[a][k] > vecs[b][k] + 1e-9);
           if (!(ge && gt && cs[a] <= cs[b])) dominates = false;
         }
-        if (dominates) errors.push(`${W2}／${chs[a].label.slice(0, 16)}：一眼看穿——在所有隱藏數值上都最好，而且花費不比別人高`);
+        if (dominates && !ex('一眼看穿')) errors.push(`${W2}／${chs[a].label.slice(0, 16)}：一眼看穿——在所有隱藏數值上都最好，而且花費不比別人高`);
       }
     }
   }

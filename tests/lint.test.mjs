@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { lintData } from '../tools/lint-data.mjs';
+import { lintData, jaccard } from '../tools/lint-data.mjs';
 import { loadRaw } from '../tools/data-node.mjs';
+import { hiddenScore, PLAYED_STAGES } from '../tools/metrics.mjs';
 
 test('資料檢查通過：沒有錯誤', () => {
   const { errors } = lintData();
@@ -54,9 +55,44 @@ test('V3：研究支持的選項體力＋耐心的花費，要比最省力的選
   assert.match(mut((r) => { const c = card(r, 'kid_dress'); for (const ch of c.choices) { ch.effects.耐心 = -1; ch.effects.體力 = 0; } c.choices[1].effects.心情 = 9; }), /kid_dress：V3/);
 });
 
-test('V4a：每 5 張卡至少 1 張有「父母自己休息」的選項，而且真的要回體力或耐心', () => {
-  assert.match(mut((r) => { for (const c of r.events.cards) c.choices = c.choices.filter((ch) => !ch.tags.includes('父母自己休息')); }), /V4a 有「父母自己休息」選項的卡只有 0\//);
-  assert.match(mut((r) => { const c = card(r, 'inf_night'); c.choices.find((ch) => ch.tags.includes('父母自己休息')).effects = { 體力: 1, 耐心: 1 }; }), /父母自己休息的選項，體力＋耐心要真的回 3 以上/);
+test('休息選項的規則（§11 規則 6）：孩子的事件卡每張最多一個、全部不超過兩成，而且真的要回體力或耐心', () => {
+  const rest = '父母自己休息';
+  // 每張卡最多一個
+  assert.match(mut((r) => { const c = card(r, 'lo_hw'); c.choices[1].tags.push(rest); }), /lo_hw：孩子的事件卡裡「父母自己休息」的選項最多一個/);
+  // 全部不超過兩成：把每張卡的第一個選項都加上休息標籤
+  assert.match(mut((r) => { for (const c of r.events.cards) if (c.pool !== '父母自己' && !c.choices[0].tags.includes(rest)) { c.choices[0].tags.push(rest); c.choices[0].effects.體力 = 5; c.choices[0].effects.耐心 = 5; } }), /超過 20%/);
+  // 要真的回 3 以上
+  assert.match(mut((r) => { const c = card(r, 'lo_hw'); c.choices.find((ch) => ch.tags.includes(rest)).effects = { 體力: 1, 耐心: 1 }; }), /父母自己休息的選項，體力＋耐心要真的回 3 以上/);
+  // 目前的資料：休息選項的卡佔孩子的事件卡不到兩成
+  const { stats } = lintData();
+  assert.ok(stats.restCards <= 0.2 * stats.childCards, `${stats.restCards}/${stats.childCards}`);
+});
+
+test('寫卡規則 1：選項標籤不能出現透露好壞的副詞（清單在 tags.json 的 cardRules.bannedWords）', () => {
+  for (const w of ['好好', '慢慢', '耐心地', '溫柔地', '認真', '然後做到', '冷靜地', '用心', '貼心']) {
+    assert.match(mut((r) => { card(r, 'kid_dress').choices[0].label += w; }), new RegExp(`不能用「${w}」`));
+  }
+  assert.match(mut((r) => { r.tags.cardRules.bannedWords.push('趕時間'); }), /不能用「趕時間」/); // 清單是資料，不是寫死在程式裡
+});
+
+test('寫卡規則 2：同一張卡選項長度相近、不能幾乎一樣', () => {
+  assert.match(mut((r) => { card(r, 'kid_dress').choices[1].label = '好'.repeat(80); }), /kid_dress：選項長度差太多/);
+  assert.match(mut((r) => { const c = card(r, 'kid_dress'); c.choices[1].label = c.choices[0].label + '喔'; }), /kid_dress：選項「.*」與「.*」幾乎一樣/);
+  assert.ok(jaccard('蹲下來問他想不想去', '蹲下來問他想不想去喔') >= 0.6);
+  assert.ok(jaccard('買手機，先寫好三條規則', '先不買，跟導師談改用聯絡簿') < 0.3);
+});
+
+test('寫卡規則 3、4：每張卡 3–5 個選項；有看得到的效果就要有結果文字', () => {
+  assert.match(mut((r) => { card(r, 'kid_dress').choices.pop(); card(r, 'kid_dress').choices.pop(); }), /kid_dress：要有 3–5 個選項（現在 2）/);
+  assert.match(mut((r) => { const c = card(r, 'kid_dress'); c.choices.push({ ...structuredClone(c.choices[0]), label: '另外再多一個完全不同的做法來試試看吧' }, { ...structuredClone(c.choices[1]), label: '還有一個也不一樣的辦法可以先擱著' }); }), /kid_dress：要有 3–5 個選項（現在 6）/);
+  assert.match(mut((r) => { card(r, 'kid_dress').choices[0].result = ''; }), /有看得到的效果就要有結果文字/);
+});
+
+test('「父母自己」池：V2／V3／一眼看穿只對這個池豁免，V4b 與 Spearman 仍然適用', () => {
+  assert.match(mut((r) => { const c = card(r, 'sf_sleep'); for (const ch of c.choices) ch.tags = ['父母自己休息', '放下手機陪', '先接住情緒']; }), /sf_sleep：V4b/);
+  assert.doesNotMatch(mut(() => {}), /sf_.*(V2|V3|一眼看穿)/);
+  // 同樣的資料放進孩子的池，V2 就會擋下來
+  assert.match(mut((r) => { card(r, 'sf_sleep').pool = '日常_國小低'; }), /sf_sleep：V2/);
 });
 
 test('V4b：一張卡所有選項平均推動任何隱藏數值，不能超過 ±0.5', () => {
@@ -94,7 +130,8 @@ test('情境負荷與漂移的資料也會被檢查', () => {
 });
 
 test('看得到的方向不能預測隱藏好壞（正反都不行）：每張卡的劑量分數 vs 隱藏分數的 Spearman 相關平均要在 ±0.3 內', () => {
-  assert.match(mut((r) => { for (const c of r.events.cards) for (const ch of c.choices) { ch.effects = { 耐心: -((ch.tags.length) * 3) }; } }), /平均 Spearman 相關/);
+  // 把每個選項的看得到的效果設成和隱藏分數完全同向：相關接近 +1
+  assert.match(mut((r) => { for (const c of r.events.cards) for (const ch of c.choices) { ch.effects = { 心情: Math.round(hiddenScore(r.tags, ch, c.stages || PLAYED_STAGES) * 4) || 1 }; ch.tags = ch.tags.filter((t) => !r.tags.tags[t].now || !r.tags.tags[t].now.心情); } }), /平均 Spearman 相關/);
   const { stats } = lintData();
   assert.ok(Math.abs(stats.meanCorrelation) <= 0.3, String(stats.meanCorrelation));
 });
