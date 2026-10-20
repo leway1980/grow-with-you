@@ -7,6 +7,8 @@
   "scripts": {
     "test": "node --test tests/",
     "lint": "node tools/lint-data.mjs",
-    "sim": "node tools/simulate.mjs 300"
+    "sim": "node tools/simulate.mjs 200",
+    "bench": "node tools/bench.mjs",
+    "sensitivity": "node tools/sensitivity.mjs 30"
   }
 }
