@@ -28,12 +28,14 @@
 - 2026-10-20 · sig:d1de2c3d · route：高壓做主 → 放任 · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## opposing-partner-commonreaction
+- 2026-10-20 · sig:60eb29df · wellbeing：mid → lo；route：高壓做主 → 放任 · 原因：規則 21／工作插播（批 1）：wp_kg_bath／wp_lo_weekend／hi_work_ping 在『急的工作＋孩子還沒被連續錯過』時最好的選項改成『先請孩子一句話說是什麼事，再約時間』；gen_elder_call 與 cm_scrape 敏感的孩子最好的選項改成先抱住；sf_sleep／sf_exercise／sf_friends 依體力切換休息或社交；這幾張卡被抽到時的標籤不同，類別在邊界上移動，不是機制方向改變（check-design 全數在範圍內）
 - 2026-10-20 · sig:60eb29df · wellbeing：mid → lo · 原因：項目 11／12：國小常態（中午放學、補習、平板）、長輩接送用長輩謹慎、訊號卡權重，抽到的卡改變
 - 2026-10-20 · sig:7efc04eb · axes：lo/mid/mid → lo/mid/lo · 原因：第 8 項（照顧者類型只改變代價）：選長輩／托嬰中心／私立／雙語幼兒園的選項不再帶 規則不一致或外包，並新增 10 張後續小卡與托育互動池，抽卡序列與隱藏數值都變了，類別因此在邊界上移動；check-design 全數在範圍內
 - 2026-10-20 · sig:e49fc594 · route：高壓做主 → 放任 · 原因：第 3 項（跨卡沿用的值、手足）：單親（離異、喪親）的家庭不再排弟弟妹妹、lo_sibling／hi_sibling 只給有哥哥姊姊的家庭、才藝已報名的孩子不再出現想學才藝、kid_newborn 改成弟弟妹妹出生前一兩個回合才出現，抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 與影響報告的整體分布未變）
 - 2026-10-20 · sig:a82ea249 · route：放任 → 高壓做主 · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## elders-live-in-research
+- 2026-10-20 · sig:fadddbed · wellbeingParts：mid/hi/hi → hi/hi/hi · 原因：規則 21／工作插播（批 1）：wp_kg_bath／wp_lo_weekend／hi_work_ping 在『急的工作＋孩子還沒被連續錯過』時最好的選項改成『先請孩子一句話說是什麼事，再約時間』；gen_elder_call 與 cm_scrape 敏感的孩子最好的選項改成先抱住；sf_sleep／sf_exercise／sf_friends 依體力切換休息或社交；這幾張卡被抽到時的標籤不同，類別在邊界上移動，不是機制方向改變（check-design 全數在範圍內）
 - 2026-10-20 · sig:4eef0f88 · wellbeingParts：hi/hi/hi → hi/hi/mid · 原因：第 8 項後續：托育互動池降低強度、父母自己池基本權重 0.4→0.55（維持『會休息的父母幸福較高』的差距），抽卡序列再位移
 - 2026-10-20 · sig:fadddbed · wellbeingParts：hi/mid/hi → hi/hi/hi · 原因：第 8 項（照顧者類型只改變代價）：選長輩／托嬰中心／私立／雙語幼兒園的選項不再帶 規則不一致或外包，並新增 10 張後續小卡與托育互動池，抽卡序列與隱藏數值都變了，類別因此在邊界上移動；check-design 全數在範圍內
 - 2026-10-20 · sig:e58babae · wellbeingParts：mid/mid/hi → hi/mid/hi · 原因：第 6 項（命運事件不帶家長標籤，規則 18）：夫妻失和、長輩住院不再偷偷扣安全感，長輩住院只給長輩在身邊的家庭，隱藏數值的曲線變了，類別因此在邊界上移動；方向是對的（沒有玩家選擇就不該有隱藏的扣分），check-design 全數在範圍內
@@ -62,11 +64,13 @@
 - 2026-10-20 · sig:37a3ca1c · wellbeingParts：mid/mid/mid → mid/mid/lo · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## special-needs-warmfirmrest
+- 2026-10-20 · sig:f5b03cbe · wellbeingParts：hi/hi/hi → hi/mid/hi · 原因：規則 21／工作插播（批 1）：wp_kg_bath／wp_lo_weekend／hi_work_ping 在『急的工作＋孩子還沒被連續錯過』時最好的選項改成『先請孩子一句話說是什麼事，再約時間』；gen_elder_call 與 cm_scrape 敏感的孩子最好的選項改成先抱住；sf_sleep／sf_exercise／sf_friends 依體力切換休息或社交；這幾張卡被抽到時的標籤不同，類別在邊界上移動，不是機制方向改變（check-design 全數在範圍內）
 - 2026-10-20 · sig:f5b03cbe · wellbeingParts：hi/hi/hi → hi/mid/hi · 原因：第 8 項（照顧者類型只改變代價）：選長輩／托嬰中心／私立／雙語幼兒園的選項不再帶 規則不一致或外包，並新增 10 張後續小卡與托育互動池，抽卡序列與隱藏數值都變了，類別因此在邊界上移動；check-design 全數在範圍內
 - 2026-10-20 · sig:84b310ed · wellbeingParts：hi/mid/hi → hi/hi/hi；axes：hi/hi/mid → hi/hi/hi；combo：關係好、人際好，成績普通 → 三邊都顧到 · 原因：第 4 項（後續卡要有前因、時間詞、公幼候補結局、學校平板擇一）與同批的事故機制重調（事故骰、交通安全認知倍率改成 ×1.5／×0.6）：抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 全數在範圍內）
 - 2026-10-20 · sig:506e5c5c · axes：hi/hi/hi → hi/hi/mid；combo：三邊都顧到 → 關係好、人際好，成績普通 · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## tight-single-dad-permissive
+- 2026-10-20 · sig:37a3ca1c · wellbeingParts：mid/mid/mid → mid/mid/lo；axes：mid/mid/lo → lo/lo/lo；combo：其他 → 三邊都垮 · 原因：規則 21／工作插播（批 1）：wp_kg_bath／wp_lo_weekend／hi_work_ping 在『急的工作＋孩子還沒被連續錯過』時最好的選項改成『先請孩子一句話說是什麼事，再約時間』；gen_elder_call 與 cm_scrape 敏感的孩子最好的選項改成先抱住；sf_sleep／sf_exercise／sf_friends 依體力切換休息或社交；這幾張卡被抽到時的標籤不同，類別在邊界上移動，不是機制方向改變（check-design 全數在範圍內）
 - 2026-10-20 · sig:e52727b1 · wellbeingParts：mid/mid/lo → mid/mid/mid；axes：lo/mid/lo → mid/mid/lo · 原因：規則 21（A 組）：嬰幼兒、幼兒園與托育後續的 26 張卡（inf_night、inf_feed、kid_dress、kid_story、kid_toilet、fu_screen_ask 等）的最好選項改成依孩子的敏感度、堅持度、活動量切換，並各新增一個溫暖但有問題的選項（抱到天亮、最後一本連講三次、邊等邊看手機）；這個策略在這些卡上選到的標籤與連用改變，類別因此在邊界上移動；方向是對的（沒有永遠最好的選項），check-design 全數在範圍內（warmest 親子差 8.1→7.3）。
 - 2026-10-20 · sig:37a3ca1c · axes：lo/mid/lo → lo/lo/lo；combo：其他 → 三邊都垮 · 原因：規則 21（B 組：國小低年級日常卡與通勤卡 20 張）：最佳選項依年級、敏感度、堅持度、活動量而定，並把『罵一頓／兩手一攤／嘴巴尊重無跟進』等幾個明顯壞的選項換成『說教一段、說沒關係就結束、全部替他做、規則不一致』等溫暖但有問題的選項；放任類策略選到的標籤與抽卡序列改變，學習與人際軸在邊界上移動。方向是對的（同一個決定在不同孩子身上好壞不同），check-design 全部在範圍內。
 - 2026-10-20 · sig:7efc04eb · axes：lo/lo/lo → lo/mid/lo；combo：三邊都垮 → 其他 · 原因：第 7 項（approach 狀態規則）：出口只算 approach 卡與 initiate:true 的卡（固定事件、出遊的陪伴不再算）、工作插播『你先自己玩／想想看』改成敷衍帶過並新增『說好十分鐘後去找你』、孩子來問的開場成對、enterAt 4→5，抽卡序列與『不太來找你』的進入／離開時機都變了，類別因此在邊界上移動；check-design 全數在範圍內
