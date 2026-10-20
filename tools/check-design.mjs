@@ -83,6 +83,13 @@ export async function checkDesign(N = 3000, s0 = 1, opts = {}) {
     const diff = ax(g[bot]) - ax(g[B.baseline]);
     rows.push({ ok: B.maxAbs != null ? Math.abs(diff) <= B.maxAbs : diff <= B.maxOver, pending: !!B.pendingContentRewrite, group: '字面機器人', name: `${bot} ${B.axisName} − ${B.baseline} ${B.axisName}（各 ${g[bot].length} 局）`, value: (diff >= 0 ? '+' : '') + diff.toFixed(1), range: B.maxAbs != null ? `|差| ≤ ${B.maxAbs}` : `≤ +${B.maxOver}`, note: B.pendingContentRewrite ? '已知未達標（pendingContentRewrite）：內容改寫是下一個里程碑；CI 報告但不擋' : '' });
   }
+  // ── 規則 21：情境感知 vs 情境盲（同一套溫暖＋堅定打分；盲的永遠看卡片原本的選項）。差越大＝情境版本越重要 ──
+  {
+    const g = await runBots(240, s0 + 300000, { bots: ['warmFirm', 'warmFirmBlind'] });
+    const ax = (rs) => rs.reduce((a, r) => a + getPath(r, 'ax.0'), 0) / rs.length;
+    const diff = ax(g.warmFirm) - ax(g.warmFirmBlind);
+    rows.push({ ok: diff >= 0, group: '規則 21', name: `情境感知溫暖＋堅定 親子 − 情境盲（永遠照原本選項）親子（各 ${g.warmFirm.length} 局；感知 ${ax(g.warmFirm).toFixed(1)}、盲 ${ax(g.warmFirmBlind).toFixed(1)}）`, value: (diff >= 0 ? '+' : '') + diff.toFixed(1), range: '≥ 0（越大＝規則 21 越有意義）', note: '' });
+  }
   if (opts.calibration) {
     const games = await runBots(200, 1);
     for (const r of evaluateCalibration(games)) add(r.ok, '校準', r.desc, r.value, r.target);
