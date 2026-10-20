@@ -46,7 +46,7 @@ test('注音：「上小學老師會教」是不比較（符合幼兒園不得�
 });
 
 test('睡覺、其他', () => {
-  assert.deepEqual(tagsOf('kid_sleep_bed', 1), ['穩定的日常']);
+  assert.deepEqual(tagsOf('kid_sleep_bed', 1), ['規則不一致']); // 「就今天」讓他爬上床＝睡覺規則的例外，不是穩定的日常
   assert.ok(tagsOf('fu_phone_test', 4).every((t) => t !== '事後跟進'));
   assert.ok(tagsOf('sf_leave', 2).includes('一起參與'));
   assert.ok(tagsOf('kid_toilet', 3).includes('規則不一致')); // 家裡照舊包尿布、學校帶去上廁所：兩邊做法真的不一樣
