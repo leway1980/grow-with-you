@@ -101,6 +101,7 @@
   }
  ],
  "schoolFixed": [
+  {"grade":[1],"seg":0,"event":"fx_commute"},
   {
    "grade": [
     2,

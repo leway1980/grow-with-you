@@ -6,6 +6,7 @@
   "events/elem_low.json",
   "events/elem_high.json",
   "events/work_ping.json",
+  "events/commute.json",
   "events/followups.json",
   "events/parent_self.json",
   "events/fixed.json"

@@ -128,21 +128,34 @@ test('劑量表顯示「想要造成的變化」：錢已經是 0，選了錢 �
 
 /* ───── 固定事件的回合有第二張卡 ───── */
 test('有固定事件的回合有第二張卡（日常或後續卡）；劑量表等第二張選完才合計', () => {
-  const st = fresh(6, 'elementary'); // 回合 20：開學第一天（fx_enroll）
+  const st = fresh(6, 'elementary'); st.turn = 21; // 回合 21：一年級的運動會（fx_sports_day，只有一個固定事件）
   const res = startTurn(st, data);
-  assert.equal(res.raw.id, 'fx_enroll'); assert.equal(res.twoSlot, true);
+  assert.equal(res.raw.id, 'fx_sports_day'); assert.equal(res.twoSlot, true);
   const out1 = chooseCard(st, data, res.card.choices.find((c) => !c.disabled).i);
   assert.equal(out1.more, true); assert.equal(out1.dose, null);
   const nx = nextCard(st, data);
-  assert.ok(nx && nx.raw.id !== 'fx_enroll' && !nx.raw.pool.startsWith('_'), nx && nx.raw.id);
+  assert.ok(nx && nx.raw.id !== 'fx_sports_day' && !nx.raw.pool.startsWith('_'), nx && nx.raw.id);
   const out2 = chooseCard(st, data, nx.card.choices.find((c) => !c.disabled).i);
   assert.equal(out2.more, false);
   // 合計＝兩張卡各自的變化相加
   const sum = {};
-  for (const h of st.hist.filter((x) => x.turn === 20)) for (const [k, v] of Object.entries(h.d)) sum[k] = (sum[k] || 0) + v;
+  for (const h of st.hist.filter((x) => x.turn === 21)) for (const [k, v] of Object.entries(h.d)) sum[k] = (sum[k] || 0) + v;
   const shown = Object.fromEntries([...out2.dose.parent, ...out2.dose.child].map((r) => [r.key, r.dir]));
   for (const k of Object.keys(shown)) assert.equal(Math.sign(sum[k] || 0) || shown[k], shown[k], k);
-  assert.equal(st.hist.filter((x) => x.turn === 20).length, 2);
+  assert.equal(st.hist.filter((x) => x.turn === 21).length, 2);
+  finishTurn(st, data);
+});
+
+test('一年級開學日有兩個固定事件：開學第一天、每天怎麼去學校；第二個排成第二張卡（上下學方式存進 st.vars）', () => {
+  const st = fresh(6, 'elementary'); // 回合 20
+  const res = startTurn(st, data);
+  assert.equal(res.raw.id, 'fx_enroll'); assert.equal(res.twoSlot, true);
+  assert.equal(chooseCard(st, data, res.card.choices.find((c) => !c.disabled).i).more, true);
+  const nx = nextCard(st, data);
+  assert.equal(nx.raw.id, 'fx_commute');
+  const pick = nx.card.choices.find((c) => !c.disabled);
+  assert.equal(chooseCard(st, data, pick.i).more, false);
+  assert.ok(['接送', '交通車', '走路公車', '長輩接送'].includes(st.vars.上學方式), st.vars.上學方式);
   finishTurn(st, data);
 });
 
