@@ -12,47 +12,60 @@ const fresh = (sens = 3) => { const st = newState(7, data, { role: '媽媽' }); 
 const stage = '國小低';
 const miss = (st) => applyTags(st, ['敷衍帶過'], T, { turn: st.turn, stage, ctx: {}, approach: true });
 const attend = (st) => applyTags(st, ['放下手機陪', '聽他說完'], T, { turn: st.turn, stage, ctx: {}, approach: true });
-const other = (st, tags) => applyTags(st, tags, T, { turn: st.turn, stage, ctx: {}, approach: false });
+const other = (st, tags, initiate = false) => applyTags(st, tags, T, { turn: st.turn, stage, ctx: {}, approach: false, initiate });
 
-test('連續錯過：錯過、錯過、停下來聽、錯過、錯過 ⇒ 不會進入「不太來找你」；連續 4 次才會', () => {
+const A = T.approach;
+const need = (stage) => Math.ceil(A.exitStreak[stage] / (A.approachCredit ?? 1)); // 接住孩子來找幾次才離開
+
+test('連續錯過：錯過、錯過、停下來聽、錯過、錯過 ⇒ 不會進入「不太來找你」；連續 enterAt 次才會', () => {
   const a = fresh();
   miss(a); miss(a); attend(a); miss(a); miss(a);
   assert.equal(a.vars.不太來找你, 0); assert.equal(a.vars.孩子來找_連續錯過, 2);
   const b = fresh();
-  for (let i = 0; i < 3; i++) miss(b);
+  for (let i = 0; i < A.enterAt - 1; i++) miss(b);
   assert.equal(b.vars.不太來找你, 0);
   miss(b);
   assert.equal(b.vars.不太來找你, 1);
 });
 
-test('敏感度高的孩子，連續 3 次就進入；不是 approach 的卡上的錯過標籤不算', () => {
+test('敏感度高的孩子，少一次就進入；不是 approach 的卡上的錯過標籤不算', () => {
   const st = fresh(5);
-  miss(st); miss(st); assert.equal(st.vars.不太來找你, 0);
+  for (let i = 0; i < A.enterAtSensitive - 1; i++) miss(st);
+  assert.equal(st.vars.不太來找你, 0);
   miss(st); assert.equal(st.vars.不太來找你, 1);
+  assert.ok(A.enterAtSensitive < A.enterAt);
   const o = fresh();
-  for (let i = 0; i < 6; i++) other(o, ['敷衍帶過']);
+  for (let i = 0; i < 8; i++) other(o, ['敷衍帶過']);
   assert.equal(o.vars.不太來找你, 0); assert.equal(o.vars.孩子來找_連續錯過, 0);
 });
 
-test('回來的路也要連續：一次補償（禮物、出遊）不算也不離開；中間又錯過就歸零；連續 3 次（國小低）才離開', () => {
+test('回來的路：一次補償（禮物、出遊）不算也不離開；中間又錯過就歸零；接住孩子來找 approachCredit 份、主動去找他（initiate 的卡）1 份，累積到 exitStreak 才離開', () => {
   const st = fresh();
-  for (let i = 0; i < 4; i++) miss(st);
+  for (let i = 0; i < A.enterAt; i++) miss(st);
   assert.equal(st.vars.不太來找你, 1);
   other(st, ['出遊_一起準備與討論']); other(st, ['外包']); other(st, ['3C當保母']); // 禮物、出遊、花錢：不算
   assert.equal(st.vars.不太來找你, 1); assert.equal(st.vars.孩子來找_回來連續, 0);
-  attend(st); attend(st); assert.equal(st.vars.不太來找你, 1);
-  miss(st); assert.equal(st.vars.孩子來找_回來連續, 0);
-  other(st, ['問具體的事']); attend(st); assert.equal(st.vars.不太來找你, 1); // 主動去找他也算，但還差一次
-  attend(st);
-  assert.equal(st.vars.不太來找你, 0); assert.equal(st.vars.孩子來找_連續錯過, 0);
+  // 接住孩子來找一次 = approachCredit 份（國中要的份數比較多，所以還沒離開）
+  applyTags(st, ['放下手機陪', '聽他說完'], T, { turn: 40, stage: '國中', ctx: {}, approach: true });
+  assert.equal(st.vars.孩子來找_回來連續, A.approachCredit ?? 1); assert.equal(st.vars.不太來找你, 1);
+  miss(st); assert.equal(st.vars.孩子來找_回來連續, 0, '中間又錯過就歸零');
+  // 主動去找他：1 份（要連續 exitStreak 份）
+  const stage2 = '國小低', k = A.exitStreak[stage2];
+  for (let i = 0; i < k - 1; i++) other(st, ['問具體的事'], true);
+  assert.equal(st.vars.不太來找你, 1); assert.equal(st.vars.孩子來找_回來連續, k - 1);
+  other(st, ['問具體的事'], true);
+  assert.equal(st.vars.不太來找你, 0); assert.equal(st.vars.孩子來找_連續錯過, 0); assert.equal(st.vars.不太來找你_離開_主動, 1);
 });
 
-test('年紀越大，回來得越慢：國小中高要連續 4 次', () => {
+test('年紀越大，回來得越慢：國中要的份數比國小多', () => {
+  assert.ok(A.exitStreak.國中 > A.exitStreak.國小中高 && A.exitStreak.高中 > A.exitStreak.國中);
   const st = fresh();
-  for (let i = 0; i < 4; i++) applyTags(st, ['敷衍帶過'], T, { turn: 40, stage: '國小中高', ctx: {}, approach: true });
-  for (let i = 0; i < 3; i++) applyTags(st, ['聽他說完'], T, { turn: 40, stage: '國小中高', ctx: {}, approach: true });
+  for (let i = 0; i < A.enterAt; i++) applyTags(st, ['敷衍帶過'], T, { turn: 40, stage: '國中', ctx: {}, approach: true });
+  const n = need('國中');
+  assert.ok(n >= 2, '國中要接住孩子至少兩次');
+  for (let i = 0; i < n - 1; i++) applyTags(st, ['聽他說完'], T, { turn: 40, stage: '國中', ctx: {}, approach: true });
   assert.equal(st.vars.不太來找你, 1);
-  applyTags(st, ['聽他說完'], T, { turn: 40, stage: '國小中高', ctx: {}, approach: true });
+  applyTags(st, ['聽他說完'], T, { turn: 40, stage: '國中', ctx: {}, approach: true });
   assert.equal(st.vars.不太來找你, 0);
 });
 
@@ -61,9 +74,46 @@ test('「不太來找你」時：孩子來問只說「沒事」（文字變短�
   const tl = data.timeline[25];
   const card = data.cardIndex.lo_interrupt;
   assert.ok(!describeCard(card, st, data, tl).text.includes('沒事。」'));
-  for (let i = 0; i < 4; i++) miss(st);
+  for (let i = 0; i < A.enterAt; i++) miss(st);
   assert.equal(buildCtx(st, tl).不太來找你, true);
   for (let k = 0; k < 5; k++) { st.cardScope = null; st.slotLast = {}; assert.ok(describeCard(card, st, data, tl).text.includes('只說：「沒事。」'), describeCard(card, st, data, tl).text); st.turn++; }
   for (const pool of ['工作插播', '工作插播後續', '孩子重提']) assert.ok(data.pools[pool].mods.some((m) => m.if === '不太來找你' && m.x === T.approach.weightX), pool);
   assert.ok(data.cardIndex.lo_nofriend.approach && data.cardIndex.hi_work_ping.approach);
+});
+
+test('離開只算 approach 卡與 initiate:true 的卡（父母主動去找孩子）；固定事件、出遊、沒有 initiate 的卡上的陪伴不算', () => {
+  const st = fresh();
+  for (let i = 0; i < A.enterAt; i++) miss(st);
+  assert.equal(st.vars.不太來找你, 1);
+  // 沒有 initiate 的卡（日常、固定事件、出遊）：放下手機陪、聽他說完、問具體的事、先接住情緒都不算
+  for (let i = 0; i < 6; i++) other(st, ['放下手機陪', '聽他說完', '問具體的事', '先接住情緒', '出遊_一起準備與討論']);
+  assert.equal(st.vars.不太來找你, 1); assert.equal(st.vars.孩子來找_回來連續, 0);
+  // initiate:true 的卡上同樣的標籤才算：每次 1 份，累積到 exitStreak（國小低）
+  const k = A.exitStreak.國小低;
+  for (let i = 0; i < k - 1; i++) other(st, ['放下手機陪'], true);
+  assert.equal(st.vars.不太來找你, 1);
+  other(st, ['聽他說完'], true);
+  assert.equal(st.vars.不太來找你, 0); assert.equal(st.vars.不太來找你_離開_主動, 1);
+});
+
+test('資料：initiate 的卡都是父母主動去找孩子；固定事件、出遊的卡沒有 initiate；工作插播的「你先自己玩」是敷衍帶過', () => {
+  const cards = data.events.cards;
+  const init = cards.filter((c) => c.initiate);
+  assert.ok(init.length >= 8, `initiate 的卡 ${init.length} 張`);
+  for (const c of cards) if (c.pool === '_fixed' || /trip|trial|news/.test(c.id)) assert.ok(!c.initiate, c.id);
+  for (const id of ['inf_bedtime', 'lo_sleep', 'hi_paper_drawer', 'hi_friend_worry', 'fu_phone_test']) assert.ok(data.cardIndex[id].initiate, id);
+  // 工作插播：「你先自己想想看／你先自己玩一下」＝敷衍帶過（錯過）；新增「說好十分鐘後去找你」，排後續卡，當下不算錯過也不算接住
+  const A = T.approach;
+  for (const id of ['wp_kg_call', 'wp_kg_bath', 'lo_interrupt', 'wp_lo_weekend', 'hi_work_ping', 'wp_hi_table', 'wp_hi_car']) {
+    const c = data.cardIndex[id];
+    const self = c.choices.find((o) => /自己(先)?(想想看|玩一下)/.test(o.label)), ten = c.choices.find((o) => /十分鐘後我去找你/.test(o.label));
+    assert.ok(self && self.tags.includes('敷衍帶過') && A.missTags.includes('敷衍帶過'), id);
+    assert.ok(ten, id + ' 沒有「說好十分鐘後去找你」');
+    assert.ok(ten.tags.every((t) => !A.missTags.includes(t) && !A.attendTags.includes(t)), id + '：說好十分鐘當下不算錯過也不算接住');
+    assert.equal(ten.followUp[0].card, 'lo_interrupt_back');
+  }
+  const back = data.cardIndex.lo_interrupt_back;
+  assert.ok(back.choices[0].tags.some((t) => A.attendTags.includes(t)), '回去找他＝接住');
+  assert.ok(back.choices[3].tags.some((t) => A.attendTags.includes(t)));
+  assert.ok(back.choices[1].tags.some((t) => A.missTags.includes(t)) && back.choices[2].tags.some((t) => A.missTags.includes(t)), '沒回去＝錯過');
 });

@@ -13,10 +13,12 @@
 （目前沒有改動。2026-10-20 建立 15 個黃金範例的初始快照。）
 
 ## rich-dual-income-controlling
+- 2026-10-20 · sig:57963ce9 · wellbeing：mid → lo；wellbeingParts：mid/mid/mid → mid/mid/lo · 原因：第 7 項（approach 狀態規則）：出口只算 approach 卡與 initiate:true 的卡（固定事件、出遊的陪伴不再算）、工作插播『你先自己玩／想想看』改成敷衍帶過並新增『說好十分鐘後去找你』、孩子來問的開場成對、enterAt 4→5，抽卡序列與『不太來找你』的進入／離開時機都變了，類別因此在邊界上移動；check-design 全數在範圍內
 - 2026-10-20 · sig:d33e5c7f · wellbeingParts：lo/mid/mid → mid/mid/mid · 原因：第 6 項（命運事件不帶家長標籤，規則 18）：夫妻失和、長輩住院不再偷偷扣安全感，長輩住院只給長輩在身邊的家庭，隱藏數值的曲線變了，類別因此在邊界上移動；方向是對的（沒有玩家選擇就不該有隱藏的扣分），check-design 全數在範圍內
 - 2026-10-20 · sig:16eafde0 · wellbeing：lo → mid；wellbeingParts：lo/mid/lo → lo/mid/mid；axes：lo/lo/mid → lo/mid/mid · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## manager-overtime-dosegreedy
+- 2026-10-20 · sig:1c23814e · wellbeing：mid → lo · 原因：第 7 項（approach 狀態規則）：出口只算 approach 卡與 initiate:true 的卡（固定事件、出遊的陪伴不再算）、工作插播『你先自己玩／想想看』改成敷衍帶過並新增『說好十分鐘後去找你』、孩子來問的開場成對、enterAt 4→5，抽卡序列與『不太來找你』的進入／離開時機都變了，類別因此在邊界上移動；check-design 全數在範圍內
 - 2026-10-20 · sig:a82ea249 · achievement：課業大致跟得上 → 課業有些吃力；route：放任 → 高壓做主 · 原因：第 5 項（家庭一致性）：拿掉『新住民家庭開店』職業，所有種子的職業抽籤整批重洗；隔代的另一半改成在外地工作、平日在家的日常卡不再給隔代；抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽籤與抽卡序列，不是機制方向改變（check-design 全數在範圍內）
 - 2026-10-20 · sig:d1de2c3d · route：高壓做主 → 放任 · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
@@ -37,6 +39,7 @@
 - 2026-10-20 · sig:4db350a4 · axes：lo/mid/mid → lo/lo/mid；achievement：課業大致跟得上 → 課業有些吃力 · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## absent-partner-rich-permissive
+- 2026-10-20 · sig:7efc04eb · axes：lo/lo/lo → lo/mid/lo；combo：三邊都垮 → 其他 · 原因：第 7 項（approach 狀態規則）：出口只算 approach 卡與 initiate:true 的卡（固定事件、出遊的陪伴不再算）、工作插播『你先自己玩／想想看』改成敷衍帶過並新增『說好十分鐘後去找你』、孩子來問的開場成對、enterAt 4→5，抽卡序列與『不太來找你』的進入／離開時機都變了，類別因此在邊界上移動；check-design 全數在範圍內
 - 2026-10-20 · sig:01d7e075 · wellbeingParts：mid/mid/lo → mid/mid/mid · 原因：第 3 項（跨卡沿用的值、手足）：單親（離異、喪親）的家庭不再排弟弟妹妹、lo_sibling／hi_sibling 只給有哥哥姊姊的家庭、才藝已報名的孩子不再出現想學才藝、kid_newborn 改成弟弟妹妹出生前一兩個回合才出現，抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 與影響報告的整體分布未變）
 - 2026-10-20 · sig:37a3ca1c · wellbeingParts：mid/mid/mid → mid/mid/lo · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
@@ -45,10 +48,12 @@
 - 2026-10-20 · sig:506e5c5c · axes：hi/hi/hi → hi/hi/mid；combo：三邊都顧到 → 關係好、人際好，成績普通 · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## tight-single-dad-permissive
+- 2026-10-20 · sig:7efc04eb · axes：lo/lo/lo → lo/mid/lo；combo：三邊都垮 → 其他 · 原因：第 7 項（approach 狀態規則）：出口只算 approach 卡與 initiate:true 的卡（固定事件、出遊的陪伴不再算）、工作插播『你先自己玩／想想看』改成敷衍帶過並新增『說好十分鐘後去找你』、孩子來問的開場成對、enterAt 4→5，抽卡序列與『不太來找你』的進入／離開時機都變了，類別因此在邊界上移動；check-design 全數在範圍內
 - 2026-10-20 · sig:37a3ca1c · wellbeingParts：mid/mid/mid → mid/mid/lo · 原因：第 4 項（後續卡要有前因、時間詞、公幼候補結局、學校平板擇一）與同批的事故機制重調（事故骰、交通安全認知倍率改成 ×1.5／×0.6）：抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 全數在範圍內）
 - 2026-10-20 · sig:01d7e075 · wellbeingParts：mid/mid/lo → mid/mid/mid · 原因：第 3 項（跨卡沿用的值、手足）：單親（離異、喪親）的家庭不再排弟弟妹妹、lo_sibling／hi_sibling 只給有哥哥姊姊的家庭、才藝已報名的孩子不再出現想學才藝、kid_newborn 改成弟弟妹妹出生前一兩個回合才出現，抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 與影響報告的整體分布未變）
 
 ## rural-boss-tiredlazy
+- 2026-10-20 · sig:e49fc594 · axes：mid/mid/mid → lo/mid/mid；route：溺愛 → 放任 · 原因：第 7 項（approach 狀態規則）：出口只算 approach 卡與 initiate:true 的卡（固定事件、出遊的陪伴不再算）、工作插播『你先自己玩／想想看』改成敷衍帶過並新增『說好十分鐘後去找你』、孩子來問的開場成對、enterAt 4→5，抽卡序列與『不太來找你』的進入／離開時機都變了，類別因此在邊界上移動；check-design 全數在範圍內
 - 2026-10-20 · sig:a1c0f071 · route：放任 → 溺愛 · 原因：第 3 項（跨卡沿用的值、手足）：單親（離異、喪親）的家庭不再排弟弟妹妹、lo_sibling／hi_sibling 只給有哥哥姊姊的家庭、才藝已報名的孩子不再出現想學才藝、kid_newborn 改成弟弟妹妹出生前一兩個回合才出現，抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 與影響報告的整體分布未變）
 
 ## rural-skip-generation-random

@@ -68,7 +68,7 @@ const pressureSide = (k, d) => (k === '期待壓力' ? d > 0 : k === '主見' ? 
  */
 /**
  * 孩子來找你（DESIGN §4.28 連續才是關鍵）：只看『連續』。approach 卡上選項帶 missTags ⇒ 連續錯過 +1（達門檻進入『不太來找你』）；
- * 帶 attendTags ⇒ 連續錯過歸零。進入之後，要連續 exitStreak 次（approach 卡上的 attendTags，或任何卡上的 initiateTags）才離開；
+ * 帶 attendTags ⇒ 連續錯過歸零。進入之後，要連續 exitStreak 次（approach 卡上的 attendTags，或 initiate:true 的卡上的 initiateTags）才離開；
  * approach 卡上的錯過讓『回來的連續數』歸零；其他卡上的補償（禮物、出遊）不算也不歸零。st.vars 由這個檔案唯一寫入（同其他計數）。
  */
 export function updateApproach(st, tags, T, opts) {
@@ -79,7 +79,7 @@ export function updateApproach(st, tags, T, opts) {
   const attend = has(A.attendTags), miss = !attend && has(A.missTags);
   v.孩子來找_連續錯過 ||= 0; v.孩子來找_回來連續 ||= 0; v.不太來找你 ||= 0;
   if (opts.approach) {
-    if (attend) { v.孩子來找_連續錯過 = 0; if (v.不太來找你) v.孩子來找_回來連續++; }
+    if (attend) { v.孩子來找_連續錯過 = 0; if (v.不太來找你) v.孩子來找_回來連續 += A.approachCredit ?? 1; } // 孩子自己又來找你、你停下來聽：最強的一步（approachCredit 份）
     else if (miss) {
       v.孩子來找_回來連續 = 0;
       if (!v.不太來找你) {
@@ -88,7 +88,7 @@ export function updateApproach(st, tags, T, opts) {
         if (v.孩子來找_連續錯過 >= (sens ? A.enterAtSensitive : A.enterAt)) { v.不太來找你 = 1; v.不太來找你_曾 = (v.不太來找你_曾 || 0) + 1; v.孩子來找_回來連續 = 0; }
       }
     }
-  } else if (v.不太來找你 && has(A.initiateTags)) v.孩子來找_回來連續++;
+  } else if (v.不太來找你 && opts.initiate && has(A.initiateTags)) v.孩子來找_回來連續++; // 只有『父母主動去找孩子』的卡（initiate:true：睡前談話、走去找他、一起看手機…）算；固定事件、出遊、買禮物都不算（§4.28 一次的補償不算）
   if (v.不太來找你 && v.孩子來找_回來連續 >= (A.exitStreak[opts.stage] ?? 3)) { const k = opts.approach ? '不太來找你_離開_接住' : '不太來找你_離開_主動'; v[k] = (v[k] || 0) + 1; v.不太來找你 = 0; v.孩子來找_連續錯過 = 0; v.孩子來找_回來連續 = 0; }
 }
 

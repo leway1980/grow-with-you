@@ -101,20 +101,23 @@ test('情境 3：錯過、錯過、停下來聽一次、再錯過、錯過 → �
   }
 });
 
-test('情境 4：連續錯過 4 次進入「不太來找你」（敏感的孩子 3 次）；之後一次補償不算，要連續主動去找他才離開', () => {
+test('情境 4：連續錯過 enterAt 次進入「不太來找你」（敏感的孩子少一次）；之後一次補償不算，要接住孩子來找才離開', () => {
+  const A = T.approach;
   for (const seed of SEEDS) {
     const calm = world(seed, (s) => { s.family.child.temperament.敏感度 = 3; });
-    play(calm, rep(3, ['說沒關係就結束'], { approach: true })); assert.equal(calm.vars.不太來找你, 0);
+    play(calm, rep(A.enterAt - 1, ['說沒關係就結束'], { approach: true })); assert.equal(calm.vars.不太來找你, 0);
     play(calm, rep(1, ['說沒關係就結束'], { approach: true })); assert.equal(calm.vars.不太來找你, 1);
     assert.equal(calm.vars.不太來找你_曾, 1);
     play(calm, [step(['出遊_一起準備與討論']), step(['外包']), step(['3C當保母'])]); // 補償：不算
     assert.equal(calm.vars.不太來找你, 1);
-    const need = M.nodes ? raw().exitStreak[STAGE] : 3;
-    play(calm, rep(need, ['聽他說完'], { approach: true }));
-    assert.equal(calm.vars.不太來找你, 0, '連續回來之後離開');
+    const need = Math.ceil(A.exitStreak[STAGE] / (A.approachCredit ?? 1));
+    play(calm, rep(need - 1, ['聽他說完'], { approach: true }));
+    if (need > 1) assert.equal(calm.vars.不太來找你, 1, '還差一次');
+    play(calm, rep(1, ['聽他說完'], { approach: true }));
+    assert.equal(calm.vars.不太來找你, 0, '接住孩子來找之後離開');
     assert.equal(calm.vars.不太來找你_曾, 1, '曾經進入過的紀錄不會消失（結局文字讀它）');
     const sens = world(seed, (s) => { s.family.child.temperament.敏感度 = 5; });
-    play(sens, rep(2, ['敷衍帶過'], { approach: true })); assert.equal(sens.vars.不太來找你, 0);
+    play(sens, rep(A.enterAtSensitive - 1, ['敷衍帶過'], { approach: true })); assert.equal(sens.vars.不太來找你, 0);
     play(sens, rep(1, ['敷衍帶過'], { approach: true })); assert.equal(sens.vars.不太來找你, 1);
   }
 });

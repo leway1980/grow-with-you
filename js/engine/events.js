@@ -409,7 +409,7 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
     branchTags = b.tags || []; // 分支也可以帶行為標籤（隱藏數值仍然只經由標籤換算）
   }
   const allTags = [...(ch.tags || []), ...branchTags];
-  applyTags(st, allTags, data.tags, { turn: st.turn, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope), approach: !!card.approach });
+  applyTags(st, allTags, data.tags, { turn: st.turn, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope), approach: !!card.approach, initiate: !!card.initiate });
   if (isGrowthChoice(data.tags, ch.tags)) recordGrowth(st, data.tags, ch, scope);
   if (card.once) st.used[card.id] = true;
   if (card.cooldown) st.cooldowns[card.id] = st.turn + card.cooldown + 1;
