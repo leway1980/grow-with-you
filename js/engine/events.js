@@ -139,7 +139,7 @@ export function buildCtx(st, tl, extra = {}) {
   const month = tl.month ?? ((f.child.birthMonth - 1 + Math.floor(tl.ageMonths / 12) * 12 + (tl.ageMonths % 12)) % 12) + 1;
   const ctx = {
     __flags: st.flags,
-    ...familyCtx(f, st.role, st.turn),
+    ...familyCtx(f, st.role, tl.ageMonths),
     ...st.hidden, // 隱藏數值只在引擎內部給條件用（例如選項的門檻）；不會出現在任何畫面
     體力: P.體力, 耐心: P.耐心, 錢: P.錢, 工作表現: P.工作表現, 夫妻關係: P.夫妻關係,
     心情: C.心情, 成績: C.成績, 作業: C.作業, 三C: C['3C時間'], 睡眠: C.睡眠, 同學往來: C.同學往來,

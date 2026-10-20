@@ -171,8 +171,8 @@ export function generateFamily(seed, idn) {
     if (i >= nSib) continue;
     const older = single || u1 < S.olderP, male = u3 < 0.5; // 單親（離異、喪親）不排弟弟妹妹：新生兒的卡（kid_newborn）只給有另一半一起迎接的家庭
     const gap = S.olderGap[0] + Math.floor(u2 * (S.olderGap[1] - S.olderGap[0] + 1));
-    siblings.push(older ? { rel: male ? '哥哥' : '姐姐', older: true, ageGap: gap, arriveTurn: null }
-      : { rel: male ? '弟弟' : '妹妹', older: false, ageGap: 0, arriveTurn: S.youngerTurn[0] + Math.floor(u4 * (S.youngerTurn[1] - S.youngerTurn[0] + 1)) });
+    siblings.push(older ? { rel: male ? '哥哥' : '姐姐', older: true, ageGap: gap, arriveMonths: null }
+      : { rel: male ? '弟弟' : '妹妹', older: false, ageGap: 0, arriveMonths: S.youngerMonths[0] + Math.floor(u4 * (S.youngerMonths[1] - S.youngerMonths[0] + 1)) });
   }
   // 9b 孩子的空間：要等手足確定之後才算（獨立亂數流）
   const nOlderNow = siblings.filter((s) => s.older).length;
@@ -226,30 +226,30 @@ export const SCHOOL_BUS_P = { 都會核心: 0.5, 都會外圍: 0.55, 中小城�
 export const schoolBusOf = (seed, urban) => rngAt(seed >>> 0, 0, 'schoolbus') < (SCHOOL_BUS_P[urban] ?? 0.5);
 
 const SIB_LABEL = { 姐姐: '姊姊', 姊姊: '姊姊', 哥哥: '哥哥', 弟弟: '弟弟', 妹妹: '妹妹' };
-/** 弟弟妹妹出生時，孩子大約幾歲（回合 → 月齡，與 data/calendar.json 的階段對應） */
-const monthsAtTurn = (t) => (t < 8 ? t * 3 : t < 20 ? 24 + (t - 8) * 4 : 72 + (t - 20) * 2);
+/** 學前每回合約 3 個月：『下一胎回合差』（kid_newborn 的條件）用它把月數折成回合數 */
+const PRESCHOOL_STEP = 3;
 /**
  * 手足關係：和孩子年齡最近的那一位（哥哥／姊姊／弟弟／妹妹）；沒有手足是 ''。
- * 弟弟妹妹要到出生的回合（arriveTurn）才算；turn 沒給時（開局抽籤）全部都算。年長手足：最近的哥哥／姊姊。
+ * 弟弟妹妹要到出生的月齡（arriveMonths，孩子幾個月大時出生）才算；ageMonths 沒給時（開局抽籤）全部都算。年長手足：最近的哥哥／姊姊。
  */
-export function siblingRelations(fam, turn) {
-  const gap = (s) => (s.older ? s.ageGap : monthsAtTurn(s.arriveTurn ?? 0) / 12);
-  const live = fam.siblings.filter((s) => s.older || turn == null || (s.arriveTurn ?? 0) <= turn);
+export function siblingRelations(fam, ageMonths) {
+  const gap = (s) => (s.older ? s.ageGap : (s.arriveMonths ?? 0) / 12);
+  const live = fam.siblings.filter((s) => s.older || ageMonths == null || (s.arriveMonths ?? 0) <= ageMonths);
   const byGap = (a, b) => gap(a) - gap(b);
   const nearest = [...live].sort(byGap)[0];
   const elders = fam.siblings.filter((s) => s.older).sort(byGap);
   const youngers = live.filter((s) => !s.older).sort(byGap);
   const lab = (s) => (s ? SIB_LABEL[s.rel] || s.rel : '');
-  // 下一胎：還沒出生的弟弟妹妹，再過幾個回合出生（沒有就是 99）。kid_newborn 只在 1–2 個回合之前出現（家裡知道要多一個人了）
-  const due = fam.siblings.filter((s) => !s.older && turn != null && (s.arriveTurn ?? 0) > turn).map((s) => s.arriveTurn - turn);
+  // 下一胎：還沒出生的弟弟妹妹，再過幾個回合出生（沒有就是 99；以學前每回合 3 個月計，進位）。kid_newborn 只在 1–2 個回合之前出現（家裡知道要多一個人了）
+  const due = fam.siblings.filter((s) => !s.older && ageMonths != null && (s.arriveMonths ?? 0) > ageMonths).map((s) => Math.ceil((s.arriveMonths - ageMonths) / PRESCHOOL_STEP));
   return {
     手足關係: lab(nearest), 年長手足: lab(elders[0]), 年幼手足: lab(youngers[0]),
     手足數: live.length, 年長手足數: elders.length, 年幼手足數: youngers.length, 下一胎回合差: due.length ? Math.min(...due) : 99,
   };
 }
 
-/** 條件環境裡跟家庭有關的部分（用在 startAdjust 與卡片條件）。turn 給了就把還沒出生的弟弟妹妹排除。 */
-export function familyCtx(fam, role, turn) {
+/** 條件環境裡跟家庭有關的部分（用在 startAdjust 與卡片條件）。ageMonths（孩子目前月齡）給了就把還沒出生的弟弟妹妹排除。 */
+export function familyCtx(fam, role, ageMonths) {
   const has = (k) => fam.child.needs.some((n) => n.kind === k);
   return {
     角色: role, 經濟: fam.econ, 城鄉: fam.urban, 縣市: fam.county, 棒球重鎮: BASEBALL_COUNTIES.includes(fam.county),
@@ -257,7 +257,7 @@ export function familyCtx(fam, role, turn) {
     職位: fam.rank || '基層', 交通工具: fam.transport || '機車', 通勤距離: fam.commute || '中', // 舊存檔沒有時由 migrate 補上，這裡只是保險
     學校有交通車: schoolBusOf(fam.seed, fam.urban),
     另一半: fam.partner.attitude || '', 有另一半: !!fam.partner.present, 長輩: fam.elders.status, 長輩謹慎: fam.elders.caution || '普通', 住屋: fam.housing, 孩子空間: fam.space,
-    升學資源: fam.support, 被帶大: fam.upbringing, ...siblingRelations(fam, turn),
+    升學資源: fam.support, 被帶大: fam.upbringing, ...siblingRelations(fam, ageMonths),
     有寵物: !!fam.pet, 寵物種類: fam.pet ? fam.pet.type : '',
     孩子性別: fam.child.sex, 孩子活動量: fam.child.temperament.活動量, 孩子敏感度: fam.child.temperament.敏感度, 孩子堅持度: fam.child.temperament.堅持度,
     // 特殊需求：各類各一個旗標（卡片的訊號與修正用精確的這幾個）；有特殊需求ADHD 沿用舊名
