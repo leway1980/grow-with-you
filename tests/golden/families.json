@@ -1,0 +1,20 @@
+{
+ "_readme": "黃金範例（DESIGN §3.7 第 4 點）：固定種子＋固定策略的家庭。種子決定家庭與孩子的開局（輪班的單親媽媽、寬裕的雙薪、偏鄉隔代……），策略是 tools/bots.mjs 的機器人（決定性）。快照在 snapshots.json（node tools/golden.mjs --update 重寫）。改了權重或內容後，任何一個家庭的『類別』（幸福區間、成就區間、組合、路線）改變，都要在 CHANGES.md 該家庭的段落寫一條帶有新簽名的記錄與原因，否則 tests/golden.test.mjs 失敗。",
+ "families": [
+  {"id": "shift-single-mom-warmfirm", "seed": 6, "role": "媽媽", "bot": "warmFirm", "startMode": "birth", "desc": "輪班的單親媽媽＋溫暖堅定"},
+  {"id": "rich-dual-income-controlling", "seed": 38, "role": "爸爸", "bot": "controlling", "startMode": "birth", "desc": "寬裕的都會雙薪＋高壓控制"},
+  {"id": "rural-skip-generation-random", "seed": 113, "role": "媽媽", "bot": "random", "startMode": "birth", "desc": "偏鄉隔代教養＋隨機"},
+  {"id": "adhd-child-warmfirm", "seed": 26, "role": "爸爸", "bot": "warmFirm", "startMode": "birth", "desc": "有 ADHD 傾向的孩子＋溫暖堅定"},
+  {"id": "tight-single-dad-permissive", "seed": 15, "role": "爸爸", "bot": "permissive", "startMode": "birth", "desc": "經濟吃緊的離異單親爸爸＋放任"},
+  {"id": "manager-overtime-dosegreedy", "seed": 94, "role": "爸爸", "bot": "doseGreedy", "startMode": "birth", "desc": "常加班的主管＋只看劑量表"},
+  {"id": "blended-family-warmfirmrest", "seed": 17, "role": "媽媽", "bot": "warmFirmRest", "startMode": "birth", "desc": "重組家庭＋溫暖堅定並且會休息"},
+  {"id": "rural-boss-tiredlazy", "seed": 25, "role": "媽媽", "bot": "tiredLazy", "startMode": "birth", "desc": "偏鄉自己當老闆＋累了就偷懶（真人混合）"},
+  {"id": "opposing-partner-commonreaction", "seed": 1, "role": "媽媽", "bot": "commonReaction", "startMode": "birth", "desc": "另一半會反對你的做法＋多半照習慣反應（真人混合）"},
+  {"id": "elders-live-in-research", "seed": 2, "role": "爸爸", "bot": "occasionalResearch", "startMode": "birth", "desc": "長輩同住＋偶爾查研究（真人混合）"},
+  {"id": "gifted-child-warmfirm", "seed": 79, "role": "媽媽", "bot": "warmFirm", "startMode": "birth", "desc": "資優的孩子＋溫暖堅定"},
+  {"id": "traveling-single-commonreaction", "seed": 45, "role": "媽媽", "bot": "commonReaction", "startMode": "birth", "desc": "常出差的單親＋多半照習慣反應"},
+  {"id": "strict-upbringing-elementary-warmfirm", "seed": 9, "role": "媽媽", "bot": "warmFirm", "startMode": "elementary", "desc": "從國小開始：自己被嚴格帶大、另一半一起陪＋溫暖堅定"},
+  {"id": "absent-partner-rich-permissive", "seed": 34, "role": "爸爸", "bot": "permissive", "startMode": "birth", "desc": "寬裕、另一半只出錢＋放任"},
+  {"id": "special-needs-warmfirmrest", "seed": 46, "role": "媽媽", "bot": "warmFirmRest", "startMode": "birth", "desc": "有特殊需求的孩子＋溫暖堅定並且會休息"}
+ ]
+}
