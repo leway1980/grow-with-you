@@ -28,6 +28,17 @@ export function ageLabel(m) {
  * schoolFixed：{grade:[…], seg:'段名', event}，段用名字找，不用序號。
  * tl.newAge：該回合是新的一歲（floor(ageMonths/12) 與前一回合不同）。
  */
+/** 開放玩的階段：回合序號從 0 起算，起點在 playableTurns 之前的階段（工具用它代替寫死的階段清單） */
+export function playedStages(cal) {
+  const out = [];
+  let n = 0;
+  for (const s of cal.stages) {
+    if (n < cal.playableTurns) out.push(s.id);
+    n += s.turns ?? s.grades.reduce((a, g) => a + cal.segmentSets[g.segs].length, 0);
+  }
+  return out;
+}
+
 export function buildTimeline(cal) {
   const tl = [];
   const stageStart = {}, segNameAt = [];

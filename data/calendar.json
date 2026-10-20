@@ -1,9 +1,9 @@
 {
- "_readme": "日曆 v2（目前仍是 92 回合）：0–2 歲每年 4 回合（8）、2–6 歲每年 3 回合（12）、國小到高三每年 6 回合（72）。M1 只做到國小六年級（回合 0–55，共 56 回合）；之後的回合先留在表裡，遊戲在回合 56 以『待續』結束。stage 名稱要和 data/tags.json 的 stages 一致。segmentSets：每組是一學年的段落（month 是段起的月份，9 月開學；months 是顯示文字，可省略）；stage 的 grades 用 {g, segs} 指定每個年級用哪一組。年級回合的月齡 = 72+(g-1)·12+((month-9+12)%12)。fixed：atMonths 是第一個月齡 ≥ 該值的回合，at:{stage,i} 是該階段第 i 回合。schoolFixed 依『年級＋段名』排進每個學年（用名字，不用序號）。段的月份是大約值（見 docs/DATA.md §5），各校不同。",
- "totalTurns": 92,
- "playableTurns": 56,
+ "_readme": "日曆 v2（72 回合；目前只開放到國小六年級，playableTurns 50）：0–2 歲每年 4 回合（8）、2–6 歲每年 4 回合（16）、國小低每年 5 回合、國小中高每年 4 回合、國中每年 4 回合（國三 5）、高中每年 2 回合、離家 3 回合（逐月）。遊戲在 playableTurns 以『待續』結束（開放到 72 是 E1）。stage 名稱要和 data/tags.json 的 stages 一致。segmentSets：每組是一學年的段落（month 是段起的月份，9 月開學；months 是顯示文字，可省略）；stage 的 grades 用 {g, segs} 指定每個年級用哪一組。年級回合的月齡 = 72+(g-1)·12+((month-9+12)%12)。fixed：atMonths 是第一個月齡 ≥ 該值的回合，at:{stage,i} 是該階段第 i 回合。schoolFixed 依『年級＋段名』排進每個學年（用名字，不用序號）；國小中高的固定事件刻意變稀（家長會 3、5 年級，校外教學 4、6 年級），免得 4 個回合裡有 3 個是固定的。段的月份是大約值（見 docs/DATA.md §5），各校不同。",
+ "totalTurns": 72,
+ "playableTurns": 50,
  "segmentSets": {
-  "舊6": [
+  "低5": [
    {
     "name": "開學之後",
     "months": "9–10 月",
@@ -24,21 +24,87 @@
    },
    {
     "name": "下學期",
+    "months": "3–5 月",
+    "month": 3,
+    "vacation": false
+   },
+   {
+    "name": "期末與暑假",
+    "months": "6–8 月",
+    "month": 6,
+    "vacation": true
+   }
+  ],
+  "中高4": [
+   {
+    "name": "開學之後",
+    "months": "9–11 月",
+    "month": 9,
+    "vacation": false
+   },
+   {
+    "name": "期中到寒假",
+    "months": "12–2 月",
+    "month": 12,
+    "vacation": false
+   },
+   {
+    "name": "下學期",
+    "months": "3–5 月",
+    "month": 3,
+    "vacation": false
+   },
+   {
+    "name": "期末與暑假",
+    "months": "6–8 月",
+    "month": 6,
+    "vacation": true
+   }
+  ],
+  "國三5": [
+   {
+    "name": "開學之後",
+    "months": "9–11 月",
+    "month": 9,
+    "vacation": false
+   },
+   {
+    "name": "期中到寒假",
+    "months": "12–2 月",
+    "month": 12,
+    "vacation": false
+   },
+   {
+    "name": "下學期",
     "months": "3–4 月",
     "month": 3,
     "vacation": false
    },
    {
-    "name": "期末之前",
-    "months": "5–6 月",
+    "name": "會考前",
+    "months": "5 月",
     "month": 5,
     "vacation": false
    },
    {
-    "name": "暑假",
-    "months": "7–8 月",
-    "month": 7,
+    "name": "放榜與選校",
+    "months": "6–8 月",
+    "month": 6,
     "vacation": true
+   }
+  ],
+  "高中2": [
+   {
+    "name": "上學期",
+    "months": "9–1 月",
+    "month": 10,
+    "vacation": false
+   },
+   {
+    "name": "下學期",
+    "months": "2–6 月",
+    "month": 3,
+    "vacation": false
    }
   ]
  },
@@ -51,20 +117,20 @@
   },
   {
    "id": "幼兒園",
-   "turns": 12,
+   "turns": 16,
    "startMonths": 24,
-   "stepMonths": 4
+   "stepMonths": 3
   },
   {
    "id": "國小低",
    "grades": [
     {
      "g": 1,
-     "segs": "舊6"
+     "segs": "低5"
     },
     {
      "g": 2,
-     "segs": "舊6"
+     "segs": "低5"
     }
    ]
   },
@@ -73,19 +139,19 @@
    "grades": [
     {
      "g": 3,
-     "segs": "舊6"
+     "segs": "中高4"
     },
     {
      "g": 4,
-     "segs": "舊6"
+     "segs": "中高4"
     },
     {
      "g": 5,
-     "segs": "舊6"
+     "segs": "中高4"
     },
     {
      "g": 6,
-     "segs": "舊6"
+     "segs": "中高4"
     }
    ]
   },
@@ -94,15 +160,15 @@
    "grades": [
     {
      "g": 7,
-     "segs": "舊6"
+     "segs": "中高4"
     },
     {
      "g": 8,
-     "segs": "舊6"
+     "segs": "中高4"
     },
     {
      "g": 9,
-     "segs": "舊6"
+     "segs": "國三5"
     }
    ]
   },
@@ -111,16 +177,27 @@
    "grades": [
     {
      "g": 10,
-     "segs": "舊6"
+     "segs": "高中2"
     },
     {
      "g": 11,
-     "segs": "舊6"
+     "segs": "高中2"
     },
     {
      "g": 12,
-     "segs": "舊6"
+     "segs": "高中2"
     }
+   ]
+  },
+  {
+   "id": "離家",
+   "turns": 3,
+   "startMonths": 214,
+   "stepMonths": 1,
+   "labels": [
+    "填志願或找工作",
+    "放榜",
+    "離家那一天"
    ]
   }
  ],
@@ -157,9 +234,7 @@
    "grade": [
     2,
     3,
-    4,
-    5,
-    6
+    5
    ],
    "seg": "開學之後",
    "event": "fx_teacher_meet"
@@ -167,22 +242,26 @@
   {
    "grade": [
     1,
-    2,
-    3,
-    4,
-    5,
-    6
+    2
    ],
    "seg": "期中之後",
    "event": "fx_sports_day"
   },
   {
    "grade": [
-    1,
-    2,
     3,
     4,
     5,
+    6
+   ],
+   "seg": "期中到寒假",
+   "event": "fx_sports_day"
+  },
+  {
+   "grade": [
+    1,
+    2,
+    4,
     6
    ],
    "seg": "下學期",
@@ -192,7 +271,7 @@
    "grade": [
     6
    ],
-   "seg": "期末之前",
+   "seg": "期末與暑假",
    "event": "fx_graduation"
   }
  ],
