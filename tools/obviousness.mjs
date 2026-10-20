@@ -16,7 +16,7 @@ import { mulberry32, hashStr } from '../js/engine/rng.js';
 import { doseView, meterView } from '../js/engine/dose.js';
 import { gradeName, ageLabel } from '../js/engine/turn.js';
 import { outcomeWeights } from '../js/engine/model.js';
-import { tagVec } from './metrics.mjs';
+import { tagVec, compositeWeights } from './metrics.mjs';
 
 /** 回傳 { blind, key }：blind 是給評分者的，key 是還原用的 */
 export function exportBlind(data = loadData(), seed = 1) {
@@ -113,7 +113,7 @@ function makeCandidate(data, card, r, seed) {
 }
 
 /** 把一個情境下的卡片畫成『玩家看到的』，同時算出隱藏的親子軸值（只進 key） */
-function renderItem(data, card, cand, axisOf) {
+function renderItem(data, card, cand, axisOf, axisParentOf) {
   const { st, tl } = cand, stages = card.stages || null;
   const ctx = buildCtx(st, tl, { topic: card.topic });
   const scope = cardScope(st, card.id);
@@ -124,7 +124,7 @@ function renderItem(data, card, cand, axisOf) {
     const s = choiceState(ch, cctx);
     if (s.hidden || s.disabled) return;
     const rc = resolveChoice(ch, cctx);
-    opts.push({ i, label: fill(rc.label, st, cctx, scope), dose: doseLines(scaleCosts(data.tags.costMods, rc, cctx), st, tl.stage), axis: axisOf(rc, stages) });
+    opts.push({ i, label: fill(rc.label, st, cctx, scope), dose: doseLines(scaleCosts(data.tags.costMods, rc, cctx), st, tl.stage), axis: axisOf(rc, stages), axisParent: axisParentOf ? axisParentOf(rc, stages) : 0 });
   });
   const f = st.family.child;
   return { title, text, child: childLine(f.given, f.temperament, tl), parent: parentLine(st.parent, tl), opts, ifs: ifsHolding(card, st, tl), temperament: { ...f.temperament }, grade: tl.grade, ageMonths: tl.ageMonths, parentState: { 體力: st.parent.體力, 耐心: st.parent.耐心 } };
@@ -135,12 +135,12 @@ const sameOrig = (a, b) => a.opts.length === b.opts.length && a.opts.every((o, k
 
 /**
  * 回傳 { blind, key, files }：blind＝全部題目（給玩家看到的欄位，洗亂順序）、key＝還原與評分用、files＝切成 4 份給 4 位評分者。
- * 每張卡 2 題。變體卡：預設情境（沒有任何情境版本的 if 成立）＋ 最佳選項（親子軸）換人的情境（條件和 rule21-gap 相同：套用情境版本後的選項，用 outcomeWeights 親子軸）。
+ * 每張卡 2 題。變體卡：預設情境（沒有任何情境版本的 if 成立）＋ 最佳選項（綜合幸福，見 compositeWeights）換人的情境（條件和 rule21-gap 相同：套用情境版本後的選項，用和終局 wellbeing 同一個組合；舊的親子軸數字留在 key.axisParent）。
  * 非變體卡：兩個隨機情境（孩子描述不同）。題目 id 是不透明的流水號。
  */
 export function exportContext(data = loadData(), seed = 1) {
-  const W = outcomeWeights(data.model)['親子'];
-  const axisOf = (ch, stages) => Object.entries(tagVec(data.tags, ch, stages)).reduce((a, [k, v]) => a + (W[k] || 0) * v, 0);
+  const dot = (W) => (ch, stages) => Object.entries(tagVec(data.tags, ch, stages)).reduce((a, [k, v]) => a + (W[k] || 0) * v, 0);
+  const axisOf = dot(compositeWeights(data.model)), axisParentOf = dot(outcomeWeights(data.model)['親子']);
   const items = [], stats = { relaxed: [], skipped: [] };
   data.events.cards.forEach((card, ci) => {
     const r = mulberry32((hashStr(card.id) ^ (seed * 0x9e3779b1)) >>> 0);
@@ -148,7 +148,7 @@ export function exportContext(data = loadData(), seed = 1) {
     const cands = [];
     for (let j = 0, n = variant ? 160 : 24; j < n; j++) {
       const c = makeCandidate(data, card, r, (hashStr(card.id + ':' + j) ^ seed) >>> 0);
-      const it = renderItem(data, card, c, axisOf);
+      const it = renderItem(data, card, c, axisOf, axisParentOf);
       if (it.opts.length < 2) continue;
       it.ok = passesCard(card, c, data);
       cands.push(it);
@@ -180,7 +180,7 @@ export function exportContext(data = loadData(), seed = 1) {
     const sh = shuffleOrder(seed, ci * 2 + k, 'ctx:' + card.id, it.opts.length);
     const o = sh.map((p) => it.opts[p]);
     blind.push({ id, title: it.title, text: it.text, child: it.child, parent: it.parent, options: o.map((x) => ({ label: x.label, dose: x.dose })) });
-    key[id] = { card: card.id, k, kind, variant, switch: variant && sw, order: o.map((x) => x.i), axis: o.map((x) => Math.round(x.axis * 1000) / 1000), best: bestOf(o), temperament: it.temperament, grade: it.grade, ageMonths: it.ageMonths, parentState: it.parentState };
+    key[id] = { card: card.id, k, kind, variant, switch: variant && sw, order: o.map((x) => x.i), axis: o.map((x) => Math.round(x.axis * 1000) / 1000), axisParent: o.map((x) => Math.round(x.axisParent * 1000) / 1000), best: bestOf(o), temperament: it.temperament, grade: it.grade, ageMonths: it.ageMonths, parentState: it.parentState };
   });
   // 切 4 份：同一張卡的兩題分給不同的評分者；每份平均
   const files = [[], [], [], []];

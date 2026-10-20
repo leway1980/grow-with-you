@@ -152,6 +152,12 @@
   "rule11_why": "規則 11（表面對等）：帶 research:true 標籤的選項＝研究支持的選項。(a) 一張卡裡研究選項不能是嚴格最長（除非有非研究選項只短 1 字內），這種卡占全體 ≤ researchLongestMax；(b) 研究選項含 markerWords 時，同卡至少一個非研究選項也要含。rule11Enforce=false 時只報告（獨立的『rule 11』類別，不擋 CI）；內容改寫完成後改成 true。tools/surface.mjs 逐檔報告。",
   "variantBehaviorOk_why": "規則 22：tagsIf 新增的標籤若不在原本的標籤裡、同一個 if 又沒有 labelIf，lint 會提醒。這裡登記「卡id#選項序號」：已逐一確認，新增的標籤描述的就是標籤文字已經看得到的同一個做法（例如已經在問，就加『問具體的事』）。不要為了讓提醒消失而登記；做法不一樣就寫 labelIf。（2026-10-20 父母自己池：同一個做法，回復量依當下的疲勞——體力 < 45 時早睡、不運動才是真的休息，體力還行時只算喘口氣；sf_sleep／sf_exercise／sf_friends 的 tagsIf 只換這個，做法沒變。）",
   "variantBehaviorOk": ["kid_share#3", "kid_bite#4", "kid_picky#2", "kid_tv_dinner#0", "kid_tv_dinner#1", "lo_want_art_again#1", "fu_camp_again#0", "fu_ask_again#0", "fu_ask_again#1", "fx_sports_day#1","lo_hw#0","lo_exam#0","fx_sports_day#0","sf_exercise#0","sf_exercise#1","sf_exercise#4","sf_friends#0","sf_friends#1","sf_friends#4","sf_sleep#0","sf_sleep#3"],
+  "obviousOk": {
+   "_why": "選項明顯度測試（tools/obviousness-score.mjs）另外報告的卡，不計入 Q1／Q2 的主要目標。醫療安全：急診、醫療、安全的卡，現實中該做什麼是明顯的，難處在代價（時間、體力、錢），不在知不知道。訊號：特殊需求的訊號卡，難處是『注意到那個訊號』（規則 16），不是選項本身。一次性：只出現一次、沒有持續教養取捨的卡。值只能是這三類；卡片 id 必須存在。",
+   "inf_sick_young": "醫療安全", "inf_pet": "醫療安全", "kid_pet": "醫療安全", "cm_hospital": "醫療安全",
+   "kid_route": "訊號", "kid_unclear": "訊號", "inf_late_talk": "訊號", "hi_signal_attention": "訊號", "hi_signal_attention_gen": "訊號", "as_med": "訊號",
+   "sf_checkup": "一次性"
+  },
   "restTag": "父母自己休息",
   "restPool": "父母自己",
   "restPoolExempt": ["V2", "V3", "一眼看穿"],

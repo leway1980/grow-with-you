@@ -35,6 +35,14 @@ test('--context 匯出：每張卡 2 題；題目只有玩家看得到的欄位�
   }
   assert.ok(!/tags|effects|result/.test(JSON.stringify(blind)));
   assert.ok(Object.values(key).some((k) => k.switch), '有最佳選項換人的變體題');
+  for (const k of Object.values(key)) assert.equal(k.axisParent.length, k.axis.length, '舊的親子軸數字留在 key 當對照');
+  // 最佳選項＝綜合幸福最高（compositeWeights），不是只看親子軸
+  const { compositeWeights } = await import('../tools/metrics.mjs');
+  const WC = compositeWeights(data.model);
+  assert.ok(WC.自我效能 > 0 && WC.了解度 > 0 && WC.期待壓力 < 0, '綜合幸福含自我效能、了解度、期待壓力（反向）');
+  for (const k of Object.values(key)) assert.ok(k.best.every((i) => k.axis[i] === Math.max(...k.axis)));
+  const R = data.tags.cardRules.obviousOk, ids = new Set(data.events.cards.map((c) => c.id));
+  for (const [id, cat] of Object.entries(R)) if (!id.startsWith('_')) { assert.ok(ids.has(id), id + ' 不是卡'); assert.ok(['醫療安全', '訊號', '一次性'].includes(cat), id); }
   assert.equal(files.flat().length, blind.length);
   assert.ok(Math.max(...files.map((f) => f.length)) - Math.min(...files.map((f) => f.length)) <= 2);
   for (const f of files) { const cs = f.map((b) => key[b.id].card); assert.equal(new Set(cs).size, cs.length, '同一份裡同一張卡只出現一次'); }

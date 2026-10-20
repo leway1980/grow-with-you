@@ -33,3 +33,13 @@ test('summarize：空集合不會爆', () => {
   const s = summarize([]);
   assert.equal(s.n, 0); assert.ok(Number.isNaN(s.rate));
 });
+
+test('評分器：cardRules.obviousOk 的卡另外成組，主要組與換人／其他題不含它們', () => {
+  const k2 = { a: { ...key.a, card: 'x1' }, b: { ...key.b, card: 'x2' }, c: { ...key.c, card: 'x3' } };
+  const data = { tags: { cardRules: { obviousOk: { _why: '說明', x1: '醫療安全' } } } };
+  const r = scoreRatings(blind, k2, [{ id: 'a', q1: 2, q2: 2 }, { id: 'b', q1: 0, q2: 0 }, { id: 'c', q1: 0, q2: 0 }], data);
+  assert.deepEqual([r.q1.all.n, r.q1.main.n, r.q1.ok.n], [3, 2, 1]);
+  assert.deepEqual([r.q1.ok.k, r.q1.main.k], [1, 1]);
+  assert.deepEqual([r.q1.switch.n, r.q1.other.n], [1, 1]);
+  assert.equal(scoreRatings(blind, k2, [{ id: 'a', q1: 2, q2: 2 }]).q1.ok.n, 0, '沒給 data 就沒有 obviousOk 組');
+});

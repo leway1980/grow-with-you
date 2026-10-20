@@ -1,3 +1,4 @@
+import { outcomeWeights } from '../js/engine/model.js';
 import { readFileSync } from 'node:fs';
 // 卡片選項的「可見分數」與「隱藏分數」（資料檢查與策略機器人共用）。
 // 可見分數＝劑量表上看起來多好；隱藏分數＝標籤對照表（未含情境調整）累積起來多好。兩者拉開，就是 DESIGN §3.6 要的「陷阱」。
@@ -72,4 +73,15 @@ export function cardCorrelation(T, card) {
 export const CORRELATION_BOUND = JSON.parse(readFileSync(new URL('./design-targets.json', import.meta.url), 'utf8')).calibration['dose-hidden-corr'].absMax; // 範圍寫在 tools/design-targets.json（§3.7 第 5 點）
 export function meanCorrelation(T, cards) {
   return cards.reduce((s, c) => s + cardCorrelation(T, c), 0) / cards.length;
+}
+
+/**
+ * 『綜合幸福』的線性權重（隱藏數值 → 點數）：和終局 wellbeing()（js/engine/ending.js）同一個組合——孩子幸福、父母幸福、彼此之間三項的平均（tools/mech.mjs 也這樣平均），
+ * 各項的公式來自 data/model.json 的 outcomes（outcomeWeights）。父母幸福的公式在程式碼裡、輸入是體力與耐心（可見數值，不是標籤換算的隱藏數值），所以標籤換算時它貢獻 0；
+ * 其餘兩項各除以 3，單位和終局的幸福分數一致。回傳 { 隱藏數值: 權重 }。
+ */
+export function compositeWeights(model) {
+  const W = outcomeWeights(model), out = {};
+  for (const name of ['孩子幸福', '彼此之間']) for (const [k, v] of Object.entries(W[name] || {})) out[k] = (out[k] || 0) + v / 3;
+  return out;
 }
