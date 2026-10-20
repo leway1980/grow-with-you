@@ -39,19 +39,16 @@ export function renderTitle(root, { hasSave, onNew, onContinue, preview = false,
   ));
 }
 
-export function renderIntro(root, { paras, tags, seed, role, startMode, onRole, onMode, onStart, onReroll }) {
-  const seg = (items, cur, on, label) => h('div', { class: 'seg wide', role: 'group', 'aria-label': label },
-    items.map(([v, t]) => h('button', { 'data-v': v, 'aria-pressed': String(v === cur), onClick: () => on(v) }, t)));
-  root.replaceChildren(h('main', { class: 'wrap intro stack' },
-    h('div', { class: 'paper opening' }, paras.map((p, i) => h('p', { class: i === 0 ? 'big' : '' }, p)),
-      h('div', { class: 'tags' }, tags.map((t) => h('span', { class: 'tag' }, t)))),
-    h('div', { class: 'paper stack' },
-      h('div', null, h('div', { class: 'small muted' }, '你是'), seg([['爸爸', '爸爸'], ['媽媽', '媽媽']], role, onRole, '你是爸爸還是媽媽')),
-      h('div', null, h('div', { class: 'small muted' }, '從哪裡開始'), seg([['birth', '從出生開始'], ['elementary', '從國小開始']], startMode, onMode, '起點')),
-    ),
-    h('div', { class: 'actions' },
-      h('button', { class: 'btn primary block', 'data-act': 'start', onClick: onStart }, '開始陪伴'),
-      h('button', { class: 'btn block', 'data-act': 'reroll', onClick: onReroll }, '換一個家庭')),
+export function renderIntro(root, { sections, role, portrait, flavour, seed, onStart }) {
+  const win = (sec) => h('section', { class: 'sw-sec', 'aria-label': sec.title }, h('h2', null, sec.title),
+    h('dl', null, sec.rows.map(([k, v]) => h('div', { class: 'sw-row' }, h('dt', null, k), h('dd', null, v)))));
+  root.replaceChildren(h('main', { class: 'wrap wide intro' },
+    h('div', { class: 'intro-grid' },
+      h('div', { class: 'intro-art' }, h('figure', { class: 'portrait', 'aria-label': `你是${role}`, html: portrait })),
+      h('div', { class: 'status-win', role: 'group', 'aria-label': '這一局的家庭' },
+        h('div', { class: 'sw-grid' }, sections.map(win)))),
+    h('p', { class: 'flavour' }, flavour),
+    h('div', { class: 'actions' }, h('button', { class: 'btn primary block', 'data-act': 'start', onClick: onStart }, '開始陪伴')),
     h('p', { class: 'small muted' }, `人生編號 ${seed}（網址加 ?seed=${seed} 可以重來同一個家庭）`),
   ));
 }
@@ -69,18 +66,25 @@ export function renderGame(root, { speed, onSpeed, onAuto, onSkipEnd, onQuit }) 
   refs.child = h('div', { class: 'meters' });
   refs.parent = h('div', { class: 'meters' });
   refs.log = h('ol', { class: 'log' });
+  refs.meterBox = h('details', { class: 'paper meter-box', 'aria-label': '狀態' });
+  refs.mini = h('span', { class: 'mini' });
+  refs.meterBox.append(h('summary', null, h('span', { class: 'sum-t' }, '狀態'), refs.mini),
+    h('section', { 'aria-label': '孩子' }, h('h2', { class: 'sec' }, '孩子'), refs.child),
+    h('section', { 'aria-label': '你' }, h('h2', { class: 'sec' }, '你'), refs.parent));
+  // 寬螢幕展開、手機收合（只在建立時決定，玩家之後自己開關）
+  const wide = typeof globalThis.matchMedia === 'function' && globalThis.matchMedia('(min-width: 768px)').matches;
+  if (wide) refs.meterBox.setAttribute('open', '');
+  refs.logBox = h('details', { class: 'paper log-box', 'aria-label': '聯絡簿' }, h('summary', null, '聯絡簿'), refs.log);
   root.replaceChildren(
     h('div', { class: 'topbar' },
-      h('div', { class: 'wrap bar' }, refs.age, h('div', { class: 'seg', role: 'group', 'aria-label': '時間速度' }, refs.speedBtns)),
-      h('div', { class: 'wrap bar tools' }, refs.autoBtn, h('button', { 'data-act': 'skip-end', onClick: onSkipEnd }, '直接看結局'), h('button', { 'data-act': 'quit', onClick: onQuit }, '回標題')),
+      h('div', { class: 'wrap wide bar' }, refs.age,
+        h('div', { class: 'ctrls' },
+          h('div', { class: 'seg', role: 'group', 'aria-label': '時間速度' }, refs.speedBtns),
+          h('div', { class: 'tools' }, refs.autoBtn, h('button', { 'data-act': 'skip-end', onClick: onSkipEnd }, '直接看結局'), h('button', { 'data-act': 'quit', onClick: onQuit }, '回標題')))),
       h('div', { class: 'progress', role: 'progressbar', 'aria-label': '陪伴的進度' }, refs.prog)),
-    h('main', { class: 'wrap game' },
-      refs.scene,
-      refs.panel,
-      h('div', { class: 'two-col' },
-        h('section', { class: 'paper', 'aria-label': '孩子' }, h('h2', { class: 'sec' }, '孩子'), refs.child),
-        h('section', { class: 'paper', 'aria-label': '你' }, h('h2', { class: 'sec' }, '你'), refs.parent)),
-      h('section', { class: 'paper', 'aria-label': '聯絡簿' }, h('h2', { class: 'sec' }, '聯絡簿'), refs.log)),
+    h('main', { class: 'wrap wide game layout' },
+      h('div', { class: 'side' }, refs.scene, refs.meterBox, refs.logBox),
+      refs.panel),
   );
   return refs;
 }
@@ -108,6 +112,10 @@ const meterRow = (m) => h('div', { class: 'meter' + (m.warn ? ' warn' : ''), rol
 export function renderMeters(refs, mv) {
   refs.child.replaceChildren(...mv.child.map(meterRow));
   refs.parent.replaceChildren(...mv.parent.map(meterRow));
+  // 收合時摘要列直接露出 3 個重點：孩子 2 個、你 1 個（警示的優先）
+  const pick = (arr, n) => [...arr.filter((m) => m.warn), ...arr.filter((m) => !m.warn)].slice(0, n);
+  refs.mini.replaceChildren(...[...pick(mv.child, 2), ...pick(mv.parent, 1)].map((m) =>
+    h('span', { class: 'chip' + (m.warn ? ' warn' : ''), 'aria-label': `${m.label}：${m.word}` }, `${m.label} ${m.word}`)));
 }
 
 /* 面板：卡片 → 劑量表 → 時間流動 */
@@ -184,8 +192,9 @@ export function spark(key, s) {
 
 export function renderEnding(root, e, { seed, onSame, onNew, portrait, album }) {
   const w = e.wellbeing;
-  root.replaceChildren(h('main', { class: 'wrap end stack' },
+  root.replaceChildren(h('main', { class: 'wrap end wide stack' },
     h('header', { class: 'head' }, h('div', { class: 'small muted' }, `陪伴到：${e.to}`), h('h1', null, '你們一起的樣子')),
+    h('div', { class: 'end-top' },
     portrait && h('section', { class: 'paper', id: 'ending-portrait' },
       h('h2', { class: 'sec' }, '全家福'),
       h('figure', { class: 'portrait', html: portrait }),
@@ -194,7 +203,7 @@ export function renderEnding(root, e, { seed, onSame, onNew, portrait, album }) 
       h('h2', { class: 'sec' }, '你們一起的幸福'),
       h('p', { class: 'big' }, e.line),
       e.lines.filter((l) => l.facet === '親子' || l.facet === '人際').map((l) => h('p', { class: 'small' }, l.text)),
-      bar3(`${e.name}`, w.child, wbWord(w.child)), bar3('你', w.parent, wbWord(w.parent)), bar3('你們之間', w.between, wbWord(w.between))),
+      bar3(`${e.name}`, w.child, wbWord(w.child)), bar3('你', w.parent, wbWord(w.parent)), bar3('你們之間', w.between, wbWord(w.between)))),
     h('section', { class: 'paper', id: 'ending-growth' },
       h('h2', { class: 'sec' }, '你也重新長大了一次'),
       e.growth.lines.length > 0

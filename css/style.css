@@ -94,21 +94,41 @@ ul, ol { padding-left: 20px; }
 .seg button:first-child { border-left: 0; }
 .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 
-/* 遊戲畫面 */
+/* 開場狀態視窗（像素框、標籤／數值格；≥900 肖像與視窗並排、不用捲，<768 單欄） */
+.intro { padding-block: 16px 24px; }
+.intro-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.intro .portrait { border: 3px solid var(--ink); border-radius: 2px; box-shadow: inset 0 0 0 2px var(--card), 0 0 0 2px var(--line); background: var(--card); }
+.intro .portrait svg.scene { max-height: 260px; image-rendering: pixelated; }
+.status-win { border: 4px solid var(--ink); border-radius: 3px; background: var(--card); padding: 12px 16px 14px; box-shadow: inset 0 0 0 3px var(--card), inset 0 0 0 5px var(--accent), 0 0 0 2px var(--line); }
+.sw-grid { display: grid; gap: 8px 22px; grid-template-columns: minmax(0, 1fr); }
+.sw-sec h2 { font-size: 14px; letter-spacing: .3em; color: var(--accent); margin: 0 0 2px; padding-bottom: 2px; border-bottom: 2px dotted var(--line); }
+.sw-sec dl { margin: 0; }
+.sw-row { display: grid; grid-template-columns: 8.2em minmax(0, 1fr); gap: 8px; font-size: 14px; line-height: 1.5; padding: 1px 0; }
+.sw-row dt { color: var(--muted); } .sw-row dd { margin: 0; font-weight: 600; }
+.flavour { text-align: center; margin: 14px 0 10px; font-weight: 600; }
+.intro .actions { margin: 0 auto 8px; display: grid; max-width: 340px; }
+.intro > .small { text-align: center; }
+@media (min-width: 640px) { .sw-grid { grid-template-columns: 1fr 1fr; } .sw-sec:nth-child(4) { grid-column: 1 / -1; } .sw-sec:nth-child(4) dl { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; } .sw-sec:nth-child(1) { grid-column: 1; grid-row: 1; } .sw-sec:nth-child(2) { grid-column: 2; grid-row: 1 / span 3; } .sw-sec:nth-child(3) { grid-column: 1; grid-row: 2; } .sw-sec:nth-child(5) { grid-column: 1; grid-row: 3; } .sw-sec:nth-child(4) { grid-row: 4; } }
+@media (min-width: 900px) { .intro-grid { grid-template-columns: minmax(0, 36fr) minmax(0, 64fr); } .intro { padding-block: 24px; } }
+@media (max-width: 639px) { .intro .portrait svg.scene { max-height: 160px; } .sw-row { grid-template-columns: 7.6em minmax(0, 1fr); } }
+
+/* 遊戲畫面（版面參考 47wan：≥900 兩欄、重點不用捲；768–899 兩欄窄一點；<768 單欄：場景橫幅 → 卡片 → 選項 → 收合的數值） */
+.wrap.wide { max-width: 1100px; }
 .topbar { position: sticky; top: 0; z-index: 30; background: var(--bg); border-bottom: 1px solid var(--line); }
-.bar { display: flex; align-items: center; gap: 8px; padding-top: 4px; padding-bottom: 4px; justify-content: space-between; }
+.bar { display: flex; align-items: center; gap: 8px; padding-top: 4px; padding-bottom: 4px; justify-content: space-between; flex-wrap: wrap; }
 .date { font-size: 16px; font-weight: 700; line-height: 1.3; min-width: 0; flex: 1 1 auto; }
-.tools { gap: 6px; justify-content: flex-start; padding-top: 0; }
+.ctrls { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tools { display: flex; gap: 6px; }
 .tools button { border: 1px solid var(--line); background: var(--card); border-radius: 8px; min-height: 36px; padding: 2px 10px; font-size: 13px; font-weight: 600; }
 .tools button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .progress { height: 4px; background: var(--line); }
 .progress i { display: block; height: 100%; background: var(--accent); width: 0; transition: width .4s; }
-.game { padding-block: 12px 40px; display: grid; gap: 12px; }
-.two-col { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 560px) { .two-col { grid-template-columns: 1fr 1fr; } }
+.layout { padding-block: 12px 32px; display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.side { display: contents; }
+.side > .scene-box { order: 1; } .layout > .panel { order: 2; } .side > .meter-box { order: 3; } .side > .log-box { order: 4; }
 .sec { font-size: 15px; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
 .panel .eyebrow { font-size: 13px; color: var(--muted); }
-.panel h2 { font-size: 21px; margin: 2px 0 8px; }
+.panel h2 { font-size: 21px; margin: 2px 0 8px; line-height: 1.35; }
 .panel .body { margin-bottom: 14px; }
 .panel .time { font-size: 18px; font-weight: 700; }
 .picked-label { font-weight: 700; margin: 4px 0 8px; }
@@ -121,6 +141,47 @@ ul, ol { padding-left: 20px; }
 .choice.picked { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 .tick { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin: 12px 0; }
 .tick i { display: block; height: 100%; width: 0; background: var(--accent); }
+.meter-box, .log-box { padding: 10px 14px; }
+.meter-box summary, .log-box summary { cursor: pointer; font-weight: 700; color: var(--muted); font-size: 15px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.meter-box[open] summary { margin-bottom: 8px; }
+.meter-box[open] .mini { display: none; }
+.mini { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font-size: 12px; font-weight: 600; padding: 0 8px; border-radius: 99px; background: var(--chip-good); color: var(--ink); line-height: 1.7; }
+.chip.warn { background: var(--chip-bad); }
+.log-box[open] summary { margin-bottom: 6px; }
+.log-box .log { max-height: 140px; overflow-y: auto; }
+@media (min-width: 768px) {
+  .layout { grid-template-columns: minmax(0, 38fr) minmax(0, 62fr); gap: 14px; padding-block: 12px 20px; align-items: start; }
+  .side { display: flex; flex-direction: column; gap: 10px; }
+  .side > .scene-box { margin-bottom: 0; }
+  .layout > .panel { order: 0; }
+  .meter-box summary { pointer-events: none; cursor: default; }
+  .meter-box summary .sum-t { display: none; }
+  .meter-box > section + section { margin-top: 6px; }
+  .meter-box .sec { margin-bottom: 4px; font-size: 13px; }
+  .meter-box .meters { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .meter { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "l w" "b b"; gap: 2px 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 4px 10px 6px; font-size: 13px; }
+  .meter .ml { grid-area: l; color: var(--muted); } .meter .mw { grid-area: w; white-space: nowrap; font-weight: 700; color: var(--ink); } .meter .mb { grid-area: b; height: 6px; }
+  .meter.warn .mw { color: var(--bad); }
+}
+@media (min-width: 900px) {
+  .panel.paper { padding: 14px 18px; }
+  .panel h2 { font-size: 22px; margin: 0 0 6px; }
+  .panel .body { margin-bottom: 10px; line-height: 1.6; font-size: 15.5px; }
+  .choices { gap: 6px; }
+  .choice { padding: 7px 14px; min-height: 40px; }
+  .dosebox { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
+  .dosebox .dperiod, .dosebox > p { grid-column: 1 / -1; }
+}
+@media (max-width: 767px) {
+  .scene-box svg.scene { max-height: 160px; }
+  .bar { padding-top: 2px; padding-bottom: 2px; }
+  .ctrls { display: contents; }
+  .tools { order: 3; width: 100%; }
+  .tools button { flex: 1; min-height: 32px; }
+  .layout { padding-block: 8px 32px; gap: 10px; }
+  .meter-box:not([open]) summary { margin: 0; }
+}
 
 /* 數值條：長條 + 一個字，不顯示數字 */
 .meters { display: grid; gap: 6px; }
@@ -147,6 +208,8 @@ ul, ol { padding-left: 20px; }
 
 /* 終局 */
 .end { padding-block: 24px 60px; }
+.end-top { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 768px) { .end-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .end .head { padding: 0; } .end { padding-block: 12px 40px; } }
 .end .head { text-align: center; padding: 8px 0 8px; }
 .end .head h1 { font-size: 26px; margin-top: 4px; }
 .big { font-size: 18px; font-weight: 600; margin-bottom: 10px; }
@@ -170,7 +233,7 @@ ul, ol { padding-left: 20px; }
 
 /* 像素家庭場景（DESIGN §8.5）：色彩全用 --sc-* 變數（上面淺色／深色各一組）；沒有閃動，淡入只在使用者沒要求減少動態時才有 */
 .scene-box { margin: 0 0 12px; padding: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--card); box-shadow: var(--shadow); line-height: 0; }
-.scene-box svg.scene { display: block; width: 100%; height: auto; max-width: 100%; image-rendering: pixelated; }
+.scene-box svg.scene { display: block; width: 100%; height: auto; max-width: 100%; max-height: 280px; image-rendering: pixelated; }
 @media (prefers-reduced-motion: no-preference) { .scene-box svg.scene { animation: sc-fade .3s ease-out; } }
 @keyframes sc-fade { from { opacity: .55; } to { opacity: 1; } }
 .portrait { margin: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; line-height: 0; }

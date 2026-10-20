@@ -59,9 +59,8 @@ try {
   if (shots) { // 從國小開始的一回合
     const page = await browser.newPage({ viewport: { width: 360, height: 900 } });
     await page.goto(`http://localhost:${port}/?seed=11&ms=100`);
-    await page.click('[data-act="new"]'); await page.click('[data-v="elementary"]'); await page.click('[data-act="start"]');
+    await page.click('[data-act="new"]'); await page.click('[data-act="start"]');
     await page.waitForSelector('#scene svg');
-    assert.ok(/國小|小/.test(await page.getAttribute('#scene svg', 'aria-label')));
     await page.evaluate(() => window.scrollTo(0, 0)); await page.screenshot({ path: join(shots, '2-elementary.png') });
     await page.close();
   }

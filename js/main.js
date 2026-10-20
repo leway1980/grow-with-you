@@ -4,11 +4,11 @@
 import { mergeData, manifestFiles } from './engine/dataload.js';
 import { prepareData, playableEnd, startTurn, chooseCard, nextCard, finishTurn } from './engine/turn.js';
 import { newState, writeSave, readSave, store } from './engine/state.js';
-import { openingText, childcareText } from './engine/family.js';
 import { buildEnding } from './engine/ending.js';
 import { selfChoice, playRestAuto } from './engine/auto.js';
 import { meterView } from './engine/dose.js';
 import { sceneSpec, sceneSVG, albumSpecs } from './engine/scene.js';
+import { introSections, rollRole } from './intro.js';
 import * as ui from './ui.js';
 
 const root = document.getElementById('app');
@@ -66,19 +66,17 @@ function previewHref() {
 }
 const newOpts = (o) => ({ ...o, preview: PREVIEW });
 
-let introRole = '爸爸', introMode = 'birth';
+// 開場：爸爸或媽媽也是骰子（只由種子決定）；UI 一律從出生開始（引擎的國小起點留給測試與工具）
 function showIntro(seed) {
-  const draftFam = newState(seed, data, newOpts({ role: introRole, startMode: introMode })).family;
-  const paras = openingText(draftFam, introRole);
-  if (introMode === 'elementary') paras.push(childcareText(draftFam));
-  const f = draftFam;
+  const role = rollRole(seed);
+  const draft = newState(seed, data, newOpts({ role, startMode: 'birth' }));
+  const tl = data.timeline[draft.turn] || data.timeline[0];
   ui.renderIntro(root, {
-    paras, seed, role: introRole, startMode: introMode,
-    tags: [f.county + f.district, f.urban, f.econ, f.pattern, f.structure === '雙親' ? '雙親家庭' : f.structure],
-    onRole: (v) => { introRole = v; showIntro(seed); },
-    onMode: (v) => { introMode = v; showIntro(seed); },
-    onStart: () => startGame(newState(seed, data, newOpts({ role: introRole, startMode: introMode }))),
-    onReroll: () => showIntro(newSeed()),
+    sections: introSections(draft.family, role), role,
+    portrait: sceneSVG(sceneSpec(draft, data, tl, { portrait: true })),
+    flavour: `接下來要陪${draft.family.child.pronoun}長大了。`,
+    seed,
+    onStart: () => startGame(newState(seed, data, newOpts({ role, startMode: 'birth' }))),
   });
 }
 
@@ -201,7 +199,7 @@ function showEnding() {
   const album = albumSpecs(st, data).map((a) => ({ label: a.label, svg: sceneSVG(a) }));
   ui.renderEnding(root, e, {
     seed, portrait, album,
-    onSame: () => { introRole = role; introMode = mode; startGame(newState(seed, data, newOpts({ role, startMode: mode }))); },
+    onSame: () => { startGame(newState(seed, data, newOpts({ role, startMode: mode }))); },
     onNew: () => showIntro(newSeed()),
   });
   window.scrollTo(0, 0);
