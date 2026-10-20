@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadData, loadRaw } from '../tools/data-node.mjs';
 import { newState } from '../js/engine/state.js';
-import { startTurn, chooseCard, nextCard, finishTurn, playTurn } from '../js/engine/turn.js';
+import { startTurn, chooseCard, nextCard, finishTurn, playTurn, buildTimeline, gradeName, ageLabel } from '../js/engine/turn.js';
 import { describeCard, buildCtx, poolWeight, applyChoice, slotAvailable, gateNames, choiceCtx, choiceState, applyEffects } from '../js/engine/events.js';
 import { shuffleOrder } from '../js/engine/rng.js';
 import { doseView } from '../js/engine/dose.js';
@@ -378,4 +378,80 @@ test('不敏感的孩子，壓力有時真的把成績撐住；敏感的孩子�
     return st.child.成績;
   };
   assert.ok(run(1) > run(3) + 3 && run(3) > run(5) + 3, `${run(1)} ${run(3)} ${run(5)}`);
+});
+
+
+/* ───── 日曆 v2（A1）：舊 92 回合表達成 v2 後，時間軸要和舊實作逐欄位一致 ───── */
+const LEGACY_CAL = {"totalTurns":92,"playableTurns":56,"stages":[{"id":"嬰幼兒","turns":8,"startMonths":0,"stepMonths":3},{"id":"幼兒園","turns":12,"startMonths":24,"stepMonths":4},{"id":"國小低","grades":[1,2]},{"id":"國小中高","grades":[3,4,5,6]},{"id":"國中","grades":[7,8,9]},{"id":"高中","grades":[10,11,12]}],"segments":[{"name":"開學之後","months":"9–10 月","month":9,"vacation":false},{"name":"期中之後","months":"11–12 月","month":11,"vacation":false},{"name":"寒假前後","months":"1–2 月","month":1,"vacation":true},{"name":"下學期","months":"3–4 月","month":3,"vacation":false},{"name":"期末之前","months":"5–6 月","month":5,"vacation":false},{"name":"暑假","months":"7–8 月","month":7,"vacation":true}],"fixed":[{"turn":1,"event":"fx_leave_end"},{"turn":1,"event":"fx_leave_end_gen"},{"turn":10,"event":"fx_kindergarten"},{"turn":20,"event":"fx_enroll"}],"schoolFixed":[{"grade":[1],"seg":0,"event":"fx_commute"},{"grade":[2,3,4,5,6],"seg":0,"event":"fx_teacher_meet"},{"grade":[1,2,3,4,5,6],"seg":1,"event":"fx_sports_day"},{"grade":[1,2,3,4,5,6],"seg":3,"event":"fx_field_trip"},{"grade":[6],"seg":4,"event":"fx_graduation"}]};
+function legacyTimeline(cal) { // A1 之前的 buildTimeline（凍結的參考實作）
+  const tl = [];
+  for (const s of cal.stages) {
+    if (s.turns) {
+      for (let i = 0; i < s.turns; i++) {
+        const ageMonths = s.startMonths + i * s.stepMonths;
+        tl.push({ turn: tl.length, stage: s.id, ageMonths, grade: 0, seg: -1, vacation: false, month: null, label: ageLabel(ageMonths), fixed: [] });
+      }
+    } else {
+      for (const g of s.grades) cal.segments.forEach((seg, k) => {
+        tl.push({ turn: tl.length, stage: s.id, ageMonths: 72 + (g - 1) * 12 + k * 2, grade: g, seg: k, vacation: seg.vacation, month: seg.month, label: `${gradeName(g)}・${seg.name}`, months: seg.months, fixed: [] });
+      });
+    }
+  }
+  for (const f of cal.fixed) tl[f.turn].fixed.push(f.event);
+  for (const f of cal.schoolFixed) for (const t of tl) if (t.grade && f.grade.includes(t.grade) && t.seg === f.seg) t.fixed.push(f.event);
+  return tl;
+}
+
+test('日曆 v2：目前的 92 回合表和舊實作逐回合逐欄位一致（只多 newAge）', () => {
+  const oldTl = legacyTimeline(LEGACY_CAL), newTl = buildTimeline(data.calendar);
+  assert.equal(data.calendar.totalTurns, 92); assert.equal(data.calendar.playableTurns, 56);
+  assert.equal(newTl.length, oldTl.length);
+  for (let i = 0; i < oldTl.length; i++) {
+    const { newAge, ...rest } = newTl[i];
+    assert.equal(typeof newAge, 'boolean');
+    assert.deepEqual(rest, oldTl[i], `回合 ${i}`);
+  }
+  assert.deepEqual(newTl.filter((t) => t.fixed.length).map((t) => [t.turn, t.fixed]), oldTl.filter((t) => t.fixed.length).map((t) => [t.turn, t.fixed]));
+});
+
+test('日曆 v2：newAge 只標在每個新的一歲的第一回合', () => {
+  const tl = buildTimeline(data.calendar);
+  assert.equal(tl[0].newAge, false);
+  for (let i = 1; i < tl.length; i++) assert.equal(tl[i].newAge, Math.floor(tl[i].ageMonths / 12) > Math.floor(tl[i - 1].ageMonths / 12), `回合 ${i}`);
+  assert.equal(tl.filter((t) => t.newAge).length, 17); // 1–17 歲各一次
+});
+
+const MINI = () => ({
+  totalTurns: 0, playableTurns: 0,
+  segmentSets: {
+    甲3: [{ name: '開學', month: 9 }, { name: '年中', month: 12 }, { name: '暑假', month: 6, vacation: true }],
+    乙2: [{ name: '上', month: 10 }, { name: '下', month: 3 }],
+  },
+  stages: [
+    { id: '幼', turns: 4, startMonths: 0, stepMonths: 6 },
+    { id: '小', grades: [{ g: 1, segs: '甲3' }, { g: 2, segs: '乙2' }] },
+  ],
+  fixed: [], schoolFixed: [], flavor: {},
+});
+const mini = (patch) => { const c = { ...MINI(), ...patch }; c.totalTurns = 4 + 3 + 2; return c; };
+
+test('日曆 v2：段落組、月份算月齡；atMonths 取第一個月齡 ≥ 該值的回合；at:{stage,i} 取該階段第 i 回合', () => {
+  const tl = buildTimeline(mini({ fixed: [{ atMonths: 7, event: 'a' }, { atMonths: 12, event: 'b' }, { atMonths: 73, event: 'c' }, { at: { stage: '小', i: 0 }, event: 'd' }, { at: { stage: '小', i: 4 }, event: 'e' }] }));
+  assert.deepEqual(tl.map((t) => t.ageMonths), [0, 6, 12, 18, 72, 75, 81, 85, 90]); // 甲3：9→+0、12→+3、6→+9；乙2：10→+1、3→+6
+  assert.deepEqual(tl[2].fixed, ['a', 'b']);    // 7 → 第一個 ≥7 的是 12；12 剛好 ≥ 12
+  assert.deepEqual(tl[5].fixed, ['c']);         // 73 → 75
+  assert.deepEqual(tl[4].fixed, ['d']);
+  assert.deepEqual(tl[8].fixed, ['e']);
+  assert.throws(() => buildTimeline(mini({ fixed: [{ at: { stage: '小', i: 9 }, event: 'x' }] })), /沒有第 9 回合/);
+  assert.throws(() => buildTimeline(mini({ fixed: [{ atMonths: 999, event: 'x' }] })), /找不到/);
+});
+
+test('日曆 v2：schoolFixed 用段名找段，不同年級用不同段落組也對；找不到的名字要報錯', () => {
+  const tl = buildTimeline(mini({ schoolFixed: [{ grade: [1, 2], seg: '暑假', event: 'sum' }, { grade: [1, 2], seg: '下', event: 'low' }, { grade: [2], seg: '上', event: 'up' }] }));
+  const at = (ev) => tl.filter((t) => t.fixed.includes(ev)).map((t) => [t.grade, t.seg]);
+  assert.deepEqual(at('sum'), [[1, 2]]);        // 只有甲3 有「暑假」，二年級用乙2 沒有
+  assert.deepEqual(at('low'), [[2, 1]]);
+  assert.deepEqual(at('up'), [[2, 0]]);
+  assert.throws(() => buildTimeline(mini({ schoolFixed: [{ grade: [1], seg: '不存在', event: 'x' }] })), /不存在|沒有叫/);
+  assert.equal(tl.find((t) => t.grade === 1 && t.seg === 2).vacation, true);
 });

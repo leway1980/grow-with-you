@@ -1,4 +1,4 @@
-// 回合流程：資料整備、日曆（92 回合）、開始／選擇／結束回合。純函式、無 DOM。
+// 回合流程：資料整備、日曆（v2 schema）、開始／選擇／結束回合。純函式、無 DOM。
 // 沿用《高中，只有一次》(leway1980/Game 47wan @ ce1d972) turn.js 的結構（prepareData、startTurn/chooseCard/finishTurn、playToEnd），
 // 改為：每回合一張卡、學前節奏較快、固定事件＋延遲後續卡＋兩段式抽卡，並在每回合結束記錄隱藏曲線給結局用。
 import { stateRng, rngAt } from './rng.js';
@@ -21,26 +21,58 @@ export function ageLabel(m) {
   return mm ? `${y} 歲 ${mm} 個月` : `${y} 歲`;
 }
 
+/**
+ * 日曆 v2：stages 有兩種——定長（turns＋startMonths＋stepMonths）和學年（grades:[{g, segs}]，segs 是 segmentSets 的名字）。
+ * 學年內每段的月齡 = 72 + (g-1)·12 + ((month-9+12)%12)（9 月開學）。
+ * fixed：{atMonths, event}（第一個 ageMonths ≥ 該值的回合）或 {at:{stage, i}, event}（該階段第 i 回合）。
+ * schoolFixed：{grade:[…], seg:'段名', event}，段用名字找，不用序號。
+ * tl.newAge：該回合是新的一歲（floor(ageMonths/12) 與前一回合不同）。
+ */
 export function buildTimeline(cal) {
   const tl = [];
+  const stageStart = {}, segNameAt = [];
   for (const s of cal.stages) {
+    stageStart[s.id] = tl.length;
     if (s.turns) {
       for (let i = 0; i < s.turns; i++) {
         const ageMonths = s.startMonths + i * s.stepMonths;
-        tl.push({ turn: tl.length, stage: s.id, ageMonths, grade: 0, seg: -1, vacation: false, month: null, label: ageLabel(ageMonths), fixed: [] });
+        tl.push({ turn: tl.length, stage: s.id, ageMonths, grade: 0, seg: -1, vacation: false, month: null, label: (s.labels && s.labels[i]) || ageLabel(ageMonths), fixed: [] });
       }
     } else {
-      for (const g of s.grades) {
-        cal.segments.forEach((seg, k) => {
-          const ageMonths = 72 + (g - 1) * 12 + k * 2;
-          tl.push({ turn: tl.length, stage: s.id, ageMonths, grade: g, seg: k, vacation: seg.vacation, month: seg.month, label: `${gradeName(g)}・${seg.name}`, months: seg.months, fixed: [] });
+      for (const { g, segs } of s.grades) {
+        const set = cal.segmentSets[segs];
+        if (!set) throw new Error(`日曆：年級 ${g} 的段落組「${segs}」不存在`);
+        set.forEach((seg, k) => {
+          const ageMonths = 72 + (g - 1) * 12 + ((seg.month - 9 + 12) % 12);
+          const t = { turn: tl.length, stage: s.id, ageMonths, grade: g, seg: k, vacation: !!seg.vacation, month: seg.month, label: `${gradeName(g)}・${seg.name}`, fixed: [] };
+          if (seg.months) t.months = seg.months;
+          segNameAt[t.turn] = seg.name;
+          tl.push(t);
         });
       }
     }
+    stageStart[s.id + '#end'] = tl.length;
   }
   if (tl.length !== cal.totalTurns) throw new Error(`日曆回合數不對：${tl.length} ≠ ${cal.totalTurns}`);
-  for (const f of cal.fixed) tl[f.turn].fixed.push(f.event);
-  for (const f of cal.schoolFixed) for (const t of tl) if (t.grade && f.grade.includes(t.grade) && t.seg === f.seg) t.fixed.push(f.event);
+  tl.forEach((t, i) => { t.newAge = i > 0 && Math.floor(t.ageMonths / 12) !== Math.floor(tl[i - 1].ageMonths / 12); });
+  for (const f of cal.fixed) {
+    let at;
+    if (f.at) {
+      const lo = stageStart[f.at.stage];
+      if (lo === undefined) throw new Error(`日曆 fixed：階段「${f.at.stage}」不存在`);
+      at = lo + f.at.i;
+      if (at >= stageStart[f.at.stage + '#end']) throw new Error(`日曆 fixed：階段「${f.at.stage}」沒有第 ${f.at.i} 回合`);
+    } else if (f.atMonths !== undefined) {
+      at = tl.findIndex((t) => t.ageMonths >= f.atMonths);
+      if (at < 0) throw new Error(`日曆 fixed：找不到 ≥ ${f.atMonths} 個月的回合`);
+    } else throw new Error('日曆 fixed：要有 atMonths 或 at');
+    tl[at].fixed.push(f.event);
+  }
+  const segNames = new Set(Object.values(cal.segmentSets).flat().map((x) => x.name));
+  for (const f of cal.schoolFixed) {
+    if (!segNames.has(f.seg)) throw new Error(`日曆 schoolFixed：沒有叫「${f.seg}」的段`);
+    for (const t of tl) if (t.grade && f.grade.includes(t.grade) && segNameAt[t.turn] === f.seg) t.fixed.push(f.event);
+  }
   return tl;
 }
 
