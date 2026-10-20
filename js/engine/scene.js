@@ -31,7 +31,7 @@ const NIGHT_POOLS = new Set(['夫妻', '3C', '手機後續', '工作插播', '�
 const MORNING_POOLS = new Set(['上下學']);
 
 const SKINS = ['#f7d9bf', '#efc7a0', '#e2ad84', '#cd9468', '#a86f49'];
-const HAIRS = ['#2a211e', '#35261f', '#46301f', '#1b1818'];
+const HAIRS = ['#4a3226', '#5a3b28', '#6b4a2f', '#3a2a24'];
 const ROLE_OF = { 哥哥: 'sibling', 姐姐: 'sibling', 弟弟: 'sibling', 妹妹: 'sibling' };
 const MALE_REL = new Set(['哥哥', '弟弟']);
 const CLOTHES = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6'];
@@ -212,15 +212,21 @@ export function sceneAlt(spec) {
 const mkGrid = (w = SCENE_W, h = SCENE_H) => Array.from({ length: h }, () => Array(w).fill(null));
 /** 人物、寵物與道具放大 FS 倍（畫在 1/FS 解析度的格子上，再用 scale 放大）：360px 寬的手機上，臉才看得清楚 */
 const FS = 2, FGW = SCENE_W / FS, FGH = SCENE_H / FS, FGFLOOR = FLOOR / FS;
-let GW = SCENE_W, GH = SCENE_H; // 目前畫布大小（相簿用較小的畫布）
-const inb = (x, y) => x >= 0 && x < GW && y >= 0 && y < GH;
-function put(g, x, y, c) { if (c && inb(x, y)) g[y][x] = c; }
+const inb = (g, x, y) => y >= 0 && y < g.length && x >= 0 && x < g[0].length;
+function put(g, x, y, c) { if (c && inb(g, x, y)) g[y][x] = c; }
 function rect(g, x, y, w, h, c) { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(g, x + i, y + j, c); }
+const OUTLINE = '#3b2a24'; // 輪廓：暖褐色、半透明（不是純黑）
 const fillOf = (c) => (c[0] === '#' ? c : `var(--sc-${c})`);
+const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+/** 把十六進位色調暗（輪廓用）；不是十六進位色就原樣回傳 */
+const darker = (h, f) => (h && h[0] === '#' && h.length === 7 ? '#' + hexRgb(h).map((v) => Math.round(v * f).toString(16).padStart(2, '0')).join('') : h);
+/** 頭部另畫在 2 倍解析度的格子上（眼睛、嘴才能是 1px 的小點）；HG 是目前這一張圖的頭部層 */
+const HS = 2;
+let HG = null;
 
 /** 把一層像素格壓成 <rect>：同一列相同顏色連成一條，上下相同的條合併成較高的矩形 */
 function emit(g) {
-  const rects = [];
+  const rects = [], GW = g[0].length, GH = g.length;
   let open = new Map();
   for (let y = 0; y < GH; y++) {
     const next = new Map();
@@ -237,7 +243,15 @@ function emit(g) {
     }
     open = next;
   }
-  return rects.map((r) => `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${fillOf(r.c)}"/>`).join('');
+  return rects.map((r) => `<rect x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" fill="${r.c === 'ol' ? OUTLINE : fillOf(r.c)}"${r.c === 'ol' ? ' fill-opacity=".34"' : ''}/>`).join('');
+}
+/** 身體、道具、寵物的 1px 暗色輪廓：畫在頭部層（2 倍解析度）空著的格子上，貼著前景外緣 */
+function outlinePass(fg, hg) {
+  const occ = (X, Y) => { const x = X >> 1, y = Y >> 1; return y >= 0 && y < fg.length && x >= 0 && x < fg[0].length && !!fg[y][x]; };
+  for (let Y = 0; Y < hg.length; Y++) for (let X = 0; X < hg[0].length; X++) {
+    if (hg[Y][X] || occ(X, Y)) continue;
+    if (occ(X - 1, Y) || occ(X + 1, Y) || occ(X, Y - 1) || occ(X, Y + 1)) hg[Y][X] = 'ol';
+  }
 }
 
 /* ───────────── 人物 ───────────── */
@@ -245,30 +259,50 @@ const SIZE = {
   幼兒: { tw: 4, tr: 3, lg: 2 }, 國小: { tw: 5, tr: 4, lg: 3 }, 國中: { tw: 6, tr: 5, lg: 4 }, 高中: { tw: 6, tr: 5, lg: 5 },
   離家: { tw: 6, tr: 6, lg: 5 }, adult: { tw: 6, tr: 6, lg: 5 }, elder: { tw: 6, tr: 5, lg: 4 },
 };
-const MOUTH = {
-  happy: [[1, 4], [3, 4], [2, 5]], sad: [[2, 4], [1, 5], [3, 5]], neutral: [[1, 5], [2, 5], [3, 5]],
+/** 頭（10×12 的 2 倍解析度格子，圓角）：小圓眼、小彎嘴、淡腮紅、旁分瀏海；lx、ly 是半解析度座標 */
+const HEAD_SPAN = [[2, 7], [1, 8], [0, 9], [0, 9], [0, 9], [0, 9], [0, 9], [0, 9], [0, 9], [0, 9], [1, 8], [2, 7]];
+const MOUTHS = {
+  happy: [[3, 9], [4, 10], [5, 10], [6, 9]], neutral: [[4, 10], [5, 10]], sad: [[3, 10], [4, 9], [5, 9], [6, 10]],
+  droop: [[3, 11], [4, 10], [5, 10], [6, 11]],
 };
-
-function drawHead(g, x0, y0, o) {
-  rect(g, x0, y0, 5, 6, o.skin);
-  const hc = o.hairC, st = o.hair;
-  if (st === 'bald') { put(g, x0, y0 + 1, hc); put(g, x0 + 4, y0 + 1, hc); put(g, x0, y0 + 2, hc); put(g, x0 + 4, y0 + 2, hc); } else {
-    rect(g, x0, y0, 5, 1, hc);
-    if (st === 'fringe' || st === 'pony') rect(g, x0, y0 + 1, 5, 1, hc); else { put(g, x0, y0 + 1, hc); put(g, x0 + 4, y0 + 1, hc); }
-    if (st === 'long') for (let r = 2; r <= 7; r++) { put(g, x0, y0 + r, hc); put(g, x0 + 4, y0 + r, hc); }
-    if (st === 'pony') for (let r = 1; r <= 4; r++) put(g, x0 + 5, y0 + r, hc);
-    if (st === 'bun') rect(g, x0 + 1, y0 - 1, 3, 1, hc);
+function drawHead(lx, ly, o) {
+  const g = HG, ox = lx * HS, oy = ly * HS;
+  const P = (x, y, c) => put(g, ox + x, oy + y, c);
+  const inSp = (x, y) => y >= 0 && y < 12 && x >= HEAD_SPAN[y][0] && x <= HEAD_SPAN[y][1];
+  const skin = o.skin, edge = darker(skin, 0.8);
+  const hc = o.hairC === 'grey' ? '#d6d1c8' : o.hairC, hline = darker(hc, 0.8), st = o.hair;
+  for (let y = 0; y < 12; y++) for (let x = HEAD_SPAN[y][0]; x <= HEAD_SPAN[y][1]; x++) P(x, y, inSp(x - 1, y) && inSp(x + 1, y) && inSp(x, y - 1) && inSp(x, y + 1) ? skin : edge);
+  // 頭髮：頂部整片，瀏海旁分（中間留一條縫），長髮／馬尾／包頭另外加
+  const H = (x0, x1, y) => { for (let x = x0; x <= x1; x++) P(x, y, hc); };
+  if (st === 'bald') { P(0, 3, hc); P(9, 3, hc); H(0, 0, 4); H(9, 9, 4); H(0, 0, 5); H(9, 9, 5); } else {
+    for (let y = 0; y <= 3; y++) H(HEAD_SPAN[y][0], HEAD_SPAN[y][1], y);
+    if (st === 'fringe' || st === 'pony') { H(0, 4, 4); H(6, 9, 4); P(5, 4, hc); H(0, 0, 5); H(9, 9, 5); } else { H(0, 3, 4); H(6, 9, 4); H(0, 0, 5); H(9, 9, 5); }
+    if (st === 'long') for (let y = 5; y <= 11; y++) { P(0, y, hc); P(9, y, hc); if (y >= 6) { P(-1, y, hc); P(10, y, hc); } }
+    if (st === 'pony') { for (let y = 3; y <= 9; y++) P(10, y, hc); for (let y = 5; y <= 10; y++) P(11, y, hc); P(10, 4, 'c6'); P(10, 5, 'c6'); }
+    if (st === 'bun') { H(3, 6, -3); H(2, 7, -2); H(2, 7, -1); H(3, 6, 0); }
+    P(0, 2, hline); P(9, 2, hline);
   }
-  if (o.cap) { rect(g, x0 + 1, y0 - 1, 3, 1, 'cap'); rect(g, x0, y0, 5, 1, 'cap'); rect(g, x0, y0 + 1, 5, 1, 'cap2'); }
-  // 眼睛（沒睡飽：下面有黑眼圈）
-  put(g, x0 + 1, y0 + 2, 'ink'); put(g, x0 + 3, y0 + 2, 'ink');
-  if (o.glasses) { put(g, x0, y0 + 2, 'rim'); put(g, x0 + 2, y0 + 2, 'rim'); put(g, x0 + 4, y0 + 2, 'rim'); put(g, x0 + 1, y0 + 1, 'rim'); put(g, x0 + 3, y0 + 1, 'rim'); put(g, x0 + 1, y0 + 3, 'rim'); put(g, x0 + 3, y0 + 3, 'rim'); }
-  if (o.tired && !o.glasses) { put(g, x0 + 1, y0 + 3, 'bag'); put(g, x0 + 3, y0 + 3, 'bag'); }
-  if (o.tired && o.glasses) { put(g, x0 + 1, y0 + 2, 'lid'); put(g, x0 + 3, y0 + 2, 'lid'); }
-  for (const [mx, my] of MOUTH[o.mood || 'neutral']) put(g, x0 + mx, y0 + my, 'mouth');
-  if (o.braces) put(g, x0 + 2, y0 + 5, 'metal');
-  if (o.sick) { rect(g, x0 + 1, y0 + 3, 3, 3, 'mask'); put(g, x0, y0 + 4, 'mask'); put(g, x0 + 4, y0 + 4, 'mask'); }
+  if (o.cap) { for (let y = 0; y <= 2; y++) H2(g, ox + HEAD_SPAN[y][0], ox + HEAD_SPAN[y][1], oy + y, 'cap'); H2(g, ox - 1, ox + 10, oy + 3, 'cap2'); P(-1, 4, 'cap2'); P(10, 4, 'cap2'); }
+  const eye = 'eye';
+  const brow = darker(hc, 0.85);
+  // 眼睛：1×2 的小點、放在臉的中下方；沒睡飽的眼睛下面有一條淡紫灰的眼袋
+  P(2, 7, eye); P(2, 8, eye); P(7, 7, eye); P(7, 8, eye);
+  if (o.mood === 'sad') { P(1, 6, brow); P(2, 6, brow); P(3, 5, brow); P(6, 5, brow); P(7, 6, brow); P(8, 6, brow); }
+  if (o.glasses) {
+    for (const x0 of [1, 6]) { H3(P, x0, x0 + 2, 6, 'rim'); H3(P, x0, x0 + 2, 9, 'rim'); P(x0, 7, 'rim'); P(x0, 8, 'rim'); P(x0 + 2, 7, 'rim'); P(x0 + 2, 8, 'rim'); }
+    P(4, 7, 'rim'); P(5, 7, 'rim');
+  }
+  const happy = o.mood === 'happy' && !o.tired && !o.sick;
+  if (o.tired) { if (o.glasses) { P(2, 10, 'bags'); P(7, 10, 'bags'); } else { P(1, 9, 'bags'); P(2, 9, 'bags'); P(7, 9, 'bags'); P(8, 9, 'bags'); } }
+  // 嘴：淡玫瑰褐的小彎線；開心才有腮紅
+  const mood = o.mood === 'sad' ? 'sad' : o.tired ? 'droop' : o.mood === 'happy' ? 'happy' : 'neutral';
+  for (const [mx, my] of MOUTHS[mood]) P(mx, my, 'mouth');
+  if (happy && !o.glasses) { H3(P, 1, 2, 9, 'blush'); H3(P, 7, 8, 9, 'blush'); }
+  if (o.braces && mood === 'happy') { P(4, 10, 'metal'); P(5, 10, 'metal'); }
+  if (o.sick) { for (let y = 9; y <= 11; y++) for (let x = HEAD_SPAN[y][0]; x <= HEAD_SPAN[y][1]; x++) P(x, y, 'mask'); P(0, 9, 'mask'); P(9, 9, 'mask'); P(0, 8, 'mask'); P(9, 8, 'mask'); }
 }
+function H2(g, x0, x1, y, c) { for (let x = x0; x <= x1; x++) put(g, x, y, c); }
+function H3(P, x0, x1, y, c) { for (let x = x0; x <= x1; x++) P(x, y, c); }
 
 function drawPerson(g, cx, fy, o) {
   const S = SIZE[o.stage === 'elder' ? 'elder' : o.stage === 'adult' ? 'adult' : o.stage];
@@ -307,7 +341,7 @@ function drawPerson(g, cx, fy, o) {
   if (o.phone) { rect(g, tx + tw + 1, ty + tr - 3, 1, 2, 'phone'); put(g, tx + tw + 1, ty + tr - 3, 'screen'); }
   // 頭（駝背：頭下沉並往前）
   const hx = o.stoop ? x0 + 1 : x0, hy = ty - 6 + (o.stoop ? 1 : 0);
-  drawHead(g, hx, hy, { ...o, cap: o.school });
+  drawHead(hx, hy, { ...o, cap: o.school });
   // 離家的行李箱
   if (o.suitcase) {
     const sx = tx + tw + 2, sy = fy - 7;
@@ -317,23 +351,30 @@ function drawPerson(g, cx, fy, o) {
   return { top: hy, tx, ty, tw, tr };
 }
 
-function drawBabyHead(g, x0, y0, o) {
-  rect(g, x0, y0, 5, 4, o.skin);
-  rect(g, x0 + 1, y0, 3, 1, o.hairC);
-  const eye = o.tired ? 'lid' : 'ink';
-  put(g, x0 + 1, y0 + 1, eye); put(g, x0 + 3, y0 + 1, eye);
-  const mouth = o.mood === 'happy' ? [[1, 2], [3, 2], [2, 3]] : o.mood === 'sad' ? [[2, 2], [1, 3], [3, 3]] : [[2, 3]];
-  for (const [mx, my] of mouth) put(g, x0 + mx, y0 + my, 'mouth');
-  if (o.sick) { put(g, x0, y0 + 2, 'blush'); put(g, x0 + 4, y0 + 2, 'blush'); }
+/** 睡著的圓臉寶寶（10×9 的 2 倍解析度）：閉眼的「︶ ︶」、小嘴、淡腮紅；lx、ly 是左上角（頭部層座標） */
+const BABY_SPAN = [[2, 7], [1, 8], [0, 9], [0, 9], [0, 9], [0, 9], [0, 9], [1, 8], [2, 7]];
+function drawBabyFace(hx, hy, o) {
+  const g = HG, P = (x, y, c) => put(g, hx + x, hy + y, c);
+  const inSp = (x, y) => y >= 0 && y < 9 && x >= BABY_SPAN[y][0] && x <= BABY_SPAN[y][1];
+  const edge = darker(o.skin, 0.8);
+  for (let y = 0; y < 9; y++) for (let x = BABY_SPAN[y][0]; x <= BABY_SPAN[y][1]; x++) P(x, y, inSp(x - 1, y) && inSp(x + 1, y) && inSp(x, y - 1) && inSp(x, y + 1) ? o.skin : edge);
+  const hc = o.hairC === 'grey' ? '#d6d1c8' : o.hairC;
+  for (let x = 3; x <= 6; x++) P(x, 0, hc); for (let x = 2; x <= 7; x++) P(x, 1, hc); P(4, -1, hc); P(5, -1, hc);
+  for (const x0 of [1, 6]) { P(x0, 3, 'eye'); P(x0 + 1, 4, 'eye'); P(x0 + 2, 3, 'eye'); } // ︶
+  const sick = !!o.sick;
+  P(1, 5, sick ? '#ec9a92' : 'blush'); P(2, 5, sick ? '#ec9a92' : 'blush'); P(7, 5, sick ? '#ec9a92' : 'blush'); P(8, 5, sick ? '#ec9a92' : 'blush');
+  if (o.mood === 'sad') { P(4, 6, 'mouth'); P(5, 6, 'mouth'); P(3, 7, 'mouth'); P(6, 7, 'mouth'); } else if (o.mood === 'happy') { P(3, 6, 'mouth'); P(4, 7, 'mouth'); P(5, 7, 'mouth'); P(6, 6, 'mouth'); } else { P(4, 6, 'mouth'); P(5, 6, 'mouth'); }
 }
 
-/** 嬰兒床（寬 12）：孩子或剛出生的弟妹睡在裡面 */
+/** 嬰兒床（寬 12）：孩子或剛出生的弟妹睡在裡面——圓圓的睡臉靠在小枕頭上，毯子蓋住身體 */
 function drawCrib(g, cx, fy, o) {
   const x = cx - 6;
-  rect(g, x, fy - 9, 12, 1, 'wood'); rect(g, x, fy - 2, 12, 1, 'wood'); rect(g, x, fy - 1, 1, 1, 'wood2'); rect(g, x + 11, fy - 1, 1, 1, 'wood2');
-  for (let i = 0; i < 12; i += 2) rect(g, x + i, fy - 8, 1, 6, i === 0 || i === 10 ? 'wood' : 'wood2');
-  drawBabyHead(g, x + 3, fy - 7, o);
-  rect(g, x + 1, fy - 4, 10, 2, 'blanket'); rect(g, x + 1, fy - 4, 10, 1, 'blanket2');
+  rect(g, x, fy - 11, 12, 1, 'wood'); rect(g, x, fy - 2, 12, 1, 'wood'); rect(g, x, fy - 1, 1, 1, 'wood2'); rect(g, x + 11, fy - 1, 1, 1, 'wood2');
+  for (let i = 0; i < 12; i += 2) rect(g, x + i, fy - 10, 1, 8, i === 0 || i === 10 ? 'wood' : 'wood2');
+  rect(g, x + 3, fy - 8, 6, 3, 'white'); // 枕頭
+  rect(g, x + 1, fy - 5, 10, 3, 'blanket'); rect(g, x + 1, fy - 5, 10, 1, 'blanket2');
+  put(g, x + 3, fy - 3, 'blanket2'); put(g, x + 6, fy - 3, 'blanket2'); put(g, x + 9, fy - 3, 'blanket2'); put(g, x + 4, fy - 4, 'blanket2'); put(g, x + 8, fy - 4, 'blanket2');
+  drawBabyFace((x + 3) * HS + 1, (fy - 5) * HS - 9, o);
 }
 
 /** 抱著的嬰兒：畫在抱的人身上 */
@@ -341,12 +382,7 @@ function drawHeld(g, px, o) {
   const { tx, ty, tw, tr } = px;
   const bx = tx + Math.max(1, tw - 5);
   rect(g, bx, ty + tr - 3, 5, 3, 'blanket'); rect(g, bx, ty + tr - 3, 5, 1, 'blanket2');
-  const hx = bx + 1, hy = ty + tr - 6;
-  rect(g, hx, hy, 3, 3, o.skin); put(g, hx + 1, hy, o.hairC);
-  const eye = o.tired ? 'lid' : 'ink';
-  put(g, hx, hy + 1, eye); put(g, hx + 2, hy + 1, eye);
-  if (o.mood === 'happy') { put(g, hx + 1, hy + 2, 'mouth'); } else if (o.mood === 'sad') { put(g, hx + 1, hy + 2, 'mouth'); put(g, hx + 3, hy + 2, 'blush'); }
-  if (o.sick) { put(g, hx, hy + 2, 'blush'); put(g, hx + 2, hy + 2, 'blush'); }
+  drawBabyFace(bx * HS, (ty + tr - 3) * HS - 9, o);
 }
 
 /* ───────────── 寵物 ───────────── */
@@ -487,11 +523,10 @@ function drawMember(g, m, cx, fy, spec) {
 export function sceneSVG(spec, opts = {}) {
   const alt = (opts.alt || sceneAlt(spec)).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
   if (spec.kind === 'sprite') return spriteSVG(spec, alt, opts);
-  GW = SCENE_W; GH = SCENE_H;
   const { bg, win } = spec.vacation ? drawOutdoors(spec.tod) : drawHome(spec.home, spec.tod);
   const bgS = emit(bg), winS = emit(win); // 背景用完整解析度；人物另外畫在半解析度的格子上再放大
-  GW = FGW; GH = FGH;
   const fg = mkGrid(FGW, FGH);
+  HG = mkGrid(SCENE_W, SCENE_H);
   const items = [];
   const byWho = (w) => spec.members.filter((m) => m.who === w);
   const heldBaby = spec.members.find((m) => m.who === 'child' && m.held);
@@ -515,24 +550,26 @@ export function sceneSVG(spec, opts = {}) {
     } else if (it.pet) drawPet(fg, cx, FGFLOOR, it.pet);
     else if (it.prop) drawProp(fg, cx, FGFLOOR, it.prop);
   }
-  const fgS = emit(fg);
-  GW = SCENE_W; GH = SCENE_H;
+  outlinePass(fg, HG);
+  const fgS = emit(fg), headS = emit(HG);
+  HG = null;
   const dim = !spec.vacation && spec.tod === 'night' ? '<rect width="96" height="38" fill="var(--sc-night)" fill-opacity=".34"/>' : !spec.vacation && spec.tod === 'evening' ? '<rect width="96" height="38" fill="var(--sc-dusk)" fill-opacity=".16"/>' : '';
-  return `<svg xmlns="http://www.w3.org/2000/svg" class="${opts.cls || 'scene'}" viewBox="0 0 ${SCENE_W} ${SCENE_H}" role="img" aria-label="${alt}" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid meet">${bgS}${dim}${winS}<g transform="scale(${FS})">${fgS}</g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" class="${opts.cls || 'scene'}" viewBox="0 0 ${SCENE_W} ${SCENE_H}" role="img" aria-label="${alt}" shape-rendering="crispEdges" preserveAspectRatio="xMidYMid meet">${bgS}${dim}${winS}<g transform="scale(${FS})">${fgS}</g>${headS}</svg>`;
 }
 
 /** 成長相簿的一張：孩子一個人，站在素色背景前 */
 function spriteSVG(spec, alt, opts) {
-  GW = 24; GH = 24;
-  const g = Array.from({ length: GH }, () => Array(GW).fill(null));
+  const bgG = mkGrid(24, 24), g = mkGrid(24, 24);
+  HG = mkGrid(24 * HS, 24 * HS);
   const m = spec.member;
-  rect(g, 0, 0, GW, 22, 'wall'); rect(g, 0, 22, GW, 2, 'floor');
+  rect(bgG, 0, 0, 24, 22, 'wall'); rect(bgG, 0, 22, 24, 2, 'floor');
   if (m.stage === '嬰兒') drawCrib(g, 12, 22, { ...m });
   else {
     const o = { ...m, who: 'child', suitcase: m.stage === '離家' };
     drawPerson(g, m.stage === '離家' ? 8 : 12, 22, o);
   }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" class="${opts.cls || 'sprite'}" viewBox="0 0 24 24" role="img" aria-label="${alt}" shape-rendering="crispEdges">${emit(g)}</svg>`;
-  GW = SCENE_W; GH = SCENE_H;
+  outlinePass(g, HG);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" class="${opts.cls || 'sprite'}" viewBox="0 0 24 24" role="img" aria-label="${alt}" shape-rendering="crispEdges">${emit(bgG)}${emit(g)}<g transform="scale(${1 / HS})">${emit(HG)}</g></svg>`;
+  HG = null;
   return svg;
 }

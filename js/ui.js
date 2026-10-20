@@ -2,6 +2,7 @@
 // 改為親子遊戲：數值條只畫長條與一個字，劑量表只畫 ▲▼ 與格數，隱藏數值在終局之前不會出現在任何元素裡。
 import { REVEAL_GROUPS } from './engine/ending.js';
 import { sceneSVG } from './engine/scene.js';
+import { rowIcon } from './engine/icons.js';
 
 export function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -41,7 +42,7 @@ export function renderTitle(root, { hasSave, onNew, onContinue, preview = false,
 
 export function renderIntro(root, { sections, role, portrait, flavour, seed, onStart }) {
   const win = (sec) => h('section', { class: 'sw-sec', 'aria-label': sec.title }, h('h2', null, sec.title),
-    h('dl', null, sec.rows.map(([k, v]) => h('div', { class: 'sw-row' }, h('dt', null, k), h('dd', null, v)))));
+    h('dl', null, sec.rows.map(([k, v]) => h('div', { class: 'sw-row' }, h('span', { class: 'sw-ico', 'aria-hidden': 'true', html: rowIcon(sec, k, v) }), h('dt', null, k), h('dd', null, v)))));
   root.replaceChildren(h('main', { class: 'wrap wide intro' },
     h('div', { class: 'intro-grid' },
       h('div', { class: 'intro-art' }, h('figure', { class: 'portrait', 'aria-label': `你是${role}`, html: portrait })),
