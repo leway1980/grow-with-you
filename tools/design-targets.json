@@ -1,0 +1,348 @@
+{
+ "_readme": "設計預期（DESIGN §3.7 第 5 點；沿用 47wan 的 tools/design-targets.json 作法）。node tools/check-design.mjs 自動玩幾千局，把實際跑出來的和這裡的範圍比對，超出就標 ✗（結束碼 1，CI 會紅燈）。數字是設計判斷，不是真實統計；機制的範圍以第一次量測為底，上下留餘裕，待老師複核（見每條的 note）。要改範圍就改這個檔，並在 PR 說明寫理由。",
+ "calibration": {
+  "_why": "三條結果軸的校準目標（DESIGN §3.4 修訂版）；tests/calibration.test.mjs 與 tools/simulate.mjs 讀這一份。min／max／gt 是數值範圍；比例以 0–1 表示。",
+  "dose-vs-random": {
+   "max": 3
+  },
+  "wf-vs-dose": {
+   "min": 15
+  },
+  "dose-worse-hidden": {
+   "gt": 0
+  },
+  "wf-parent": {
+   "min": -15,
+   "max": -5
+  },
+  "wf-saturation": {
+   "max": 0.1
+  },
+  "wf-range": {
+   "min": 75,
+   "max": 85
+  },
+  "random-route": {
+   "maxLargest": 0.45,
+   "maxWarmFirm": 0.3
+  },
+  "permissive-collapse": {
+   "min": 0.3,
+   "max": 0.95
+  },
+  "econ-parent-gap": {
+   "max": 8
+  },
+  "broke-share": {
+   "max": 0.3
+  },
+  "opening-gap": {
+   "max": 5
+  },
+  "rest-parent": {
+   "min": 8
+  },
+  "rest-loss": {
+   "max": 5
+  },
+  "anti-vs-random": {
+   "max": 10
+  },
+  "anti-vs-wf": {
+   "max": -15
+  },
+  "dose-hidden-corr": {
+   "absMax": 0.3
+  },
+  "wf-width": {
+   "min": 12
+  },
+  "wf-outside-good": {
+   "min": 0.1
+  },
+  "controlling-learn": {
+   "min": 0
+  },
+  "partner-gap": {
+   "min": 5
+  },
+  "nonfixed-share": {
+   "min": 0.6
+  },
+  "followup-delay": {
+   "max": 2
+  }
+ },
+ "ending": {
+  "_why": "結局不矛盾（§3.7 第 6 點）：互斥的說法群組在 data/ending.json 的 claimGroups；矛盾數必須是 0。fallbackOnlyMax：整局只用到後備句的比例上限（具體的決定鏈句子要真的會被用到）。",
+  "contradictions": {
+   "max": 0
+  },
+  "fallbackOnlyMax": 0.4
+ },
+ "mechanisms": {
+  "_why": "機制健康度（DESIGN §3.7 第 5 點）：每個機制『發生率』要落在設計範圍內；『發生 vs 沒發生』的結果要往預期的方向走（依機器人分層，避免『懶的機器人本來就比較差』混進來）。路徑格式：mech.* 是 tools/mech.mjs 的紀錄，ax.0/1/2＝親子/人際/學習軸，w.0/1/2＝孩子/父母/彼此之間的幸福，hid.X＝隱藏數值終點。範圍以第一次量測為底再留餘裕，是『設計預期』，待老師複核。",
+  "pending": [
+   "崩潰事件鏈（§7.3）尚未實作：實作後補『訊號期 → 崩潰』的發生率與善後方向"
+  ],
+  "rates": [
+   {
+    "name": "不太來找你：進入過的局數比例",
+    "fired": {
+     "path": "mech.avoid.ever",
+     "op": ">=",
+     "value": 1
+    },
+    "min": 0.3,
+    "max": 0.65,
+    "note": "§4.28。第一次量測 57%（累了偷懶 73%、照習慣 76%、偶爾查研究 11%）；範圍待老師複核：偏高代表『連續四次沒接住』對一般忙碌的家長太容易發生"
+   },
+   {
+    "name": "3C 當保母連用（6 回合內 ≥ 3 次）的局數比例",
+    "fired": {
+     "path": "mech.c3.window",
+     "op": ">=",
+     "value": 3
+    },
+    "min": 0.08,
+    "max": 0.3,
+    "note": "§4.33。第一次量測 18%"
+   },
+   {
+    "name": "事故：走路公車 遇到任何事故卡（擦傷、差一點、住院）",
+    "mode": "走路公車",
+    "fired": {
+     "path": "mech.acc.any",
+     "op": ">=",
+     "value": 1
+    },
+    "min": 0.3,
+    "max": 0.65,
+    "note": "§4.29。第一次量測 48%（含小擦傷與差一點）"
+   },
+   {
+    "name": "事故：走路公車 住院的比例",
+    "mode": "走路公車",
+    "fired": {
+     "path": "mech.acc.hospital",
+     "op": ">=",
+     "value": 1
+    },
+    "min": 0.005,
+    "max": 0.05,
+    "note": "第一次量測 3.4%；真實世界的重大受傷更低，待老師複核"
+   },
+   {
+    "name": "事故：腳踏車 遇到任何事故卡",
+    "mode": "腳踏車",
+    "fired": {
+     "path": "mech.acc.any",
+     "op": ">=",
+     "value": 1
+    },
+    "min": 0.35,
+    "max": 0.75,
+    "note": "第一次量測 57%；騎車比走路多，是設計的方向"
+   },
+   {
+    "name": "事故：腳踏車 住院的比例",
+    "mode": "腳踏車",
+    "fired": {
+     "path": "mech.acc.hospital",
+     "op": ">=",
+     "value": 1
+    },
+    "min": 0.005,
+    "max": 0.06,
+    "note": "第一次量測 4.7%"
+   },
+   {
+    "name": "事故：長輩接送 遇到任何事故卡（差一點）",
+    "mode": "長輩接送",
+    "fired": {
+     "path": "mech.acc.any",
+     "op": ">=",
+     "value": 1
+    },
+    "min": 0.2,
+    "max": 0.55,
+    "note": "第一次量測 39%，只有『差一點』卡"
+   },
+   {
+    "name": "事故：長輩接送 住院的比例",
+    "mode": "長輩接送",
+    "fired": {
+     "path": "mech.acc.hospital",
+     "op": ">=",
+     "value": 1
+    },
+    "max": 0.02,
+    "note": "住院卡只給走路公車與腳踏車"
+   },
+   {
+    "name": "事故：交通車 遇到任何事故卡",
+    "mode": "交通車",
+    "fired": {
+     "path": "mech.acc.any",
+     "op": ">=",
+     "value": 1
+    },
+    "max": 0.01,
+    "note": "交通車、接送：事故卡的條件只有走路公車、腳踏車、長輩接送，所以應該（幾乎）沒有"
+   },
+   {
+    "name": "事故：接送 遇到任何事故卡",
+    "mode": "接送",
+    "fired": {
+     "path": "mech.acc.any",
+     "op": ">=",
+     "value": 1
+    },
+    "max": 0.01,
+    "note": "交通車、接送：事故卡的條件只有走路公車、腳踏車、長輩接送，所以應該（幾乎）沒有"
+   },
+   {
+    "name": "『父母自己』池：至少出現一次的局數比例",
+    "fired": {
+     "path": "mech.self.cards",
+     "op": ">=",
+     "value": 1
+    },
+    "min": 0.6,
+    "max": 0.95,
+    "note": "§11 規則 6。第一次量測 80%"
+   },
+   {
+    "name": "『父母自己』池：每局平均出現張數",
+    "kind": "mean",
+    "path": "mech.self.cards",
+    "min": 0.8,
+    "max": 3.5,
+    "note": "第一次量測 1.65 張"
+   },
+   {
+    "name": "父母的收穫：至少一筆的局數比例",
+    "fired": {
+     "path": "mech.growth.entries",
+     "op": ">=",
+     "value": 1
+    },
+    "min": 0.85,
+    "max": 0.995,
+    "note": "§7.2b。第一次量測 98%——偏高：幾乎每個人都能找到一個『一起參與』；範圍待老師複核"
+   },
+   {
+    "name": "父母的收穫：每局平均筆數",
+    "kind": "mean",
+    "path": "mech.growth.entries",
+    "min": 3,
+    "max": 10,
+    "note": "第一次量測 6.4 筆（累了偷懶 4.6、照習慣 2.7、偶爾查研究 13）"
+   },
+   {
+    "name": "壓力超過承受度的回合 ≥ 20% 的局數比例",
+    "fired": {
+     "path": "mech.press.share",
+     "op": ">",
+     "value": 0.2
+    },
+    "min": 0.1,
+    "max": 0.4,
+    "note": "§7.3 崩潰的前置訊號（期待壓力 > 承受度）。第一次量測 23%；崩潰事件鏈尚未實作，實作後要補『訊號 → 崩潰』的發生率"
+   }
+  ],
+  "directions": [
+   {
+    "name": "進入過『不太來找你』的局，彼此之間的幸福較低",
+    "fired": {
+     "path": "mech.avoid.ever",
+     "op": ">=",
+     "value": 1
+    },
+    "axis": "w.2",
+    "expect": "-",
+    "minDiff": 3,
+    "note": "依機器人分層；第一次量測 −6.5"
+   },
+   {
+    "name": "進入過『不太來找你』的局，了解度較低",
+    "fired": {
+     "path": "mech.avoid.ever",
+     "op": ">=",
+     "value": 1
+    },
+    "axis": "hid.了解度",
+    "expect": "-",
+    "minDiff": 0.5,
+    "note": "第一次量測 −1.3"
+   },
+   {
+    "name": "3C 連用的局，學習軸較低",
+    "fired": {
+     "path": "mech.c3.window",
+     "op": ">=",
+     "value": 3
+    },
+    "axis": "ax.2",
+    "expect": "-",
+    "minDiff": 0.3,
+    "note": "§10 第 7 點。效果小（第一次量測 −0.8），但方向必須對"
+   },
+   {
+    "name": "事故前交通安全認知較高（≥ 36）的局，遇到事故卡的機率較低",
+    "fired": {
+     "path": "mech.acc.awareBefore",
+     "op": ">=",
+     "value": 36
+    },
+    "where": [
+     {
+      "path": "mech.acc.mode",
+      "op": "==",
+      "value": "走路公車"
+     }
+    ],
+    "axis": "mech.acc.any01",
+    "expect": "-",
+    "minDiff": 0.02,
+    "note": "§4.29：教過交通規則的孩子事故較少。只看事故之前的認知（避免『出事才學會』的反向因果）"
+   },
+   {
+    "name": "用過『父母自己休息』的局，父母幸福較高",
+    "fired": {
+     "path": "mech.self.rest",
+     "op": ">=",
+     "value": 1
+    },
+    "axis": "w.1",
+    "expect": "+",
+    "minDiff": 0.25,
+    "note": "§11 規則 6。第一次量測 +0.5"
+   },
+   {
+    "name": "父母的收穫 ≥ 3 筆的局，父母幸福較高",
+    "fired": {
+     "path": "mech.growth.entries",
+     "op": ">=",
+     "value": 3
+    },
+    "axis": "w.1",
+    "expect": "+",
+    "minDiff": 0.4,
+    "note": "§7.2b。第一次量測 +0.9"
+   },
+   {
+    "name": "壓力超過承受度（≥ 20% 回合）的局，孩子幸福較低",
+    "fired": {
+     "path": "mech.press.share",
+     "op": ">",
+     "value": 0.2
+    },
+    "axis": "w.0",
+    "expect": "-",
+    "minDiff": 1.5,
+    "note": "§7.3。第一次量測 −3.6"
+   }
+  ]
+ }
+}

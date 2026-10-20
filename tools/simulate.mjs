@@ -8,69 +8,47 @@ import { availableParallelism } from 'node:os';
 import { stateRng } from '../js/engine/rng.js';
 import { newState } from '../js/engine/state.js';
 import { playToEnd } from '../js/engine/turn.js';
-import { outcomeAxes, wellbeing, routePosition, comboOf, COMBOS, estimateDeltas } from '../js/engine/ending.js';
+import { outcomeAxes, wellbeing, routePosition, comboOf, COMBOS, estimateDeltas, chainRecords, endingContext, pickLines, lineContradictions } from '../js/engine/ending.js';
+import { setTagObserver } from '../js/engine/tags.js';
+import { outcomeWeights, AXES, edgeForTagEffect } from '../js/engine/model.js';
+import { mechRecord } from './mech.mjs';
 import { loadRaw, loadData } from './data-node.mjs';
-import { tagVec, doseScore } from './metrics.mjs';
 import { avg, pct, median, paired } from './stats.mjs';
 export { avg, pct, median, se, paired, share } from './stats.mjs';
 
-const hasTag = (ch, set) => (ch.tags || []).filter((t) => set.includes(t)).length;
-const sum = (o, w) => Object.entries(w).reduce((a, [k, x]) => a + x * (o[k] || 0), 0);
+import { BOTS, HUMAN_BOTS, HUMAN_MIX, ALL_BOTS, SALT, botPolicy } from './bots.mjs';
+export { BOTS, HUMAN_BOTS, HUMAN_MIX, ALL_BOTS, botPolicy };
 
-export const BOTS = {
-  random: { desc: '隨機', score: () => 0 },
-  permissive: { desc: '放任（嘴巴尊重、兩手一攤、出事才收拾）', score: (T, ch) => {
-    const v = tagVec(T, ch);
-    return -v.規範監督 - v.替他做主 + 0.2 * (v.溫暖陪伴 || 0) + 3 * hasTag(ch, ['嘴巴尊重無跟進', '兩手一攤', '沒有下文', '說沒關係就結束', '吵了才讓步', '說了不算', '出事替他擺平', '外包', '3C當保母', '全部替他做']);
-  } },
-  controlling: { desc: '控制（替他決定、只看成績、比較）', score: (T, ch) => {
-    const v = tagVec(T, ch);
-    return 2 * (v.替他做主 || 0) + (v.規範監督 || 0) - 0.3 * (v.溫暖陪伴 || 0) + 3 * hasTag(ch, ['替他決定', '罵一頓', '只看成績', '送去補習', '拿別人比較', '轉述消息_特地', '全部替他做', '提議別的', '沒聽孩子重複的要求']);
-  } },
-  warmFirm: { desc: '溫暖＋堅定（自己的事一律放著，不休息）', score: (T, ch) => sum(tagVec(T, ch), { 溫暖陪伴: 1, 規範監督: 1, 親子信任: 0.5, 了解度: 0.5, 主見: 0.5, 替他做主: -1, 期待壓力: -0.5, 試探度: -0.5, 規則一致性: 0.3 }) },
-  doseGreedy: { desc: '只看劑量表（每次選看得到的變化最好的）', score: (T, ch) => doseScore(ch) },
-  antiDose: { desc: '反過來只看劑量表（每次選看得到的變化最差的）', score: (T, ch) => -doseScore(ch) },
-  warmFirmRest: { desc: '溫暖＋堅定，疲勞時用「父母自己」池的卡與卡裡自然的休息選項', score: (T, ch) => BOTS.warmFirm.score(T, ch) },
-};
-
-export function botPolicy(botName, seedSalt) {
-  const bot = BOTS[botName];
-  let holder = null;
-  return {
-    choose(st, view, raw, data) {
-      holder ??= { r: (st.seed ^ seedSalt) >>> 0 };
-      const r = stateRng(holder, 'r');
-      const opts = view.choices.filter((c) => !c.disabled);
-      if (botName === 'random') return opts[Math.floor(r() * opts.length)].i;
-      const selfCare = (o) => (raw.choices[o.i].tags || []).some((t) => data.tags.tags[t]?.relief);
-      if (botName === 'warmFirmRest') {
-        // 「父母自己」池的卡出現時（權重已隨疲勞變大）：選讓情緒穩定度回升最多的自我照顧選項；
-        // 孩子的事件卡裡，耐心見底時才用卡裡自然的『先到這裡』選項（沒有就照常選）。
-        if (raw.pool === '父母自己') {
-          const cand = opts.filter(selfCare);
-          if (cand.length) return cand.reduce((a, b) => (tagVec(data.tags, raw.choices[b.i]).父母情緒穩定度 > tagVec(data.tags, raw.choices[a.i]).父母情緒穩定度 ? b : a)).i;
-        } else if (st.parent.耐心 < 35) {
-          const rest = opts.find((o) => (raw.choices[o.i].tags || []).includes(data.tags.cardRules.restTag));
-          if (rest) return rest.i;
-        }
+/* ───── 影響量測（DESIGN §3.7 第 2 點）：每個標籤／卡片／池對三條結果軸的影響（整局累計的絕對值），與每條邊的單回合最大變動、整局累計 ───── */
+export function influenceMeter(st, data) {
+  const W = outcomeWeights(data.model);
+  const tag = {}, card = {}, pool = {}, edgeTurn = {}, edgeGame = {};
+  let curTurn = -1, turnAcc = {};
+  const flush = () => { for (const [e, v] of Object.entries(turnAcc)) edgeTurn[e] = Math.max(edgeTurn[e] || 0, v); turnAcc = {}; };
+  const add = (m, key, vec) => { const a = (m[key] ||= [0, 0, 0]); for (let i = 0; i < 3; i++) a[i] += vec[i]; };
+  setTagObserver(({ turn, perTag }) => {
+    if (turn !== curTurn) { flush(); curTurn = turn; }
+    const cid = st.cur && st.cur.cardId, p = cid && data.cardIndex[cid] ? data.cardIndex[cid].pool : null;
+    for (const [t, ds] of Object.entries(perTag)) {
+      const vec = [0, 0, 0];
+      for (const [k, d] of Object.entries(ds)) {
+        if (!d) continue;
+        AXES.forEach((ax, i) => { vec[i] += Math.abs((W[ax][k] || 0) * d); });
+        const e = t === '@父母的收穫' ? data.model.edges.find((x) => x.id === 'h:父母的收穫+') : edgeForTagEffect(data.model, t, k, d);
+        if (e) { turnAcc[e.id] = (turnAcc[e.id] || 0) + Math.abs(d); edgeGame[e.id] = (edgeGame[e.id] || 0) + Math.abs(d); }
       }
-      // warmFirm（不休息的版本）：自己的事一律放著，不選任何自我照顧的選項（除非整張卡只剩這些）
-      if (botName === 'warmFirm') { const keep = opts.filter((o) => !selfCare(o)); if (keep.length) { opts.length = 0; opts.push(...keep); } }
-      let best = null, bs = -1e9;
-      for (const o of opts) {
-        const s = bot.score(data.tags, raw.choices[o.i]) + r() * 1e-6; // 平手時用亂數決定（決定性）
-        if (s > bs) { bs = s; best = o.i; }
-      }
-      return best;
-    },
-  };
+      if (vec.some((x) => x)) { add(tag, t, vec); if (cid) add(card, cid, vec); if (p) add(pool, p, vec); }
+    }
+  });
+  const r2 = (m) => Object.fromEntries(Object.entries(m).map(([k, v]) => [k, Array.isArray(v) ? v.map((x) => Math.round(x * 100) / 100) : Math.round(v * 100) / 100]));
+  return { stop() { setTagObserver(null); }, result() { flush(); return { tag: r2(tag), card: r2(card), pool: r2(pool), edgeTurn: r2(edgeTurn), edgeGame: r2(edgeGame) }; } };
 }
 
 /* ───── 一局 ───── */
-const SALT = 0x9e3779b1;
 export function playGame(data, bot, seed, opts = {}) {
-  const st = newState(seed, data, { role: seed % 2 ? '媽媽' : '爸爸', startMode: opts.startMode || 'birth' });
-  playToEnd(st, data, botPolicy(bot, SALT));
+  const st = newState(seed, data, { role: opts.role || (seed % 2 ? '媽媽' : '爸爸'), startMode: opts.startMode || 'birth' });
+  const meter = opts.influence ? influenceMeter(st, data) : null;
+  try { playToEnd(st, data, botPolicy(bot, SALT)); } finally { if (meter) meter.stop(); }
   const ax = outcomeAxes(st), w = wellbeing(st, data.identities.parentModel), rp = routePosition(st);
   const f = st.family;
   const e = (st.startMode === 'birth' ? 20 : 0);
@@ -83,6 +61,13 @@ export function playGame(data, bot, seed, opts = {}) {
     hid: { ...st.hidden }, money30: st.vcurves[30]?.錢 ?? null, lowBody: st.vcurves.filter((c) => c.體力 < 35).length / st.vcurves.length,
     elemTurns, elemNonFixed, nTurnsElem, fu: st.hist.filter((h) => h.fu != null).map((h) => h.fu), cards: st.hist.length,
   };
+  if (opts.mech) {
+    rec.mech = mechRecord(st, data);
+    const lines = pickLines(endingContext({ axes: ax, wellbeing: w, route: rp, combo: rec.combo }, chainRecords(st, data.ending), data.ending), data.ending);
+    rec.ending = { ids: lines.map((l) => l.id), facets: lines.map((l) => l.facet), contra: lineContradictions(lines, data.ending).length };
+  }
+  if (meter) rec.inf = meter.result();
+  if (opts.st) rec.st = st;
   if (opts.exposure) {
     const ex = {};
     for (const h of st.hist) for (const [k, d] of Object.entries(estimateDeltas(h.tags, data.timeline[h.turn].stage, data.tags))) { const o = (ex[k] ||= { abs: 0, net: 0 }); o.abs += Math.abs(d); o.net += d; }
@@ -114,7 +99,7 @@ if (!isMainThread && workerData && workerData.__sim) {
   parentPort.postMessage(out);
 }
 
-async function execute(tasks, opts) {
+export async function execute(tasks, opts) {
   const nw = opts.workers ?? Math.min(availableParallelism(), 8);
   if (nw <= 1) {
     const datas = new Map();
@@ -125,7 +110,7 @@ async function execute(tasks, opts) {
   }
   const url = new URL(import.meta.url);
   const parts = await Promise.all(chunk(tasks, nw).map((ts) => new Promise((res, rej) => {
-    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode } });
+    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, mech: opts.mech, influence: opts.influence, role: opts.role } });
     w.once('message', res); w.once('error', rej);
   })));
   return parts.flat();
@@ -144,6 +129,17 @@ export async function runBots(N, s0 = 1, opts = {}) {
   for (const r of recs) games[r.bot].push(r);
   for (const b of bots) games[b].sort((x, y) => x.seed - y.seed);
   return games;
+}
+
+/**
+ * 「真人混合」：N 局，第 i 局（種子 s0+i）依 HUMAN_MIX 輪流換機器人。回傳 records 陣列（依種子排序，每筆有 bot、mech，opts.influence 時有 inf）。
+ */
+export async function runMix(N, s0 = 1, opts = {}) {
+  const mix = opts.mix || HUMAN_MIX;
+  const tasks = [];
+  for (let i = 0; i < N; i++) tasks.push([mix[i % mix.length], s0 + i, 0]);
+  const recs = await execute(tasks, { mech: true, ...opts });
+  return recs.sort((a, b) => a.seed - b.seed);
 }
 
 /** 同一批種子、同樣的策略，各種標籤權重調整（variants：[{標籤: 倍率}, …]）一起平行跑。回傳 [games, …]，順序同 variants。 */
