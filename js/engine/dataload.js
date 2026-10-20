@@ -32,6 +32,13 @@ export function mergeData(manifest, files) {
       } else { slots[name] = [...vals]; defined.set(name, f); }
     }
   }
-  return { events: { cards }, slots: { slots, persist }, problems };
+  // extras：不是卡也不是槽的資料檔（M3 B4 的 paths.json）。網頁版 js/main.js 只把 events／slots 交給 prepareData，所以 extras 掛在 events 底下帶過去（events.paths）
+  const evOut = { cards };
+  for (const f of manifest.extras || []) {
+    const j = files[f];
+    if (!j || typeof j !== 'object') { problems.push(`附加資料檔 ${f}：缺少或不是物件`); continue; }
+    evOut[f.replace(/\.json$/, '')] = j;
+  }
+  return { events: evOut, slots: { slots, persist }, problems };
 }
-export const manifestFiles = (m) => [...(m.events || []), ...(m.slots || [])];
+export const manifestFiles = (m) => [...(m.events || []), ...(m.slots || []), ...(m.extras || [])];

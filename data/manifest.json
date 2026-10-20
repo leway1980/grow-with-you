@@ -15,12 +15,16 @@
   "events/fixed.json",
   "events/jh.json",
   "events/sh.json",
+  "events/sh_drop.json",
   "events/leave.json",
   "events/fixed_teen.json",
   "events/classroom.json",
   "events/special.json",
   "events/health.json",
   "events/pathways.json"
+ ],
+ "extras": [
+  "paths.json"
  ],
  "slots": [
   "slots/core.json",

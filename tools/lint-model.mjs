@@ -113,6 +113,13 @@ export function lintModel(raw, data, cards) {
   for (const id of [M.openness.spoke, M.openness.silent]) if (!byId.get(id) || typeof byId.get(id).w !== 'number') errors.push(`因果圖 openness：邊「${id}」要有數字 w`);
   if (ROUTE_DELTA !== M.bands.routeDelta) errors.push(`ending.js 的 ROUTE_DELTA（${ROUTE_DELTA}）和 model.bands.routeDelta（${M.bands.routeDelta}）不一致`);
   const W = outcomeWeights(M);
+  // 路線（M3 B4）：結果軸、推算值與邊都不能讀 學制、志願偏好、去向、中途離校——沒有一條路是失敗結局，路線只換文字與後面的事件
+  {
+    const PATH_NODES = ['學制', '志願偏好', '去向', '中途離校'];
+    for (const [ax, O] of Object.entries(M.outcomes)) for (const it of [...(O.mean || []), ...(O.pen || [])]) if (PATH_NODES.includes(it.from)) errors.push(`因果圖 outcomes.${ax}：輸入「${it.from}」是路線（學制、去向），結果不能讀它——沒有一條路是失敗結局`);
+    for (const e of M.edges) if (PATH_NODES.includes(e.from) || PATH_NODES.includes(e.to)) errors.push(`因果圖邊 ${e.id}：路線節點（${PATH_NODES.join('、')}）不能有邊`);
+    for (const [name, D] of Object.entries(M.derived || {})) if (PATH_NODES.some((n) => JSON.stringify(D).includes(n))) errors.push(`因果圖 derived.${name}：不能讀路線節點`);
+  }
   for (const [ax, O] of Object.entries(M.outcomes)) {
     if (!M.nodes[ax] || M.nodes[ax].layer !== 4) errors.push(`因果圖 outcomes：「${ax}」要是第 4 層節點`);
     for (const it of [...(O.mean || []), ...(O.pen || [])]) {

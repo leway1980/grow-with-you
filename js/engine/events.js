@@ -142,6 +142,9 @@ export function willOf(st, topic) {
 let ROUTE_RESOLVER = null, HABIT_HOOK = null;
 export function setRouteResolver(fn) { ROUTE_RESOLVER = typeof fn === 'function' ? fn : null; }
 export function setHabitHook(fn) { HABIT_HOOK = typeof fn === 'function' ? fn : null; }
+/** 條件環境的附加欄位（M3 B4）：paths.js 登記，只在高中算（心情低連續、離校機率、離校骰）；沒登記時用下面 buildCtx 的預設值。 */
+let CTX_HOOK = null;
+export function setCtxHook(fn) { CTX_HOOK = typeof fn === 'function' ? fn : null; }
 
 /** 旗標 前綴_值 → 值（例如 學制_普高 → '普高'）；沒有就是空字串。P1 的旗標照舊可用，這裡只是讓條件式可以直接寫 學制 == '普高' */
 const flagValue = (flags, prefix) => { for (const k of Object.keys(flags || {})) if (flags[k] && k.startsWith(prefix)) return k.slice(prefix.length); return ''; };
@@ -165,6 +168,8 @@ export function buildCtx(st, tl, extra = {}) {
     孩子不再開口: st.vars.孩子不再開口 || 0, 孩子主動開口: st.vars.孩子主動開口 || 0, 起點: st.startMode,
     學制: st.vars.學制 || flagValue(st.flags, '學制_'), 去向: st.vars.去向 || flagValue(st.flags, '去向_'), // 高中的學制（普高／技高／綜高）、離家的去向（外地／本地／工作）；先讀變數（paths.js 的路線結果），沒有才讀 P1 的旗標
     國中類型: st.vars.國中類型 || '', 中途離校: st.vars.中途離校 || '', 實驗教育: st.vars.實驗教育 || '', 選組: st.vars.選組 || '',
+    在學: !(st.vars.學制 === '未升學' || ['在家', '工作', '職訓'].includes(st.vars.中途離校)), // 孩子現在有沒有在學校（中途離校後待在家、工作、職訓，或沒進學校）；自學（實驗教育）算在學習
+    心情低連續: 0, 離校機率: 0, 離校骰: 0, ...(CTX_HOOK ? CTX_HOOK(st, tl) : null), // 中途離校的前兆（paths.js，只在高中算）
     ...habitCtx(st), // 習慣_<家族>（目前的習慣模式）、習慣改變_<家族>（已連續換了幾次）；沒有習慣資料時什麼都不加
     上學方式: st.vars.上學方式 || '', 孩子來找_連續錯過: st.vars.孩子來找_連續錯過 || 0, 不太來找你: !!st.vars.不太來找你,
     事故骰: rngAt(st.seed, st.turn, 'acc_dice'), // 命運骰（0–1）：重大意外（cm_hospital）只在這個回合的骰子夠小時才可能出現，不因為『池裡剩下它』就被抽到
@@ -461,7 +466,7 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
   const allTags = [...(ch.tags || []), ...branchTags];
   applyTags(st, allTags, data.tags, { turn: st.turn, months: tl.ageMonths, span: tl.span ?? 2, scale: k, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope), approach: !!card.approach, initiate: !!card.initiate });
   if (isGrowthChoice(data.tags, ch.tags)) recordGrowth(st, data.tags, ch, scope);
-  if (ch.route && ROUTE_RESOLVER) ROUTE_RESOLVER(st, data, ch.route, { ctx, tl, card, choice: ch, r });
+  if (ch.route && ROUTE_RESOLVER) { const rr = ROUTE_RESOLVER(st, data, ch.route, { ctx, tl, card, choice: ch, r }); if (rr && rr.result) parts.push(fill(rr.result, st, ctx, scope)); } // 路線的結果可以回傳一句話（例如學制選定的那句），接在選項的結果後面
   if (ch.habitPattern && HABIT_HOOK) HABIT_HOOK(st, data, ch.habitPattern, { ctx, tl, card, choice: ch });
   applyClassroomTags(st, allTags, data.tags, ctx, k); // 班級共享狀態（§4.38）：標籤自帶的老師投入度效果，不是孩子的隱藏數值
   if (ch.classroom && ch.classroom.reset && approved) resetClassroom(st, data.tags, tl, 'transfer'); // 轉班：換老師，重抽班上的家長（選項帶 chance 時，只有核准才換；沒核准就留在原來的班）

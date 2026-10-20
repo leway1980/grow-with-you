@@ -11,6 +11,7 @@ import { setModel } from './model.js';
 import { setEnding } from './ending.js';
 import { syncClassroom, driftClassroom } from './classroom.js';
 import { refRate, perSpan, monthlyFromRef, REF_MONTHS } from './timescale.js';
+import { setPaths } from './paths.js';
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 
@@ -139,9 +140,10 @@ export function prepareData(raw) {
   }
   // 因果圖（data/model.json，§3.7）掛在標籤對照表上，tags.js 只認 T.model
   setModel(raw.model); setEnding(raw.ending);
+  setPaths(raw.events.paths); // 路線（M3 B4）：學制、去向、中途離校的前兆；沒有 paths 資料時不登記
   const tags = raw.model ? { ...raw.tags, model: raw.model } : raw.tags;
   const data = {
-    identities: raw.identities, tags, model: raw.model, ending: raw.ending, habits: raw.habits || null, events, pools: raw.pools.pools, loads: raw.pools.loads || [], calendar: raw.calendar,
+    identities: raw.identities, tags, model: raw.model, ending: raw.ending, habits: raw.habits || null, paths: raw.events.paths || null, events, pools: raw.pools.pools, loads: raw.pools.loads || [], calendar: raw.calendar,
     cardIndex: Object.fromEntries(events.cards.map((c) => [c.id, c])), index,
     timeline: buildTimeline(raw.calendar),
   };
