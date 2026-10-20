@@ -17,11 +17,21 @@ const NEEDS = ['晚餐', '睡前', '早晨', '週末'];
 /** V4b：一張卡所有選項的標籤合計，每個隱藏數值的平均推動量要落在 ±這個值之內 */
 export const V4B_BOUND = 0.5;
 
+const bigrams = (s) => { const a = [...s.replace(/[\s，。、：「」？！,.:]/g, '')]; return new Set(a.slice(0, -1).map((x, i) => x + a[i + 1])); };
+/** 字元雙連詞的 Jaccard 相似度（標籤近似重複檢查） */
+export function jaccard(a, b) {
+  const x = bigrams(a), y = bigrams(b);
+  if (!x.size || !y.size) return 0;
+  let n = 0;
+  for (const g of x) if (y.has(g)) n++;
+  return n / (x.size + y.size - n);
+}
 export function lintData(raw = loadRaw()) {
   const errors = [], warns = [], stats0 = {};
   for (const m of raw.mergeProblems || []) errors.push(`資料分檔：${m}`);
   const data = loadData(raw);
   const T = raw.tags;
+  const R = T.cardRules;
   const st = newState(1, data, {});
   const ctx = buildCtx(st, data.timeline[0], { topic: '運動' });
   const ctxKeys = new Set(Object.keys(ctx));
@@ -140,8 +150,18 @@ export function lintData(raw = loadRaw()) {
     for (const t of c.textIf || []) { checkExpr(t.if, W); checkTokens(t.text, W); if (leakRe.test(t.text)) errors.push(`${W}：文字出現隱藏數值的名稱`); }
     checkTokens(c.text, W); checkTokens(c.title, W + '標題');
     if (leakRe.test(c.text) || leakRe.test(c.title)) errors.push(`${W}：文字出現隱藏數值的名稱`);
-    if (!c.choices || c.choices.length < 2) errors.push(`${W}：至少要 2 個選項`);
-    if (c.choices.length > 5 && c.pool !== '_fixed') warns.push(`${W}：選項超過 5 個`);
+    if (!c.choices || c.choices.length < R.minChoices || c.choices.length > R.maxChoices) errors.push(`${W}：要有 ${R.minChoices}–${R.maxChoices} 個選項（現在 ${c.choices ? c.choices.length : 0}）`);
+    if (!c.choices) continue;
+    // 寫卡規則（DESIGN §11）：標籤長度、近似重複、禁用詞
+    {
+      const labs = c.choices.map((ch) => String(ch.label || ''));
+      const lens = labs.map((l) => [...l].length);
+      if (Math.max(...lens) > R.maxLengthRatio * Math.min(...lens)) errors.push(`${W}：選項長度差太多（最長 ${Math.max(...lens)} 字、最短 ${Math.min(...lens)} 字，上限 ${R.maxLengthRatio} 倍）`);
+      for (let i = 0; i < labs.length; i++) for (let j = i + 1; j < labs.length; j++) {
+        const sim = jaccard(labs[i], labs[j]);
+        if (sim >= R.dupJaccard) errors.push(`${W}：選項「${labs[i].slice(0, 14)}」與「${labs[j].slice(0, 14)}」幾乎一樣（字元雙連詞相似度 ${sim.toFixed(2)} ≥ ${R.dupJaccard}）`);
+      }
+    }
     if (!(c.choices || []).some((ch) => !ch.showIf && !ch.grayIf)) errors.push(`${W}：沒有任何「一定可選」的選項（不含 showIf 與 grayIf）`);
     const avail = (c.choices || []).filter((ch) => !ch.grayIf).length;
     if (avail < 2) warns.push(`${W}：不會變灰的選項少於 2 個`);
@@ -152,6 +172,8 @@ export function lintData(raw = loadRaw()) {
       if ('hidden' in ch) errors.push(`${WC}：選項不能有 hidden`);
       const eff = Object.entries(ch.effects || {});
       if (!eff.some(([, v]) => v !== 0)) errors.push(`${WC}：至少要有 1 個看得到的效果（effects）`);
+      else if (!String(ch.result || '').trim()) errors.push(`${WC}：有看得到的效果就要有結果文字（result），劑量表的 ▲▼ 要能從結果文字解釋`);
+      for (const w of R.bannedWords) if (String(ch.label || '').includes(w)) errors.push(`${WC}：選項只寫動作，不寫態度——不能用「${w}」（DESIGN §11 寫卡規則 1）`);
       for (const [k] of eff) if (!VISIBLE.includes(k)) errors.push(`${WC}：可見數值「${k}」不存在`);
       if (!ch.tags || !ch.tags.length) errors.push(`${WC}：至少要有 1 個行為標籤`);
       for (const t of ch.tags || []) {
@@ -223,10 +245,12 @@ export function lintData(raw = loadRaw()) {
       const counts = new Set(variants.map((v) => v.chs.length));
       if (counts.size > 1) errors.push(`${W}：具名門檻的不同版本顯示的選項數不一樣（${variants.map((v) => v.chs.length).join('、')}）`);
     }
-    if (all.some((ch) => (ch.tags || []).includes('父母自己休息'))) {
+    const restCh = all.filter((ch) => (ch.tags || []).includes(R.restTag));
+    if (c.pool !== R.restPool && restCh.length) {
       restCards++;
-      for (const ch of all) if ((ch.tags || []).includes('父母自己休息') && -costOf(ch) < 3) errors.push(`${W}／${ch.label}：父母自己休息的選項，體力＋耐心要真的回 3 以上`);
+      if (restCh.length > 1) errors.push(`${W}：孩子的事件卡裡「${R.restTag}」的選項最多一個（現在 ${restCh.length}）`);
     }
+    for (const ch of restCh) if (-costOf(ch) < R.restMinRecover) errors.push(`${W}／${ch.label}：${R.restTag}的選項，體力＋耐心要真的回 ${R.restMinRecover} 以上`);
     for (const { tag, chs } of variants) {
       if (chs.length < 2) continue;
       const W2 = W + tag;
@@ -264,7 +288,11 @@ export function lintData(raw = loadRaw()) {
     for (const [id, r] of rows) if (Math.abs(r) >= 0.8) warns.push(`卡片 ${id}：劑量表分數與隱藏分數的相關 ${r.toFixed(2)}，看得到的方向幾乎能預測好壞`);
     stats0.meanCorrelation = mc;
   }
-  if (restCards * 5 < cards.length) errors.push(`V4a 有「父母自己休息」選項的卡只有 ${restCards}/${cards.length} 張，至少要每 5 張有 1 張`);
+  {
+    const childCards = cards.filter((c) => c.pool !== R.restPool && !c.pool.startsWith('_')).length + cards.filter((c) => c.pool.startsWith('_')).length;
+    if (restCards > R.restCardShareMax * childCards + 1e-9) errors.push(`孩子的事件卡裡有「${R.restTag}」選項的有 ${restCards}/${childCards} 張，超過 ${R.restCardShareMax * 100}%（DESIGN §11 寫卡規則 6）`);
+    stats0.restCards = restCards; stats0.childCards = childCards;
+  }
   for (const [f, w] of flagSet) if (!flagRead.has(f) && !/_(中|落)$/.test(f)) warns.push(`旗標「${f}」有設定（${w[0]}）但沒有任何地方讀取`);
   for (const [f, w] of flagRead) if (!flagSet.has(f)) warns.push(`旗標「${f}」被讀取（${w[0]}）但從來沒有被設定`);
   // 後續池的卡要真的有人打開
