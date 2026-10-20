@@ -1,6 +1,6 @@
 {
   "paths": {
-    "_why": "M3 B4 路線的目標（計畫 §2.4、§8 第 8 項；規劃者決定 2026-10-20）。預覽內容（國中以後）已有路線（paths.js），所以這組目標直接強制（pending:false）。局數＝每個機器人在預覽（玩到第 72 回合）各玩幾局。學制的 base 比例是設計估計，只有普通科約五成、專業群科近四成有教育部統計可查（docs/research/teen.md §5.1）。",
+    "_why": "M3 B4 路線的目標（計畫 §2.4、§8 第 8 項；規劃者決定 2026-10-20）。國中以後已有路線（paths.js），所以這組目標直接強制（pending:false）。局數＝每個機器人各玩幾局（完整 72 回合）。學制的 base 比例是設計估計，只有普通科約五成、專業群科近四成有教育部統計可查（docs/research/teen.md §5.1）。",
     "pending": false,
     "games": 250,
     "bots": ["random", "permissive", "controlling", "warmFirm", "doseGreedy", "antiDose", "warmFirmRest", "tiredLazy", "commonReaction", "occasionalResearch", "lateStarter", "veryLateStarter"],

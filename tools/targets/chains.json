@@ -1,6 +1,6 @@
 {
   "chains": {
-    "_why": "M3 B5 決定鏈的目標（計畫 §2.5、§8；規劃者決定 2026-10-20）。預覽內容（國中以後）已有習慣與路線，所以直接強制（pending:false）。局數＝每個機器人在預覽（玩到第 72 回合）各玩幾局；『每個主題都對到研究卡』是 lint（tools/lint/chains.mjs），不在這裡。",
+    "_why": "M3 B5 決定鏈的目標（計畫 §2.5、§8；規劃者決定 2026-10-20）。國中以後已有習慣與路線，所以直接強制（pending:false）。局數＝每個機器人各玩幾局（完整 72 回合）；『每個主題都對到研究卡』是 lint（tools/lint/chains.mjs），不在這裡。",
     "pending": false,
     "games": 120,
     "bots": ["random", "warmFirm", "commonReaction", "occasionalResearch", "lateStarter", "permissive", "controlling", "antiDose", "tiredLazy", "doseGreedy"],
