@@ -21,6 +21,10 @@ export async function measure({ runBots, data, T, N, s0 }) {
   const typeByBot = Object.fromEntries(T.bots.map((b) => [b, Object.fromEntries(types.map((t) => [t, share(g[b], (r) => r.paths.type === t)]))]));
   const destByBot = Object.fromEntries(T.bots.map((b) => [b, Object.fromEntries(dests.map((d) => [d, share(g[b], (r) => r.paths.dest === d)]))]));
   const destByEcon = Object.fromEntries(['寬裕', '小康', '吃緊'].map((e) => [e, Object.fromEntries(dests.map((d) => [d, share(all.filter((r) => r.econ === e), (r) => r.paths.dest === d)]))]));
+  // 升學率（依學制）：官方『已升學』＝大學校院（含四技）、二專、軍警、赴國外就讀；補習或自修準備（重考）、就業、入伍、在家都算未升學。遊戲的對應＝大學、科大、出國。五專續讀（繼續念五專）不在官方高中職畢業生的口徑內。
+  const UP = T.upRate?.dests ?? ['大學', '科大', '出國'];
+  const upByType = Object.fromEntries(types.map((t) => { const rs = all.filter((r) => r.paths.type === t); return [t, { n: rs.length, v: share(rs, (r) => UP.includes(r.paths.dest)) }]; }));
+  const destByType = Object.fromEntries(types.map((t) => [t, Object.fromEntries(dests.map((d) => [d, share(all.filter((r) => r.paths.type === t), (r) => r.paths.dest === d)]))]));
   const destAll = Object.fromEntries(dests.map((d) => [d, share(all, (r) => r.paths.dest === d)]));
   const maxDev = types.map((t) => [t, Math.abs(typeShare[t] - P.schoolTypes[t].base)]).sort((a, b) => b[1] - a[1])[0];
   const botDev = T.bots.map((b) => [b, types.map((t) => [t, Math.abs(typeByBot[b][t] - P.schoolTypes[t].base)]).sort((x, y) => y[1] - x[1])[0]]).sort((a, c) => c[1][1] - a[1][1])[0];
@@ -45,7 +49,7 @@ export async function measure({ runBots, data, T, N, s0 }) {
   const wByEcon = Object.fromEntries(['寬裕', '小康', '吃緊'].map((e) => [e, wGap(all.filter((r) => r.econ === e))]));
   const wByDest = Object.fromEntries(dests.map((d) => [d, { n: all.filter((r) => r.paths.dest === d).length, child: mean(all.filter((r) => r.paths.dest === d).map((r) => r.w[0])) }]));
   const overrideShare = share(all.filter((r) => r.paths.pref === '父母'), (r) => r.paths.override);
-  return { all: all.length, typeShare, typeByBot, destByBot, destByEcon, destAll, maxDev, botDev, left, chain, started, top, mH, mG, techHand, techGrade, nTech: tech.length, econGap, pU: { 寬裕: pU('寬裕'), 小康: pU('小康'), 吃緊: pU('吃緊') }, girlsEnlist, noDest, wByBot, wByEcon, wByDest, overrideShare, T };
+  return { all: all.length, typeShare, typeByBot, upByType, destByType, destByBot, destByEcon, destAll, maxDev, botDev, left, chain, started, top, mH, mG, techHand, techGrade, nTech: tech.length, econGap, pU: { 寬裕: pU('寬裕'), 小康: pU('小康'), 吃緊: pU('吃緊') }, girlsEnlist, noDest, wByBot, wByEcon, wByDest, overrideShare, T };
 }
 
 export function rows(v, T, data) {
@@ -58,6 +62,8 @@ export function rows(v, T, data) {
     row({ max: T.shareTol.max, note: T.shareTol.note }, `學制比例與 base 的最大差（各 ${T.games} 局 × ${T.bots.length} 個機器人合計；最大：${v.maxDev[0]}）`, v.maxDev[1], pct(v.maxDev[1]), `≤ ${T.shareTol.max * 100}pp`, types.map((t) => `${t} ${pct(v.typeShare[t])}（base ${pct(P.schoolTypes[t].base)}）`).join('、')),
     { ok: true, pending: false, group: '路線', name: `報告：各機器人學制比例離 base 最遠的一個（最遠：${v.botDev[0]}，${v.botDev[1][0]}）`, value: pct(v.botDev[1][1]), range: '（只報告）', note: Object.entries(v.typeByBot).map(([b, o]) => `${b} ${types.map((t) => pct(o[t])).join('／')}`).join('；') + `　[欄位：${types.join('／')}]` },
     row(T.dropout, `中途離校：孩子真的離開學校（在家、工作、職訓、實驗教育）的局占 ${v.all} 局`, v.left, pct(v.left), `${T.dropout.min * 100}–${T.dropout.max * 100}%`, `前兆出現 ${pct(v.chain)}、走完『我不想讀了』${pct(v.started)}`),
+    ...(T.upRate ? Object.entries(T.upRate.official).map(([t, o]) => row({ min: o.v - T.upRate.tol, max: o.v + T.upRate.tol, note: T.upRate.note }, `升學率與官方的差：${t}（${v.upByType[t].n} 局；官方 ${o.v * 100}%，${o.src}）`, v.upByType[t].v, pct(v.upByType[t].v), `${((o.v - T.upRate.tol) * 100).toFixed(1)}–${Math.min(100, (o.v + T.upRate.tol) * 100).toFixed(1)}%`, '去向：' + Object.entries(v.destByType[t]).filter(([, x]) => x > 0.0005).map(([d, x]) => `${d} ${pct(x)}`).join('、'))) : []),
+    ...(T.juniorOut ? [row(T.juniorOut, `國中畢業『未升學』（學制＝未升學）占 ${v.all} 局`, v.typeShare['未升學'], pct(v.typeShare['未升學']), `≤ ${T.juniorOut.max * 100}%`)] : []),
     row(T.destMax, `任何機器人的任何去向占比的最大值（${v.top.b}：${v.top.d}）`, v.top.v, pct(v.top.v), `≤ ${T.destMax.max * 100}%`, '去向合計：' + Object.entries(v.destAll).map(([d, x]) => `${d} ${pct(x)}`).join('、')),
     row(T.stigmaHand, `反污名：技高入學者（${v.nTech} 局）中，動手做興趣高於全體中位數（${v.mH.toFixed(2)}）的比例`, v.techHand, pct(v.techHand), `≥ ${T.stigmaHand.min * 100}%`),
     row(T.stigmaGrade, `反污名：技高入學者中，成績高於全體中位數（z＝${v.mG.toFixed(2)}）的比例`, v.techGrade, pct(v.techGrade), `≥ ${T.stigmaGrade.min * 100}%`),
