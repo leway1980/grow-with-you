@@ -40,6 +40,16 @@ export function playedStages(cal) {
   return out;
 }
 
+/**
+ * 遊戲玩到哪一回合結束：預覽時是 previewTurns（72，國中、高中、離家），平常是 playableTurns（50，CI 與 check-design 用的）。
+ * 預覽旗標由呼叫端決定（網址 ?preview=1）：data.preview 或 st.preview 為真時，startTurn／finishTurn 用預覽的終點。
+ */
+export function playableEnd(data, { preview = false } = {}) {
+  const cal = data.calendar;
+  return preview ? (cal.previewTurns ?? cal.playableTurns) : cal.playableTurns;
+}
+const endOf = (st, data) => playableEnd(data, { preview: !!(data.preview || st.preview) });
+
 export function buildTimeline(cal) {
   const tl = [];
   const stageStart = {}, segNameAt = [];
@@ -149,7 +159,7 @@ function quietLine(st, data, tl, ctx) {
  * 有固定事件的回合有第二張卡（日常或後續卡）：選完第一張後呼叫 nextCard；劑量表在第二張之後合計。
  */
 export function startTurn(st, data) {
-  if (st.turn >= data.calendar.playableTurns) { st.ended = true; st.endReason = '待續'; return { ended: true, tl: timelineOf(st, data) }; }
+  if (st.turn >= endOf(st, data)) { st.ended = true; st.endReason = '待續'; return { ended: true, tl: timelineOf(st, data) }; }
   const tl = data.timeline[st.turn];
   for (const [k, v] of Object.entries(st.openPools)) if (v.until < tl.ageMonths) delete st.openPools[k]; // until＝最後一個還開著的月齡
   const ctx = buildCtx(st, tl);
@@ -256,7 +266,7 @@ export function finishTurn(st, data) {
   st.vcurves.push({ t: st.turn, m: tl.ageMonths, ...r1(st.parent), ...r1(st.child) });
   st.cur = null;
   st.turn++;
-  if (st.turn >= data.calendar.playableTurns) { st.ended = true; st.endReason = '待續'; }
+  if (st.turn >= endOf(st, data)) { st.ended = true; st.endReason = '待續'; }
   return { tl: data.timeline[Math.min(st.turn, data.timeline.length - 1)], ended: st.ended };
 }
 
