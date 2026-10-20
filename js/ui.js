@@ -98,17 +98,19 @@ export function renderMeters(refs, mv) {
 
 /* 面板：卡片 → 劑量表 → 時間流動 */
 export function showCard(refs, card, eyebrow, onChoose) {
+  // 注意：按鈕上只放顯示順序（data-pos），不放選項在資料裡的原始索引——原始索引洩漏了寫卡時的排列。點下去的對應關係只留在閉包裡。
   refs.panel.replaceChildren(
     h('div', { class: 'eyebrow' }, eyebrow),
     h('h2', { id: 'card-title' }, card.title),
+    (card.loads || []).map((t) => h('p', { class: 'load muted' }, t)),
     h('p', { class: 'body' }, card.text),
-    h('div', { class: 'choices', 'data-card': card.id }, card.choices.map((c) =>
-      h('button', { class: 'choice', 'data-act': 'choice', 'data-i': c.i, disabled: c.disabled, onClick: () => onChoose(c.i) },
+    h('div', { class: 'choices' }, card.choices.map((c) =>
+      h('button', { class: 'choice', 'data-act': 'choice', 'data-pos': c.pos, disabled: c.disabled, onClick: () => onChoose(c) },
         h('span', { class: 'lab' }, c.label), c.disabled && h('span', { class: 'why' }, `（${c.reason}）`)))));
   const first = refs.panel.querySelector('.choice:not([disabled])');
   if (first) first.focus({ preventScroll: true });
 }
-export function markPicked(refs, i) { const b = refs.panel.querySelector(`.choice[data-i="${i}"]`); if (b) b.classList.add('picked'); }
+export function markPicked(refs, pos) { const b = refs.panel.querySelector(`.choice[data-pos="${pos}"]`); if (b) b.classList.add('picked'); }
 
 const doseRow = (r) => h('div', { class: 'dose ' + (r.good ? 'good' : 'bad') },
   h('span', { class: 'arrow', 'aria-hidden': 'true' }, r.dir > 0 ? '▲' : '▼'),
@@ -116,12 +118,13 @@ const doseRow = (r) => h('div', { class: 'dose ' + (r.good ? 'good' : 'bad') },
   h('span', { class: 'dbar', 'aria-hidden': 'true' }, [1, 2, 3].map((n) => h('i', { class: n <= r.level ? 'on' : '' }))),
   h('span', { class: 'sr' }, `${r.dir > 0 ? '上升' : '下降'}${r.level === 3 ? '很多' : r.level === 2 ? '一些' : '一點'}`));
 export function showResult(refs, { title, label, result, dose }, onNext, nextLabel = '繼續') {
-  const any = dose.parent.length + dose.child.length > 0;
+  // dose 為 null：固定事件的回合還有第二張卡，劑量表要等第二張選完才合計
+  const any = dose && dose.parent.length + dose.child.length > 0;
   refs.panel.replaceChildren(
     h('div', { class: 'eyebrow' }, title),
     h('p', { class: 'picked-label' }, `你選了：${label}`),
     result && h('p', { class: 'body' }, result),
-    h('div', { class: 'dosebox', 'aria-label': '這次的變化' },
+    dose && h('div', { class: 'dosebox', 'aria-label': '這次的變化' },
       any ? [
         dose.child.length > 0 && h('div', { class: 'dgroup' }, h('div', { class: 'dh' }, '孩子'), dose.child.map(doseRow)),
         dose.parent.length > 0 && h('div', { class: 'dgroup' }, h('div', { class: 'dh' }, '你'), dose.parent.map(doseRow)),

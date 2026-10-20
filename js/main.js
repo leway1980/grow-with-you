@@ -1,7 +1,7 @@
 // 控制器：時間流動、事件暫停、存檔，把引擎和畫面接起來。
 // 沿用《高中，只有一次》(leway1980/Game 47wan @ ce1d972) main.js 的結構（安全儲存、?seed=、暫停／加速、讓他自己過、資料一次載入），
 // 改為一回合一張卡：選擇 → 劑量表 → 時間流動 → 下一回合；沒有線上統計。
-import { prepareData, startTurn, chooseCard, finishTurn } from './engine/turn.js';
+import { prepareData, startTurn, chooseCard, nextCard, finishTurn } from './engine/turn.js';
 import { newState, writeSave, readSave, store } from './engine/state.js';
 import { openingText, childcareText } from './engine/family.js';
 import { buildEnding } from './engine/ending.js';
@@ -15,7 +15,7 @@ const TURN_MS = Math.max(100, parseInt(params.get('ms') || '3500', 10) || 3500);
 const seedParam = () => { const v = parseInt(params.get('seed') || '', 10); return Number.isFinite(v) ? v >>> 0 : null; };
 const newSeed = () => (Math.floor(Math.random() * 4294967296) >>> 0) || 1;
 
-let data, st = null, refs = null, speed = 1, auto = false, phase = 'idle';
+let data, st = null, refs = null, speed = 1, auto = false, phase = 'idle', curView = null;
 let timer = null, pending = null, tickTimer = null;
 
 async function loadData() {
@@ -45,7 +45,7 @@ function toggleAuto() {
 /* ───── 畫面流程 ───── */
 function showTitle() {
   clearTimers(); phase = 'idle'; st = null;
-  const sv = readSave();
+  const sv = readSave(data);
   ui.renderTitle(root, { hasSave: !!sv, onNew: () => showIntro(seedParam() ?? newSeed()), onContinue: resume });
 }
 
@@ -74,7 +74,7 @@ function startGame(state) {
   beginTurn();
 }
 function resume() {
-  const s = readSave();
+  const s = readSave(data);
   if (!s) { showTitle(); return; }
   clearTimers(); st = s; auto = false; speed = 1;
   buildGame();
@@ -97,38 +97,46 @@ function beginTurn() {
   ui.setHeader(refs, tl.label, progress());
   ui.renderMeters(refs, meterView(st, tl.stage));
   if (res.card) {
-    phase = 'card';
-    ui.showCard(refs, res.card, `${tl.label}${tl.months ? '（' + tl.months + '）' : ''}`, (i) => pick(i));
-    if (auto) autoPick();
+    showCurrentCard(res.card, tl);
   } else {
-    phase = 'quiet';
+    phase = 'quiet'; curView = null;
     ui.showQuiet(refs, tl.label, res.quiet, endTurn);
     ui.appendLog(refs, res.quiet);
     if (auto) schedule(1400, endTurn);
   }
 }
-function autoPick() {
-  const view = describeNow();
-  if (!view) return;
-  schedule(1200, () => { const i = selfChoice(st, view); ui.markPicked(refs, i); schedule(500, () => pick(i)); });
+function showCurrentCard(view, tl) {
+  phase = 'card'; curView = view;
+  ui.showCard(refs, view, `${tl.label}${tl.months ? '（' + tl.months + '）' : ''}`, (c) => pick(c));
+  if (auto) autoPick();
 }
-function describeNow() { // 重新取目前這張卡的選項（不重抽）
-  const btns = [...refs.panel.querySelectorAll('.choice')];
-  return btns.length ? { choices: btns.map((b) => ({ i: +b.dataset.i, disabled: b.disabled })) } : null;
+function autoPick() {
+  const view = curView;
+  if (!view) return;
+  schedule(1200, () => { const i = selfChoice(st, view); const c = view.choices.find((x) => x.i === i); ui.markPicked(refs, c.pos); schedule(500, () => pick(c)); });
 }
 
-function pick(i) {
+// c 是畫面上的選項（含引擎用的原始索引 i；原始索引只存在閉包裡，不會寫進 DOM）
+function pick(c) {
   if (phase !== 'card') return;
   clearTimers();
   const tl = tlNow();
-  const title = refs.panel.querySelector('h2')?.textContent || '';
-  const label = refs.panel.querySelector(`.choice[data-i="${i}"] .lab`)?.textContent || '';
-  const out = chooseCard(st, data, i);
+  const view = curView;
+  const out = chooseCard(st, data, c.i);
   phase = 'result';
   ui.renderMeters(refs, meterView(st, tl.stage));
-  ui.showResult(refs, { title, label, result: out.result, dose: out.dose }, endTurn);
-  ui.appendLog(refs, `${tl.label}・${title}：${label}`);
-  if (auto) schedule(2400, endTurn);
+  const next = out.more ? continueTurn : endTurn;
+  ui.showResult(refs, { title: view.title, label: c.label, result: out.result, dose: out.dose }, next, out.more ? '繼續（還有一件事）' : '繼續');
+  ui.appendLog(refs, `${tl.label}・${view.title}：${c.label}`);
+  if (auto) schedule(2400, next);
+}
+// 有固定事件的回合還有第二張卡
+function continueTurn() {
+  if (phase !== 'result') return;
+  clearTimers();
+  const nx = nextCard(st, data);
+  if (!nx) { endTurn(); return; }
+  showCurrentCard(nx.card, nx.tl);
 }
 
 function endTurn() {
@@ -185,4 +193,5 @@ function showEnding() {
   showTitle();
 })();
 
-window.__gwy = { get state() { return st; }, get phase() { return phase; }, get auto() { return auto; } }; // 方便除錯與自動化測試
+// 除錯用的入口只在網址帶 ?debug=1 時才有；一般玩家的頁面上不會有任何可以看到內部狀態的東西
+if (params.get('debug') === '1') window.__gwy = { get state() { return st; }, get phase() { return phase; }, get auto() { return auto; } };
