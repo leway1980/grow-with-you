@@ -94,5 +94,18 @@ export function lintContent(raw, data, cards, ctxKeys) {
       }
     }
   }
+
+  // ── 規則 15：稱謂與代名詞用依角色切換的槽 ──
+  {
+    const words = R.hardcodedWords || [];
+    const scan = (text, where) => {
+      for (const w of words) if (String(text).includes(w)) errors.push(`${where}：規則 15：寫死了「${w}」——稱謂用依角色切換的槽（{你爸媽}、{另一半稱呼}、{長輩稱呼}、{同學叫你}、{假期結束}）`);
+      for (const q of String(text).matchAll(/「[^」]*」/g)) if (q[0].includes('{另一半}')) errors.push(`${where}：規則 15：引號裡的 {另一半} 會變成字面的「另一半」——對孩子說話用 {另一半稱呼}、對大人說用 {另一半稱呼_大人}`);
+    };
+    for (const c of cards) for (const s of cardStrings(c)) scan(s, `卡片 ${c.id}`);
+    for (const [name, vals] of Object.entries(raw.slots.slots)) for (const v of vals) scan(v.t, `槽 ${name}`);
+    for (const l of raw.pools.loads || []) scan(l.text, `loads ${l.id}`);
+    for (const lines of Object.values(raw.calendar.flavor || {})) for (const l of lines) scan(l, '日曆 flavor');
+  }
   return { errors, warns };
 }

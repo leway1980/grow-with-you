@@ -256,12 +256,30 @@ export function rollLoads(st, data, ctx) {
 }
 
 /* ───────────── 顯示用資料 ───────────── */
+/**
+ * 依角色切換的稱謂（規則 15）：玩家是爸爸或媽媽、孩子怎麼叫長輩，都不寫死在卡片裡。
+ * 你爸媽＝孩子叫你什麼；另一半稱呼＝對孩子說話時叫另一半（你媽／你爸）；另一半稱呼_大人＝對大人說（我太太／我先生）；
+ * 另一半代名詞＝他／她；長輩稱呼＝孩子叫長輩的說法；同學叫你＝孩子的朋友叫你叔叔或阿姨；假期結束＝媽媽是產假、爸爸是假期；
+ * 另一個大人＝可以「去問」的人：另一半在家就是另一半，不然是長輩。
+ */
+export function roleWords(st) {
+  const f = st.family, dad = st.role === '爸爸';
+  const partner = dad ? '你媽' : '你爸';
+  const near = f.partner.present && f.partner.attitude !== '幾乎不在家';
+  return {
+    你爸媽: dad ? '爸爸' : '媽媽', 另一半稱呼: partner, 另一半稱呼_大人: dad ? '我太太' : '我先生', 另一半代名詞: dad ? '她' : '他',
+    長輩稱呼: f.elders.who || '長輩', 同學叫你: dad ? '叔叔' : '阿姨', 假期結束: dad ? '假期結束' : '產假結束',
+    另一個大人: near ? partner : (f.elders.who || '長輩'),
+  };
+}
 export function fill(text, st, ctx, scope) {
   if (text == null) return '';
   if (ctx && text.includes('{')) text = fillSlots(text, st, ctx, null, scope || {});
   const f = st.family;
-  return text.replace(/\{孩子\}/g, f.child.given).replace(/\{他\}/g, f.child.pronoun).replace(/\{另一半\}/g, f.partner.present ? '另一半' : '對方')
+  text = text.replace(/\{孩子\}/g, f.child.given).replace(/\{他\}/g, f.child.pronoun).replace(/\{另一半\}/g, f.partner.present ? '另一半' : '對方')
     .replace(/\{寵物名\}/g, f.pet ? f.pet.name : '').replace(/\{學校\}/g, f.school.name).replace(/\{長輩\}/g, f.elders.who || '長輩');
+  if (text.includes('{')) { const rw = roleWords(st); text = text.replace(/\{([^{}]+)\}/g, (m, n) => (n in rw ? rw[n] : m)); }
+  return text;
 }
 export function pickText(card, ctx, st) {
   for (const t of card.textIf || []) if (ctx && evalCond(t.if, ctx)) return t.text;

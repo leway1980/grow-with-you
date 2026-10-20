@@ -44,3 +44,40 @@ test('規則 8（法規）：離開家去運動的選項要有另一個大人在
   const o = card(raw, 'sf_exercise').choices[0];
   assert.match(o.showIf, /年級 >= 3/); assert.match(o.showIf, /有另一半/); assert.match(o.showIf, /長輩 == '同住'/);
 });
+
+/* ───── 規則 15：依角色切換的稱謂 ───── */
+import { loadData } from '../tools/data-node.mjs';
+import { newState } from '../js/engine/state.js';
+import { fill, roleWords } from '../js/engine/events.js';
+import { FIXED_TOKENS, ROLE_TOKENS } from '../js/engine/slots.js';
+
+test('規則 15：稱謂槽依玩家的角色與家庭切換（不抽籤）', () => {
+  const data = loadData();
+  const dad = newState(7, data, { role: '爸爸' }), mom = newState(7, data, { role: '媽媽' });
+  const d = roleWords(dad), m = roleWords(mom);
+  assert.equal(d.你爸媽, '爸爸'); assert.equal(m.你爸媽, '媽媽');
+  assert.equal(d.另一半稱呼, '你媽'); assert.equal(m.另一半稱呼, '你爸');
+  assert.equal(d.另一半稱呼_大人, '我太太'); assert.equal(m.另一半稱呼_大人, '我先生');
+  assert.equal(d.另一半代名詞, '她'); assert.equal(m.另一半代名詞, '他');
+  assert.equal(d.同學叫你, '叔叔'); assert.equal(m.同學叫你, '阿姨');
+  assert.equal(d.假期結束, '假期結束'); assert.equal(m.假期結束, '產假結束');
+  assert.equal(d.長輩稱呼, dad.family.elders.who || '長輩');
+  for (const k of Object.keys(d)) assert.ok(ROLE_TOKENS.includes(k) && FIXED_TOKENS.includes(k), k);
+  assert.equal(fill('「{你爸媽}，我問你喔」：去問{另一半稱呼}，{另一半代名詞}比較清楚', dad, null), '「爸爸，我問你喔」：去問你媽，她比較清楚');
+  assert.equal(fill('{假期結束}之後', mom, null), '產假結束之後');
+  // 另一半不在家（或沒有）時，「去問」的對象改成長輩
+  const solo = newState(7, data, { role: '媽媽' });
+  solo.family.partner = { present: false, status: '前配偶（共親職）', attitude: '幾乎不在家' }; solo.family.elders = { status: '同住', who: '外公外婆' };
+  assert.equal(roleWords(solo).另一個大人, '外公外婆');
+  solo.family.partner = { present: true, status: '同住', attitude: '一起陪' };
+  assert.equal(roleWords(solo).另一個大人, '你爸');
+});
+
+test('規則 15：卡片文字不能寫死稱謂；{另一半} 不能出現在引號裡', () => {
+  assert.match(run((r) => { card(r, 'hi_friend_worry').choices[0].result += '「謝謝阿姨。」'; }).e, /hi_friend_worry：規則 15：寫死了「阿姨」/);
+  assert.match(run((r) => { card(r, 'fx_leave_end').text = '產假快結束了'; }).e, /fx_leave_end：規則 15：寫死了「產假」/);
+  assert.match(run((r) => { card(r, 'fu_fight_after').choices[2].label = '說：「去問{另一半}」'; }).e, /fu_fight_after：規則 15：引號裡的 \{另一半\}/);
+  assert.match(run((r) => { r.slots.slots.週末去處.push({ t: '阿公家' }); r.slots.slots.週末去處.push({ t: '媽媽做的便當' }); }).e, /槽 週末去處：規則 15：寫死了「媽媽做的便當」/);
+  // 引號外的 {另一半} 是敘述，可以
+  assert.doesNotMatch(run((r) => { card(r, 'fu_fight_after').choices[2].label = '請{另一半}去跟{他}說'; }).e, /fu_fight_after/);
+});
