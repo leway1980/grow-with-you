@@ -7,9 +7,9 @@
  "records": [
   {"name": "曾不太來找你", "kind": "var", "key": "不太來找你_曾", "atLeast": 1, "why": "進入過『不太來找你』的狀態（§4.28 連續才是關鍵）"},
   {"name": "現在不太來找你", "kind": "var", "key": "不太來找你", "atLeast": 1, "why": "到終局還在這個狀態"},
-  {"name": "三C連用", "kind": "streak", "tag": "3C當保母", "window": 6, "atLeast": 3, "why": "連續幾回合都用螢幕當保母（§4.33）"},
-  {"name": "連續只問成績", "kind": "streak", "tag": "只問成績或學校怎樣", "window": 6, "atLeast": 3, "why": "每天第一句都是分數（§4.34）"},
-  {"name": "連續替他決定", "kind": "streak", "tag": "替他決定", "window": 6, "atLeast": 4, "why": "同一個方向連續好幾次（§3.3、§11 決定鏈）"}
+  {"name": "三C連用", "kind": "streak", "tag": "3C當保母", "windowMonths": 12, "atLeast": 3, "why": "連續幾回合都用螢幕當保母（§4.33）"},
+  {"name": "連續只問成績", "kind": "streak", "tag": "只問成績或學校怎樣", "windowMonths": 12, "atLeast": 3, "why": "每天第一句都是分數（§4.34）"},
+  {"name": "連續替他決定", "kind": "streak", "tag": "替他決定", "windowMonths": 12, "atLeast": 4, "why": "同一個方向連續好幾次（§3.3、§11 決定鏈）"}
  ],
  "claimGroups": {"開口": ["少", "一半", "多"], "朋友": ["少", "一般", "多"], "自律": ["低", "中", "高"], "螢幕": ["少", "多"]},
  "sentences": [

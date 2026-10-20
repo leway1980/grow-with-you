@@ -8,6 +8,7 @@ import { driftHidden } from './tags.js';
 import { doseView } from './dose.js';
 import { setModel } from './model.js';
 import { setEnding } from './ending.js';
+import { refRate, perSpan, monthlyFromRef, REF_MONTHS } from './timescale.js';
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 
@@ -66,6 +67,12 @@ export function buildTimeline(cal) {
   }
   if (tl.length !== cal.totalTurns) throw new Error(`日曆回合數不對：${tl.length} ≠ ${cal.totalTurns}`);
   tl.forEach((t, i) => { t.newAge = i > 0 && Math.floor(t.ageMonths / 12) !== Math.floor(tl[i - 1].ageMonths / 12); });
+  // span：這個回合涵蓋的月數（到下一回合的月齡差；最後一個回合沿用前一個）。所有『每回合』的量都用它換算（js/engine/timescale.js）。
+  tl.forEach((t, i) => { t.span = i < tl.length - 1 ? tl[i + 1].ageMonths - t.ageMonths : 0; });
+  if (tl.length > 1) tl[tl.length - 1].span = tl[tl.length - 2].span;
+  // ages：整張時間軸的月齡（不可列舉，不進 JSON／deepEqual）：把『幾個月後』換成回合序號用
+  const ages = tl.map((t) => t.ageMonths);
+  for (const t of tl) Object.defineProperty(t, 'ages', { value: ages, enumerable: false });
   for (const f of cal.fixed) {
     let at;
     if (f.at) {
@@ -144,7 +151,7 @@ function quietLine(st, data, tl, ctx) {
 export function startTurn(st, data) {
   if (st.turn >= data.calendar.playableTurns) { st.ended = true; st.endReason = '待續'; return { ended: true, tl: timelineOf(st, data) }; }
   const tl = data.timeline[st.turn];
-  for (const [k, v] of Object.entries(st.openPools)) if (v.until <= st.turn) delete st.openPools[k];
+  for (const [k, v] of Object.entries(st.openPools)) if (v.until < tl.ageMonths) delete st.openPools[k]; // until＝最後一個還開著的月齡
   const ctx = buildCtx(st, tl);
   const r = stateRng(st, 'rngS');
   let card = pickFixed(st, data, tl, ctx), fu = null;
@@ -200,46 +207,53 @@ export function nextCard(st, data) {
   return { tl, card: describeCard(card, st, data, tl), raw: card };
 }
 
-/** 每個回合的自然變化：往「這個家庭、這個階段」的常態慢慢回復，並受隱藏數值的長期影響。 */
+/**
+ * 每個回合的自然變化：往「這個家庭、這個階段」的常態慢慢回復，並受隱藏數值的長期影響。
+ * A2.5：所有回復率都是每月的比率，span 個月的回合回復 1−(1−r)^span。程式裡寫死的數字是『一個 2 個月的國小回合』的舊值，
+ * 用 refRate 換成這個回合的比率（2 個月的回合與舊值完全相同）；資料裡的比率（parentModel、tags.drift）本來就存每月值。
+ */
 function drift(st, data, tl) {
   const P = st.parent, C = st.child, f = st.family, h = st.hidden, tp = f.child.temperament;
   const pat = data.identities.patterns[f.pattern];
   const M = data.identities.parentModel;
+  const sp = tl.span;
+  const R = (r) => refRate(r, sp); // 舊的每回合比率（2 個月）→ 這個回合的比率
   const to = (o, k, target, rate) => { o[k] = clamp(o[k] + (target - o[k]) * rate, 0, 100); };
-  const school = tl.grade > 0, adhd = f.child.needs.some((n) => n.kind === 'ADHD' && st.turn >= n.onset);
-  // 父母：花費會累積。目標 = 常態 − k × 最近花費的指數移動平均，回復速度慢（0.1），所以連續幾回合的付出不會一回合就被洗掉。
+  const school = tl.grade > 0, adhd = f.child.needs.some((n) => n.kind === 'ADHD' && tl.ageMonths >= n.onsetMonths);
+  // 父母：花費會累積。目標 = 常態 − k × 最近花費的指數移動平均，回復速度慢（每月 ~5%），所以連續幾個月的付出不會一回合就被洗掉。
   const acc = (st.cur && st.cur.acc) || {};
-  const a = 2 / (M.emaTurns + 1);
+  const a = perSpan(monthlyFromRef(2 / (M.emaMonths / REF_MONTHS + 1)), sp); // 平均的跨度 emaMonths 個月；2 個月的回合 a＝2/(emaMonths/2+1)
   // 花費可以是負的（休息那一回合是「還債」），累積的疲勞不會低於 0
   for (const k of ['體力', '耐心']) st.costEMA[k] = Math.max(0, st.costEMA[k] + a * (-(acc[k] || 0) - st.costEMA[k]));
-  to(P, '體力', 74 + pat.體力 - M.kBody * st.costEMA.體力, M.recover);
+  const recover = perSpan(M.recoverMonth, sp);
+  to(P, '體力', 74 + pat.體力 - M.kBody * st.costEMA.體力, recover);
   const load = (tp.活動量 >= 4 ? 3 : 0) + (tp.敏感度 >= 4 ? 3 : 0) + (adhd ? 4 : 0) + (st.flags.等公托候補 && tl.stage === '嬰幼兒' ? 3 : 0);
-  to(P, '耐心', 68 - load - (P.體力 < 35 ? 8 : 0) - M.kPatience * st.costEMA.耐心, M.recover);
-  to(P, '錢', M.moneyTarget[f.econ], M.moneyRate); // 回歸家境的常態；帳單是偶爾壓下來的情境負荷（pools.json loads），不是單調的扣款
-  to(P, '工作表現', st.flags.育嬰留停 && !school ? 52 : 62, 0.12);
-  if (f.partner.present) to(P, '夫妻關係', data.identities.partner.startCouple[f.partner.attitude] - (P.耐心 < 30 ? 8 : 0), 0.08);
+  to(P, '耐心', 68 - load - (P.體力 < 35 ? 8 : 0) - M.kPatience * st.costEMA.耐心, recover);
+  to(P, '錢', M.moneyTarget[f.econ], perSpan(M.moneyRateMonth, sp)); // 回歸家境的常態；帳單是偶爾壓下來的情境負荷（pools.json loads），不是單調的扣款
+  to(P, '工作表現', st.flags.育嬰留停 && !school ? 52 : 62, R(0.12));
+  if (f.partner.present) to(P, '夫妻關係', data.identities.partner.startCouple[f.partner.attitude] - (P.耐心 < 30 ? 8 : 0), R(0.08));
   // 孩子的可見數值：往「這個家、這個階段」的常態回復，常態會受隱藏數值的長期影響（§3.2 放任的連鎖：沒規則 → 3C 多 → 睡不好 → 成績與同儕往來都吃虧）。
   // 3C 的常態＝階段的基準 + 規範監督與試探度的影響；注意括號：先取基準，再加影響（M1 的運算子優先順序錯誤已修正）。
   const base3c = { 嬰幼兒: 6, 幼兒園: 20, 國小低: 30, 國小中高: 42 }[tl.stage] ?? 45;
-  to(C, '3C時間', base3c + (50 - h.規範監督) * 0.25 + (h.試探度 - 25) * 0.12, 0.2);
-  to(C, '睡眠', 68 - Math.max(0, C['3C時間'] - 40) * 0.3 + (h.規則一致性 - 50) * 0.06, 0.3);
-  to(C, '心情', 62 + (C.睡眠 - 60) * 0.1 - Math.max(0, C['3C時間'] - 60) * 0.1 + (h.安全感 - 55) * 0.1 + (h.內在穩定 - 50) * 0.08, 0.35);
-  if (tl.stage !== '嬰幼兒') to(C, '同學往來', 50 + f.child.talents.人際 * 6 + (C.心情 - 60) * 0.2 + (h.內在穩定 - 50) * 0.1 - (h.試探度 - 25) * 0.3, 0.15);
+  to(C, '3C時間', base3c + (50 - h.規範監督) * 0.25 + (h.試探度 - 25) * 0.12, R(0.2));
+  to(C, '睡眠', 68 - Math.max(0, C['3C時間'] - 40) * 0.3 + (h.規則一致性 - 50) * 0.06, R(0.3));
+  to(C, '心情', 62 + (C.睡眠 - 60) * 0.1 - Math.max(0, C['3C時間'] - 60) * 0.1 + (h.安全感 - 55) * 0.1 + (h.內在穩定 - 50) * 0.08, R(0.35));
+  if (tl.stage !== '嬰幼兒') to(C, '同學往來', 50 + f.child.talents.人際 * 6 + (C.心情 - 60) * 0.2 + (h.內在穩定 - 50) * 0.1 - (h.試探度 - 25) * 0.3, R(0.15));
   if (school) {
     // 壓力有時候「有用」（§3.1：盯成績在國小常常真的把分數撐住）：不敏感的孩子，期待壓力與替他做主會推高成績與作業；敏感的孩子反過來被拖累
     const press = (h.期待壓力 - 30) * (tp.敏感度 <= 2 ? 0.35 : tp.敏感度 >= 4 ? -0.12 : 0.12) + (h.替他做主 - 30) * (tp.敏感度 <= 3 ? 0.12 : -0.04);
-    to(C, '成績', 50 + (f.child.talents.國語 + f.child.talents.數學) * 3 + press + (h.家庭學習環境 - 45) * 0.25 + (h.閱讀習慣 - 40) * 0.2 + (h.自我效能 - 50) * 0.2 + (C.睡眠 - 60) * 0.1 - Math.max(0, C['3C時間'] - 50) * 0.1 - (adhd ? 3 : 0), 0.12);
-    to(C, '作業', 55 + press * 0.8 + (h.自理與責任 - 40) * 0.3 + (h.規範監督 - 50) * 0.15 + (C.睡眠 - 60) * 0.05 - (adhd ? 6 : 0), 0.25);
+    to(C, '成績', 50 + (f.child.talents.國語 + f.child.talents.數學) * 3 + press + (h.家庭學習環境 - 45) * 0.25 + (h.閱讀習慣 - 40) * 0.2 + (h.自我效能 - 50) * 0.2 + (C.睡眠 - 60) * 0.1 - Math.max(0, C['3C時間'] - 50) * 0.1 - (adhd ? 3 : 0), R(0.12));
+    to(C, '作業', 55 + press * 0.8 + (h.自理與責任 - 40) * 0.3 + (h.規範監督 - 50) * 0.15 + (C.睡眠 - 60) * 0.05 - (adhd ? 6 : 0), R(0.25));
   }
 }
 
 export function finishTurn(st, data) {
   const tl = data.timeline[st.turn];
   drift(st, data, tl);
-  driftHidden(st, data.tags);
+  driftHidden(st, data.tags, { span: tl.span, months: tl.ageMonths });
   const r1 = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.round(v * 10) / 10]));
-  st.curves.push({ t: st.turn, ...r1(st.hidden) });
-  st.vcurves.push({ t: st.turn, ...r1(st.parent), ...r1(st.child) });
+  st.curves.push({ t: st.turn, m: tl.ageMonths, ...r1(st.hidden) });
+  st.vcurves.push({ t: st.turn, m: tl.ageMonths, ...r1(st.parent), ...r1(st.child) });
   st.cur = null;
   st.turn++;
   if (st.turn >= data.calendar.playableTurns) { st.ended = true; st.endReason = '待續'; }

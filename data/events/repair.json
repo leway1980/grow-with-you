@@ -14,7 +14,7 @@
     "國小低",
     "國小中高"
    ],
-   "cooldown": 6,
+   "cooldownMonths": 20,
    "weight": 1,
    "initiate": true,
    "choices": [
@@ -132,7 +132,7 @@
     "國小低",
     "國小中高"
    ],
-   "cooldown": 6,
+   "cooldownMonths": 20,
    "weight": 1,
    "initiate": true,
    "choices": [
@@ -248,7 +248,7 @@
     "國小低",
     "國小中高"
    ],
-   "cooldown": 6,
+   "cooldownMonths": 20,
    "weight": 1,
    "initiate": true,
    "choices": [
@@ -361,7 +361,7 @@
     "國小低",
     "國小中高"
    ],
-   "cooldown": 6,
+   "cooldownMonths": 19,
    "weight": 1,
    "initiate": true,
    "choices": [
@@ -475,7 +475,7 @@
     "國小低",
     "國小中高"
    ],
-   "cooldown": 6,
+   "cooldownMonths": 19,
    "weight": 1,
    "initiate": true,
    "choices": [
@@ -587,7 +587,7 @@
    "stages": [
     "幼兒園"
    ],
-   "cooldown": 8,
+   "cooldownMonths": 27,
    "weight": 1,
    "initiate": true,
    "choices": [

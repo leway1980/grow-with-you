@@ -259,7 +259,13 @@
   },
   {
    "grade": [
-    1,
+    1
+   ],
+   "seg": "期中之後",
+   "event": "fx_field_trip"
+  },
+  {
+   "grade": [
     2,
     4,
     6

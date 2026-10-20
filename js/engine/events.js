@@ -4,6 +4,7 @@ import { pickWeighted, clamp, rngAt, shuffleOrder } from './rng.js';
 import { fillSlots, persistedSlots } from './slots.js';
 import { familyCtx } from './family.js';
 import { applyTags, isGrowthChoice } from './tags.js';
+import { doseScale, scaleEffects, turnAtOrAfter, REF_MONTHS } from './timescale.js';
 
 /* ───────────── 小型條件求值器 ─────────────
    語法：數字、'字串'、變數名(中文可)、#旗標、== != < <= > >=、and or not（也可用 && || !）、括號、true/false */
@@ -139,11 +140,11 @@ export function buildCtx(st, tl, extra = {}) {
   const month = tl.month ?? ((f.child.birthMonth - 1 + Math.floor(tl.ageMonths / 12) * 12 + (tl.ageMonths % 12)) % 12) + 1;
   const ctx = {
     __flags: st.flags,
-    ...familyCtx(f, st.role, tl.ageMonths),
+    ...familyCtx(f, st.role, tl.ageMonths, tl.ages ? (m) => turnAtOrAfter(tl.ages, m) - tl.turn : null),
     ...st.hidden, // 隱藏數值只在引擎內部給條件用（例如選項的門檻）；不會出現在任何畫面
     體力: P.體力, 耐心: P.耐心, 錢: P.錢, 工作表現: P.工作表現, 夫妻關係: P.夫妻關係,
     心情: C.心情, 成績: C.成績, 作業: C.作業, 三C: C['3C時間'], 睡眠: C.睡眠, 同學往來: C.同學往來,
-    回合: st.turn, 階段: tl.stage, 月齡: tl.ageMonths, 年齡: Math.floor(tl.ageMonths / 12), 年級: tl.grade, 假期: !!tl.vacation, 月: month,
+    回合: st.turn, 階段: tl.stage, 月齡: tl.ageMonths, 回合月數: tl.span ?? 2, 年齡: Math.floor(tl.ageMonths / 12), 年級: tl.grade, 假期: !!tl.vacation, 月: month,
     托育方式: st.vars.托育方式, 幼兒園類型: st.vars.幼兒園類型, 照顧者: st.vars.照顧者, 換照顧者次數: st.vars.換照顧者次數,
     孩子不再開口: st.vars.孩子不再開口 || 0, 孩子主動開口: st.vars.孩子主動開口 || 0, 起點: st.startMode,
     上學方式: st.vars.上學方式 || '', 孩子來找_連續錯過: st.vars.孩子來找_連續錯過 || 0, 不太來找你: !!st.vars.不太來找你,
@@ -202,7 +203,7 @@ export function passes(card, st, ctx) {
 }
 function eligible(card, st, ctx) {
   if (card.once && st.used[card.id]) return false;
-  if ((st.cooldowns[card.id] ?? -1) > st.turn) return false;
+  if ((st.cooldowns[card.id] ?? -1) > ctx.月齡) return false; // cooldowns[id]＝最早可以再出現的月齡
   return passes(card, st, ctx);
 }
 function mulMods(mods, ctx) {
@@ -213,7 +214,7 @@ function mulMods(mods, ctx) {
 export function poolWeight(st, data, name, ctx) {
   const def = data.pools[name] || { base: 3, mods: [] };
   const op = st.openPools[name];
-  const open = op && op.until > st.turn;
+  const open = op && op.until >= ctx.月齡; // until＝最後一個還開著的月齡
   return ((def.base ?? 0) + (open ? def.follow ?? 0 : 0)) * mulMods(def.mods, ctx) * (open ? op.x : 1);
 }
 /** 兩段式抽卡（沿用 47wan）：先抽池（被選項打開或加重的池權重較高），再抽卡。卡片依「階段 × 池」建好索引，不必每回合掃全部。 */
@@ -235,7 +236,7 @@ export function pickFixed(st, data, tl, ctx) {
   for (const id of tl.fixed || []) { const c = data.cardIndex[id]; if (c && passes(c, st, ctx)) return c; }
   return null;
 }
-/** 到期的後續卡。回傳 { card, delay }（delay＝從排進去到出現隔了幾回合），沒有就是 null。 */
+/** 到期的後續卡。回傳 { card, delay }（delay＝從排進去到出現隔了幾個月），沒有就是 null。 */
 export function pickDelayed(st, data, tl, ctx, excludeId = null) {
   st.delayed.sort((a, b) => a.due - b.due);
   for (let i = 0; i < st.delayed.length; i++) {
@@ -244,7 +245,7 @@ export function pickDelayed(st, data, tl, ctx, excludeId = null) {
     const c = data.cardIndex[d.card];
     if (c && c.id === excludeId) continue;
     st.delayed.splice(i, 1);
-    if (c && passes(c, st, ctx)) return { card: c, delay: st.turn - (d.from ?? d.due) };
+    if (c && passes(c, st, ctx)) return { card: c, delay: tl.ageMonths - data.timeline[Math.min(d.from ?? d.due, data.timeline.length - 1)].ageMonths }; // 延遲以月計
     i--;
   }
   return null;
@@ -255,7 +256,8 @@ export function rollLoads(st, data, ctx) {
   const out = [];
   for (const L of data.loads || []) {
     if (L.if && !evalCond(L.if, ctx)) continue;
-    if (rngAt(st.seed, st.turn, 'load:' + L.id) < L.p) out.push({ id: L.id, text: L.text, effects: L.effects }); // 命運事件只改看得見的數值，不帶任何家長行為標籤（規則 18）
+    // L.p＝每 2 個月（舊的國小回合）的機率；每月的發生率不變，回合越長機率越高
+    if (rngAt(st.seed, st.turn, 'load:' + L.id) < 1 - Math.pow(1 - L.p, (ctx.回合月數 ?? REF_MONTHS) / REF_MONTHS)) out.push({ id: L.id, text: L.text, effects: L.effects }); // 命運事件只改看得見的數值，不帶任何家長行為標籤（規則 18）
   }
   return out;
 }
@@ -336,8 +338,8 @@ export function describeCard(card, st, data, tl) {
 }
 
 /* ───────────── 套用選擇 ───────────── */
-function applyBranch(st, b, turnNo, r, ctx, acc, scope) {
-  applyEffects(st, b.effects, acc);
+function applyBranch(st, b, turnNo, r, ctx, acc, scope, tl, k = 1) {
+  applyEffects(st, scaleEffects(b.effects, k), acc); // k＝這張卡這個回合的劑量倍率（timescale.js doseScale）
   for (const f of b.setFlags || []) st.flags[f] = true;
   for (const f of b.clearFlags || []) delete st.flags[f];
   // setVars 的值可以含槽（例如 '{寵物}'），用這張卡抽到的槽值：之後的卡讀同一個值，不重抽（規則 14）
@@ -349,12 +351,16 @@ function applyBranch(st, b, turnNo, r, ctx, acc, scope) {
   for (const [k, d] of Object.entries(b.incVars || {})) st.vars[k] = (st.vars[k] || 0) + d;
   for (const [pool, o] of Object.entries(b.opens || {})) {
     const cur = st.openPools[pool];
-    st.openPools[pool] = { x: Math.max(o.x, cur && cur.until > turnNo ? cur.x : 0), until: Math.max(turnNo + 1 + o.turns, cur ? cur.until : 0) };
+    // until＝最後一個還開著的月齡：現在這個月齡 + o.months
+    const now = tl.ageMonths;
+    st.openPools[pool] = { x: Math.max(o.x, cur && cur.until >= now ? cur.x : 0), until: Math.max(now + o.months, cur ? cur.until : -1) };
   }
   for (const f of b.followUp || []) {
     if (f.if && !evalCond(f.if, ctx)) continue;
     if (f.chance != null && r() >= f.chance) continue;
-    const due = turnNo + f.after[0] + Math.floor(r() * (f.after[1] - f.after[0] + 1));
+    // afterMonths：幾個月後（含頭尾的整數月）；due＝第一個月齡 ≥ 那個月的回合序號，from＝現在的回合序號
+    const months = f.afterMonths[0] + Math.floor(r() * (f.afterMonths[1] - f.afterMonths[0] + 1));
+    const due = Math.max(turnNo, tl.ages ? turnAtOrAfter(tl.ages, tl.ageMonths + months) : turnNo + 1);
     st.delayed.push({ card: f.card, due, from: turnNo });
   }
 }
@@ -406,30 +412,31 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
   const gs = choiceState(ch, ctx);
   if (gs.hidden || gs.disabled) throw new Error(`選項不可選: ${card.id}#${idx}`);
   const acc = {}; // 這個選項自己造成的可見變化；回合的合計由呼叫端累加
+  const k = doseScale(data.model && data.model.timeScale ? data.model.timeScale.alpha : 0, tl.span ?? 2, card); // 劑量倍率：一張卡代表這個回合那麼長的時間
   const scope = cardScope(st, card.id);
   const parts = [fill(ch.result, st, ctx, scope)];
   let branchTags = [];
   // 陪伴時段不在：用體力硬換或請假，代價照實顯示在劑量表上，選項不會消失
-  for (const need of ch.needs || []) if (!slotAvailable(st, data, need)) applyEffects(st, data.tags.slotCost[need], acc);
-  applyBranch(st, { ...ch, effects: scaleCosts(data.tags.costMods, ch, ctx) }, st.turn, r, ctx, acc, scope);
+  for (const need of ch.needs || []) if (!slotAvailable(st, data, need)) applyEffects(st, scaleEffects(data.tags.slotCost[need], k), acc);
+  applyBranch(st, { ...ch, effects: scaleCosts(data.tags.costMods, ch, ctx) }, st.turn, r, ctx, acc, scope, tl, k);
   if (ch.chance) {
     const c = ch.chance;
     const p = clamp(c.p * mulMods(c.mods, ctx), 0, 0.97);
     const win = rngAt(st.seed, st.turn, c.id) < p; // 命運骰：和玩家的選擇無關，同一個人生結果相同
     const b = win ? c.win : c.lose;
-    applyBranch(st, b, st.turn, r, ctx, acc, scope);
+    applyBranch(st, b, st.turn, r, ctx, acc, scope, tl, k);
     parts.push(fill(b.result, st, ctx, scope));
     st.flags[`${c.id}_${win ? '中' : '落'}`] = true;
     branchTags = b.tags || []; // 分支也可以帶行為標籤（隱藏數值仍然只經由標籤換算）
   }
   const allTags = [...(ch.tags || []), ...branchTags];
-  applyTags(st, allTags, data.tags, { turn: st.turn, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope), approach: !!card.approach, initiate: !!card.initiate });
+  applyTags(st, allTags, data.tags, { turn: st.turn, months: tl.ageMonths, span: tl.span ?? 2, scale: k, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope), approach: !!card.approach, initiate: !!card.initiate });
   if (isGrowthChoice(data.tags, ch.tags)) recordGrowth(st, data.tags, ch, scope);
   if (card.once) st.used[card.id] = true;
-  if (card.cooldown) st.cooldowns[card.id] = st.turn + card.cooldown + 1;
+  if (card.cooldownMonths) st.cooldowns[card.id] = tl.ageMonths + card.cooldownMonths; // 最早可以再出現的月齡
   const d = {};
   for (const [k, v] of Object.entries(acc)) if (Math.abs(v) >= 0.05) d[k] = Math.round(v * 10) / 10;
-  const entry = { turn: st.turn, card: card.id, title: fill(card.title, st, ctx, scope), ch: idx, label: fill(ch.label, st, ctx, scope), tags: allTags, d };
+  const entry = { turn: st.turn, m: tl.ageMonths, card: card.id, title: fill(card.title, st, ctx, scope), ch: idx, label: fill(ch.label, st, ctx, scope), tags: allTags, d };
   if (extra.fu != null) entry.fu = extra.fu;
   st.hist.push(entry);
   return { result: parts.filter(Boolean).join(' '), acc, entry };

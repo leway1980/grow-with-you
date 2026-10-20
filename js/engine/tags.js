@@ -3,6 +3,7 @@
 // 數值有飽和（越接近 0 或 100 越難動）與自然漂移（不維持就慢慢回到常態，例如了解度）。純函式，無 DOM。
 import { evalCond } from './events.js';
 import { derivedValue } from './model.js';
+import { perSpan, decaySpan } from './timescale.js';
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 export const HIDDEN_KEYS = (T) => Object.keys(T.hidden);
@@ -31,13 +32,13 @@ export function isGrowthChoice(T, tags) {
   return g.some((t) => !only.includes(t));
 }
 
-/** 同一個標籤在最近 window 回合內出現過幾次（含這次之前的） */
-export function recentCount(st, tag, turn, T) {
-  const w = T.repetition.window;
+/** 同一個標籤在最近 windowMonths 個月內出現過幾次（含這次之前的）；months＝現在的月齡（A2.5：窗口以月計，不隨回合長度變） */
+export function recentCount(st, tag, months, T) {
+  const w = T.repetition.windowMonths;
   let n = 0;
   for (let i = st.hist.length - 1; i >= 0; i--) {
     const h = st.hist[i];
-    if (turn - h.turn > w) break;
+    if (months - h.m > w) break;
     if (h.tags && h.tags.includes(tag)) n++;
   }
   return n;
@@ -54,9 +55,9 @@ export function modifierFactor(T, tag, ctx) {
 export const saturate = (v, d) => (d >= 0 ? d * (100 - v) / 50 : d * v / 50);
 
 /** 重複加速的倍率（只有 accel:true 的標籤才會用到） */
-export function repetitionMult(st, tag, turn, T) {
+export function repetitionMult(st, tag, months, T) {
   const rep = T.repetition;
-  return Math.min(rep.cap, 1 + rep.per * recentCount(st, tag, turn, T));
+  return Math.min(rep.cap, 1 + rep.per * recentCount(st, tag, months, T));
 }
 
 /** 「壓力那一側」的方向：期待壓力上升、主見下降。方向計數只放大這一側（§3.3） */
@@ -64,7 +65,9 @@ const pressureSide = (k, d) => (k === '期待壓力' ? d > 0 : k === '主見' ? 
 
 /**
  * 套用一組標籤。回傳 { deltas }：這次每個隱藏數值實際改變了多少（只給工具與測試用，遊戲畫面不會用到）。
- * opts: { turn, stage, ctx, topic, direction, approach }
+ * opts: { turn, months, span, scale, stage, ctx, topic, direction, approach, initiate }
+ * months＝現在的月齡（重複加速的窗口用；沒給就取 ctx.月齡，再沒有就是最近一筆紀錄的月齡）；scale＝這張卡的劑量倍率（timescale.js doseScale，沒給是 1）：
+ * 放大『隱藏數值的變化量』（d、興趣、父母的收穫、休息的減輕），不放大事件計數（counts、方向計數、approach 的連續數是『幾次』，不是『多久』）。
  */
 /**
  * 孩子來找你（DESIGN §4.28 連續才是關鍵）：只看『連續』。approach 卡上選項帶 missTags ⇒ 連續錯過 +1（達門檻進入『不太來找你』）；
@@ -94,13 +97,15 @@ export function updateApproach(st, tags, T, opts) {
 
 export const applyTags = writer((st, tags, T, opts) => {
   const deltas = {}, perTag = observer ? {} : null;
-  const { turn, stage, ctx, topic, direction } = opts;
+  const { stage, ctx, topic, direction } = opts;
+  const scale = opts.scale ?? 1;
+  const months = opts.months ?? (ctx && ctx.月齡) ?? (st.hist.length ? st.hist[st.hist.length - 1].m : 0);
   for (const tag of tags || []) {
     const def = T.tags[tag];
     if (!def) throw new Error('未知的行為標籤: ' + tag);
-    let mult = (T.gain ?? 1) * (st.family.child.responsive ?? 1) * stageMult(def, stage) * modifierFactor(T, tag, ctx);
+    let mult = (T.gain ?? 1) * (st.family.child.responsive ?? 1) * stageMult(def, stage) * modifierFactor(T, tag, ctx) * scale;
     // 重複加速：只有「害處會累積」的標籤（accel:true）才會在短時間內越來越快
-    if (def.accel) mult *= repetitionMult(st, tag, turn, T);
+    if (def.accel) mult *= repetitionMult(st, tag, months, T);
     // 方向加速（§3.3）：同一個方向一直被提到，壓力那一側越來越快；順口的權重比特地小，但不是零
     let dirMult = 1;
     if (def.dir != null) {
@@ -117,7 +122,7 @@ export const applyTags = writer((st, tags, T, opts) => {
       if (perTag) ((perTag[tag] ||= {})[k] = (perTag[tag][k] || 0) + (st.hidden[k] - before));
     }
     if (def.interest && topic && topic in st.interest) st.interest[topic] = clamp(st.interest[topic] + (def.interest / 100) * mult, 0, 1);
-    if (def.relief) for (const k of ['體力', '耐心']) st.costEMA[k] *= 1 - def.relief; // 真的休息：累積的疲勞減輕（不是隱藏數值）
+    if (def.relief) for (const k of ['體力', '耐心']) st.costEMA[k] *= Math.pow(1 - def.relief, scale); // 真的休息：累積的疲勞減輕（不是隱藏數值）
     for (const [k, n] of Object.entries(def.counts || {})) st.vars[k] = (st.vars[k] || 0) + n;
     st.tagCounts[tag] = (st.tagCounts[tag] || 0) + 1;
   }
@@ -125,12 +130,12 @@ export const applyTags = writer((st, tags, T, opts) => {
   // 父母的收穫：一個選項只算一次，只在這裡寫（單一寫入口）；飽和與其他隱藏數值相同
   if (isGrowthChoice(T, tags)) {
     const before = st.hidden.父母的收穫 ?? 0;
-    st.hidden.父母的收穫 = clamp(before + saturate(before, T.growth.gain), 0, 100);
+    st.hidden.父母的收穫 = clamp(before + saturate(before, T.growth.gain * scale), 0, 100);
     deltas.父母的收穫 = (deltas.父母的收穫 || 0) + (st.hidden.父母的收穫 - before);
     if (perTag) perTag['@父母的收穫'] = { 父母的收穫: st.hidden.父母的收穫 - before };
   }
   recomputeDerived(st, T);
-  if (observer) observer({ st, turn, stage, tags: tags || [], perTag, deltas });
+  if (observer) observer({ st, turn: opts.turn, stage, tags: tags || [], perTag, deltas });
   return { deltas };
 });
 
@@ -145,22 +150,31 @@ export const recomputeDerived = writer((st, T) => {
  * 1. 每個隱藏數值慢慢回到它的常態（了解度不維持就會下降；to:'start' 表示回到開局的值）；
  * 2. 規則式的漂移：耐心連續見底 ⇒ 父母情緒穩定度下降；
  * 3. 方向計數隨時間衰減。
+ * A2.5：全部以月計。opts.span＝這個回合涵蓋的月數（沒給＝2，舊的國小回合）、opts.months＝這個回合的月齡。
+ * 回復率 rateMonth 是每月的值，span 個月回復 1−(1−r)^span；規則式漂移看『連續低於門檻的月數』（每個回合涵蓋的月數累計），每月的變化量 × span；
+ * 方向計數每月衰減 directionDecayMonth。
  */
-export const driftHidden = writer((st, T) => {
-  const dr = T.drift;
+export const driftHidden = writer((st, T, opts = {}) => {
+  const dr = T.drift, span = opts.span ?? 2;
+  const months = opts.months ?? (st.vcurves.length ? st.vcurves[st.vcurves.length - 1].m + span : 0);
   for (const [k, def] of Object.entries(dr.to)) {
     const target = def.to === 'start' ? (st.startHidden?.[k] ?? T.hidden[k]) : def.to;
-    st.hidden[k] = clamp(st.hidden[k] + (target - st.hidden[k]) * def.rate, 0, 100);
+    st.hidden[k] = clamp(st.hidden[k] + (target - st.hidden[k]) * perSpan(def.rateMonth, span), 0, 100);
   }
   for (const rule of T.model.rules || []) {
-    const prev = st.vcurves.slice(-(rule.turns - 1)).map((c) => c[rule.stat]);
-    const vals = rule.turns > 1 ? [...prev, st.parent[rule.stat]] : [st.parent[rule.stat]];
-    if (vals.length >= rule.turns && vals.every((v) => v < rule.lt)) {
-      for (const [k, d] of Object.entries(rule.d)) st.hidden[k] = clamp(st.hidden[k] + d, 0, 100);
+    const now = st.parent[rule.stat];
+    if (!(now < rule.lt)) continue;
+    // 連續低於門檻涵蓋的月數：這個回合本身（span）＋往回數、一路低於門檻的那些回合（每個回合涵蓋到下一個回合的月齡）
+    let since = months, covered = span;
+    for (let i = st.vcurves.length - 1; i >= 0; i--) {
+      const c = st.vcurves[i];
+      if (!(c[rule.stat] < rule.lt)) break;
+      since = c.m ?? since; covered = months + span - since;
     }
+    if (covered >= rule.months) for (const [k, d] of Object.entries(rule.d)) st.hidden[k] = clamp(st.hidden[k] + d * span, 0, 100);
   }
   for (const k of Object.keys(st.dirCount)) {
-    st.dirCount[k] *= T.repetition.directionDecay ?? 1;
+    st.dirCount[k] *= decaySpan(T.repetition.directionDecayMonth ?? 1, span);
     if (st.dirCount[k] < 0.01) delete st.dirCount[k];
   }
   recomputeDerived(st, T);

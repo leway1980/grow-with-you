@@ -137,9 +137,10 @@ export function generateFamily(seed, idn) {
     const u1 = rn(), u2 = rn(), u3 = rn(), u4 = rn(); // 固定消耗，別張表改了也不影響其他類別
     const p = def.rate * (sex === '男' ? def.male : def.female);
     if (u1 < p) {
-      const onset = def.onset[0] + Math.floor(u3 * (def.onset[1] - def.onset[0] + 1));
+      // 發作月齡：從 onsetMonths 清單均勻抽一個（清單是舊日曆的發作回合逐一換成月齡，分布與 A0 相同）；確診＝發作後再過 dxDelayMonths 個月
+      const onsetMonths = def.onsetMonths[Math.min(def.onsetMonths.length - 1, Math.floor(u3 * def.onsetMonths.length))];
       const dx = u2 < def.dxRate; // 「有」和「被看見」分開：只有一部分會在遊戲中被診斷
-      needs.push({ kind, diagnosed: false, onset, dxTurn: dx ? onset + def.dxDelay[0] + Math.floor(u4 * (def.dxDelay[1] - def.dxDelay[0] + 1)) : null });
+      needs.push({ kind, diagnosed: false, onsetMonths, dxMonths: dx ? onsetMonths + def.dxDelayMonths[0] + Math.floor(u4 * (def.dxDelayMonths[1] - def.dxDelayMonths[0] + 1)) : null });
     }
   }
   const ri = rs(seed, 'childInterest');
@@ -226,13 +227,11 @@ export const SCHOOL_BUS_P = { 都會核心: 0.5, 都會外圍: 0.55, 中小城�
 export const schoolBusOf = (seed, urban) => rngAt(seed >>> 0, 0, 'schoolbus') < (SCHOOL_BUS_P[urban] ?? 0.5);
 
 const SIB_LABEL = { 姐姐: '姊姊', 姊姊: '姊姊', 哥哥: '哥哥', 弟弟: '弟弟', 妹妹: '妹妹' };
-/** 學前每回合約 3 個月：『下一胎回合差』（kid_newborn 的條件）用它把月數折成回合數 */
-const PRESCHOOL_STEP = 3;
 /**
  * 手足關係：和孩子年齡最近的那一位（哥哥／姊姊／弟弟／妹妹）；沒有手足是 ''。
  * 弟弟妹妹要到出生的月齡（arriveMonths，孩子幾個月大時出生）才算；ageMonths 沒給時（開局抽籤）全部都算。年長手足：最近的哥哥／姊姊。
  */
-export function siblingRelations(fam, ageMonths) {
+export function siblingRelations(fam, ageMonths, turnsUntil = null) {
   const gap = (s) => (s.older ? s.ageGap : (s.arriveMonths ?? 0) / 12);
   const live = fam.siblings.filter((s) => s.older || ageMonths == null || (s.arriveMonths ?? 0) <= ageMonths);
   const byGap = (a, b) => gap(a) - gap(b);
@@ -240,8 +239,9 @@ export function siblingRelations(fam, ageMonths) {
   const elders = fam.siblings.filter((s) => s.older).sort(byGap);
   const youngers = live.filter((s) => !s.older).sort(byGap);
   const lab = (s) => (s ? SIB_LABEL[s.rel] || s.rel : '');
-  // 下一胎：還沒出生的弟弟妹妹，再過幾個回合出生（沒有就是 99；以學前每回合 3 個月計，進位）。kid_newborn 只在 1–2 個回合之前出現（家裡知道要多一個人了）
-  const due = fam.siblings.filter((s) => !s.older && ageMonths != null && (s.arriveMonths ?? 0) > ageMonths).map((s) => Math.ceil((s.arriveMonths - ageMonths) / PRESCHOOL_STEP));
+  // 下一胎：還沒出生的弟弟妹妹，再過幾個回合出生（沒有就是 99）。turnsUntil(月齡)＝時間軸上第一個月齡 ≥ 該月齡的回合序號 − 現在的回合序號（buildCtx 給）。
+  // kid_newborn 只在 1–2 個回合之前出現（家裡知道要多一個人了）。沒有時間軸時（開局抽籤）全部是 99。
+  const due = fam.siblings.filter((s) => !s.older && ageMonths != null && turnsUntil && (s.arriveMonths ?? 0) > ageMonths).map((s) => turnsUntil(s.arriveMonths));
   return {
     手足關係: lab(nearest), 年長手足: lab(elders[0]), 年幼手足: lab(youngers[0]),
     手足數: live.length, 年長手足數: elders.length, 年幼手足數: youngers.length, 下一胎回合差: due.length ? Math.min(...due) : 99,
@@ -249,7 +249,7 @@ export function siblingRelations(fam, ageMonths) {
 }
 
 /** 條件環境裡跟家庭有關的部分（用在 startAdjust 與卡片條件）。ageMonths（孩子目前月齡）給了就把還沒出生的弟弟妹妹排除。 */
-export function familyCtx(fam, role, ageMonths) {
+export function familyCtx(fam, role, ageMonths, turnsUntil = null) {
   const has = (k) => fam.child.needs.some((n) => n.kind === k);
   return {
     角色: role, 經濟: fam.econ, 城鄉: fam.urban, 縣市: fam.county, 棒球重鎮: BASEBALL_COUNTIES.includes(fam.county),
@@ -257,7 +257,7 @@ export function familyCtx(fam, role, ageMonths) {
     職位: fam.rank || '基層', 交通工具: fam.transport || '機車', 通勤距離: fam.commute || '中', // 舊存檔沒有時由 migrate 補上，這裡只是保險
     學校有交通車: schoolBusOf(fam.seed, fam.urban),
     另一半: fam.partner.attitude || '', 有另一半: !!fam.partner.present, 長輩: fam.elders.status, 長輩謹慎: fam.elders.caution || '普通', 住屋: fam.housing, 孩子空間: fam.space,
-    升學資源: fam.support, 被帶大: fam.upbringing, ...siblingRelations(fam, ageMonths),
+    升學資源: fam.support, 被帶大: fam.upbringing, ...siblingRelations(fam, ageMonths, turnsUntil),
     有寵物: !!fam.pet, 寵物種類: fam.pet ? fam.pet.type : '',
     孩子性別: fam.child.sex, 孩子活動量: fam.child.temperament.活動量, 孩子敏感度: fam.child.temperament.敏感度, 孩子堅持度: fam.child.temperament.堅持度,
     // 特殊需求：各類各一個旗標（卡片的訊號與修正用精確的這幾個）；有特殊需求ADHD 沿用舊名

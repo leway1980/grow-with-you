@@ -7,7 +7,6 @@ import { evalCond } from './events.js';
 
 const mean = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0);
 const clamp = (x, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, x));
-const last = (arr, n) => arr.slice(-n);
 
 /** 隱藏數值的名稱分組（只在終局揭露用） */
 export const REVEAL_GROUPS = [
@@ -18,13 +17,23 @@ export const REVEAL_GROUPS = [
 ];
 export const GOOD_WHEN_UP = (k) => k !== '期待壓力' && k !== '試探度' && k !== '替他做主';
 
-function avgHidden(st, key, n = 99) { return mean(last(st.curves, n).map((c) => c[key]).filter((x) => x != null)); }
-function avgVis(st, key, n = 8) { return mean(last(st.vcurves, n).map((c) => c[key]).filter((x) => x != null)); }
+/**
+ * 最近 months 個月的紀錄（A2.5：窗口以月計，不以回合計）：月齡 m 在 (最後一筆的 m − months, 最後一筆的 m] 之內的。
+ * 2 個月的回合時，24 個月＝最後 12 筆，和舊的『最後 12 個回合』相同。沒有 m 的舊紀錄（不該出現，migrate 會補）退回『每筆 2 個月』。
+ */
+export function lastMonths(rows, months) {
+  if (months == null || !rows.length) return rows;
+  const lastM = rows[rows.length - 1].m;
+  if (lastM == null) return rows.slice(-Math.max(1, Math.round(months / 2)));
+  return rows.filter((c) => c.m > lastM - months);
+}
+function avgHidden(st, key, months) { return mean(lastMonths(st.curves, months).map((c) => c[key]).filter((x) => x != null)); }
+function avgVis(st, key, months) { return mean(lastMonths(st.vcurves, months).map((c) => c[key]).filter((x) => x != null)); }
 
-/** 結果節點的輸入怎麼讀：hidden＝終點的隱藏數值；vis＝可見數值最近 n 回合的平均；開口度由兩個計數算出（公式與權重在 data/model.json 的 outcomes） */
+/** 結果節點的輸入怎麼讀：hidden＝終點的隱藏數值；vis＝可見數值最近 months 個月的平均（A2.5：以月計）；開口度由兩個計數算出（公式與權重在 data/model.json 的 outcomes） */
 function reader(st, M) {
   const h = st.hidden;
-  return (it) => (it.as === 'vis' ? avgVis(st, it.from, it.n) : it.from === '開口度' ? opennessOf(st, M) : h[it.from]);
+  return (it) => (it.as === 'vis' ? avgVis(st, it.from, it.months) : it.from === '開口度' ? opennessOf(st, M) : h[it.from]);
 }
 const modelOf = (st, M) => M || getModel();
 
@@ -75,9 +84,9 @@ export const getEnding = () => {
   return currentEnding;
 };
 
-/** 在連續 win 回合內，帶有某標籤的選擇最多出現幾次 */
+/** 在連續 win 個月內，帶有某標籤的選擇最多出現幾次（A2.5：以月齡 m 計；6 個國小回合＝12 個月） */
 export function maxInWindow(hist, tag, win) {
-  const turns = hist.filter((h) => (h.tags || []).includes(tag)).map((h) => h.turn);
+  const turns = hist.filter((h) => (h.tags || []).includes(tag)).map((h) => h.m);
   let best = 0;
   for (let i = 0; i < turns.length; i++) { let j = i; while (j + 1 < turns.length && turns[j + 1] - turns[i] < win) j++; best = Math.max(best, j - i + 1); }
   return best;
@@ -85,7 +94,7 @@ export function maxInWindow(hist, tag, win) {
 /** 決定鏈紀錄（ending.json 的 records）：{ 名稱: 0|1 }。結局句子只能讀這些，不能讀單張卡的選擇 */
 export function chainRecords(st, E = getEnding()) {
   const out = {};
-  for (const r of E.records) out[r.name] = (r.kind === 'var' ? (st.vars[r.key] || 0) >= r.atLeast : maxInWindow(st.hist, r.tag, r.window) >= r.atLeast) ? 1 : 0;
+  for (const r of E.records) out[r.name] = (r.kind === 'var' ? (st.vars[r.key] || 0) >= r.atLeast : maxInWindow(st.hist, r.tag, r.windowMonths) >= r.atLeast) ? 1 : 0;
   return out;
 }
 /** 句子條件的環境：第 4 層的結果（含高中低）＋決定鏈紀錄 */
@@ -129,7 +138,7 @@ export const ROUTE_DELTA = 8; // 值的來源是 data/model.json 的 bands.route
  */
 export function routePosition(st) {
   const s0 = st.startHidden || st.hidden;
-  const end = (k) => avgHidden(st, k, 12);
+  const end = (k) => avgHidden(st, k, getModel().bands.routeWindowMonths); // 最近 24 個月（舊的最後 12 個國小回合）
   const warm = end('溫暖陪伴'), firm = end('規範監督'), control = end('替他做主');
   const dw = warm - s0.溫暖陪伴, df = firm - s0.規範監督, dc = control - s0.替他做主;
   let kind, name;
@@ -230,7 +239,7 @@ export function buildEnding(st, data) {
   const axes = outcomeAxes(st);
   const nm = st.family.child.given;
   const stageNow = data.timeline[Math.min(st.turn, data.timeline.length - 1)];
-  const score = avgVis(st, '成績', 12);
+  const score = avgVis(st, '成績', 24);
   const E = data.ending || getEnding(), route = routePosition(st), combo = comboOf(axes);
   const lines = pickLines(endingContext({ axes, wellbeing: w, route, combo }, chainRecords(st, E), E), E).map((l) => ({ ...l, text: fillName(l.text, st) }));
   const home = lines.find((l) => l.facet === 'home');

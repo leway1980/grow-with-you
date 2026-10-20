@@ -1986,101 +1986,59 @@
     "male": 1.5,
     "female": 0.5,
     "dxRate": 0.3,
-    "onset": [
-     14,
-     30
-    ],
-    "dxDelay": [
-     4,
-     12
-    ]
+    "onsetMonths": [48, 52, 56, 60, 64, 68, 72, 74, 76, 78, 80, 82, 84, 86, 88, 90, 92],
+    "dxDelayMonths": [9, 28]
    },
    "學習障礙": {
     "rate": 0.011,
     "male": 1.3,
     "female": 0.7,
     "dxRate": 0.5,
-    "onset": [
-     22,
-     34
-    ],
-    "dxDelay": [
-     2,
-     8
-    ]
+    "onsetMonths": [76, 78, 80, 82, 84, 86, 88, 90, 92, 94, 96, 98, 100],
+    "dxDelayMonths": [4, 16]
    },
    "自閉症": {
     "rate": 0.0068,
     "male": 1.7,
     "female": 0.3,
     "dxRate": 0.6,
-    "onset": [
-     8,
-     24
-    ],
-    "dxDelay": [
-     2,
-     8
-    ]
+    "onsetMonths": [24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 74, 76, 78, 80],
+    "dxDelayMonths": [6, 25]
    },
    "發展遲緩": {
     "rate": 0.007,
     "male": 1.3,
     "female": 0.7,
     "dxRate": 0.6,
-    "onset": [
-     3,
-     14
-    ],
-    "dxDelay": [
-     1,
-     6
-    ]
+    "onsetMonths": [9, 12, 15, 18, 21, 24, 28, 32, 36, 40, 44, 48],
+    "dxDelayMonths": [4, 22]
    },
    "情緒行為障礙": {
     "rate": 0.0036,
     "male": 1.4,
     "female": 0.6,
     "dxRate": 0.4,
-    "onset": [
-     26,
-     40
-    ],
-    "dxDelay": [
-     3,
-     10
-    ]
+    "onsetMonths": [84, 86, 88, 90, 92, 94, 96, 98, 100, 102, 104, 106, 108, 110, 112],
+    "dxDelayMonths": [6, 20]
    },
    "其他身心障礙": {
     "rate": 0.0166,
     "male": 1.2,
     "female": 0.8,
     "dxRate": 0.8,
-    "onset": [
-     0,
-     6
-    ],
-    "dxDelay": [
-     0,
-     3
-    ]
+    "onsetMonths": [0, 3, 6, 9, 12, 15, 18],
+    "dxDelayMonths": [0, 9]
    },
    "資優": {
     "rate": 0.02,
     "male": 1,
     "female": 1,
     "dxRate": 0.5,
-    "onset": [
-     20,
-     40
-    ],
-    "dxDelay": [
-     2,
-     8
-    ]
+    "onsetMonths": [72, 74, 76, 78, 80, 82, 84, 86, 88, 90, 92, 94, 96, 98, 100, 102, 104, 106, 108, 110, 112],
+    "dxDelayMonths": [4, 16]
    }
   },
-  "specialNeedsNote": "ADHD 有 8%、其中約三成會被診斷（DATA §1）；特教生全部約 4.5%，學障約四分之一、自閉症約 15%（男女 6:1 近似）；資優比例待確認。",
+  "specialNeedsNote": "A2.5：發作與確診延遲都以月計。onsetMonths 是從舊的 92 回合日曆的 onset（回合序號）逐一換成月齡的清單，從清單裡均勻抽一個，所以發作月齡的分布與 A0 完全相同（舊的回合在學前是 3–4 個月、國小是 2 個月，換成月齡後不是均勻的）；dxDelayMonths 是舊的確診延遲（回合）換成月數的範圍（依各類型發作時的平均回合長度，ADHD 約 2.3、自閉症約 3.1、其他約 2.0 個月）。ADHD 有 8%、其中約三成會被診斷（DATA §1）；特教生全部約 4.5%，學障約四分之一、自閉症約 15%（男女 6:1 近似）；資優比例待確認。",
   "responsive": {
    "sd": 0.42,
    "min": 0.55,
@@ -2292,9 +2250,9 @@
   "nick": "孩子"
  },
  "parentModel": {
-  "_why": "父母的可見數值模型（DESIGN §3.4 修訂版）：體力、耐心每回合以 recover 的速度回到 target = base − k × 最近花費的指數移動平均；錢往家境的目標值回歸。花費不會一回合就被洗掉。",
-  "recover": 0.1,
-  "emaTurns": 6,
+  "_why": "父母的可見數值模型（DESIGN §3.4 修訂版）：體力、耐心每個月以 recoverMonth 的速度回到 target = base − k × 最近花費的指數移動平均（emaMonths：平均的跨度，12 個月＝舊的 6 個國小回合；換成每月的係數時 a＝2/(emaMonths/2+1)，2 個月的回合與舊值相同）；錢往家境的目標值回歸（moneyRateMonth）。花費不會一回合就被洗掉。A2.5：所有『每回合』的比率改成每月，span 個月的回合用 1−(1−r)^span。",
+  "recoverMonth": 0.051317,
+  "emaMonths": 12,
   "kBody": 2.5,
   "kPatience": 3.5,
   "moneyTarget": {
@@ -2302,7 +2260,7 @@
    "小康": 50,
    "吃緊": 25
   },
-  "moneyRate": 0.1,
+  "moneyRateMonth": 0.051317,
   "lowShareWeight": 40.0,
   "lowThreshold": 35.0,
   "levelWeight": 0.3,

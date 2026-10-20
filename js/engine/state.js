@@ -5,7 +5,7 @@ import { generateFamily, familyCtx, rollWork, rollBackground } from './family.js
 import { evalCond } from './events.js';
 import { recomputeDerived } from './tags.js';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 export const SAVE_KEY = 'gwy.save.v1';
 
 export const PARENT_KEYS = ['體力', '耐心', '錢', '工作表現', '夫妻關係'];
@@ -69,7 +69,7 @@ export function newState(seed, data, opts = {}) {
 export const serialize = (st) => JSON.stringify(st);
 export const deserialize = (s) => {
   const st = JSON.parse(s);
-  if (!st || (st.v !== SAVE_VERSION && st.v !== 1)) throw new Error('存檔版本不符'); // v1 由 migrate 升級
+  if (!st || (st.v !== SAVE_VERSION && st.v !== 1 && st.v !== 2)) throw new Error('存檔版本不符'); // v1、v2 由 migrate 升級
   return st;
 };
 
@@ -126,12 +126,31 @@ function migrateV1(st, data) {
   return st;
 }
 
+/* ───── v2 → v3：所有『回合』單位的欄位改成月（A2.5） ─────
+   hist／curves／vcurves 補上月齡 m；特殊需求的發作與確診從回合序號改成月齡；cooldowns 從『最早可再出現的回合』改成『最早可再出現的月齡』；
+   openPools.until 從『第一個關掉的回合』改成『最後一個還開著的月齡』。delayed 的 due／from 仍是回合序號（排進去時才用月數算出，日曆沒變就仍然有效）。 */
+function migrateV2(st, data) {
+  const tl = data.timeline, end = tl[tl.length - 1].ageMonths;
+  const mAt = (t) => (t < 0 ? -1 : t >= tl.length ? end + (t - tl.length + 1) : tl[t].ageMonths);
+  for (const e of st.hist || []) { e.m = mAt(e.turn); if (e.fu != null) e.fu = e.m - mAt(e.turn - e.fu); } // fu 從『隔了幾回合』變成『隔了幾個月』
+  for (const c of [...(st.curves || []), ...(st.vcurves || [])]) c.m = mAt(c.t);
+  for (const n of (st.family && st.family.child && st.family.child.needs) || []) {
+    n.onsetMonths = mAt(n.onset); n.dxMonths = n.dxTurn == null ? null : mAt(n.dxTurn);
+    delete n.onset; delete n.dxTurn;
+  }
+  for (const k of Object.keys(st.cooldowns || {})) st.cooldowns[k] = mAt(st.cooldowns[k]);
+  for (const o of Object.values(st.openPools || {})) o.until = mAt(o.until - 1);
+  st.v = 3;
+  return st;
+}
+
 /**
  * 舊存檔升級：補上新欄位的預設值、丟掉已經不存在的後續卡與當前卡、不保存每次選擇的隱藏變化。
  * 只有『欄位的意思變了、補預設也救不回來』時才提高 SAVE_VERSION；單純新增欄位只要在這裡補預設。
  */
 export function migrate(st, data) {
   if (st && st.v === 1) migrateV1(st, data);
+  if (st && st.v === 2) migrateV2(st, data);
   if (!st || st.v !== SAVE_VERSION) throw new Error('存檔版本不符');
   const T = data.tags;
   st.hidden ||= {};
