@@ -18,4 +18,4 @@ jobs:
       - name: Lint (data, causal model, ending text)
         run: node tools/lint-data.mjs
       - name: Design check (mechanism health, caps, ending contradictions)
-        run: node tools/check-design.mjs 1500
+        run: node tools/check-design.mjs 3000

@@ -63,6 +63,12 @@ export function stratifiedDiff(recs, pred, axis, minGroup = 10) {
   return den ? { diff: num / den, n1, n0 } : { diff: NaN, n1: 0, n0: 0 };
 }
 
+/** Wilson 95% 信賴區間 */
+export function wilson(k, n, z = 1.96) {
+  if (!n) return [0, 1];
+  const p = k / n, d = 1 + z * z / n, c = p + z * z / (2 * n), w = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n));
+  return [(c - w) / d, (c + w) / d];
+}
 const f2 = (x) => (Number.isFinite(x) ? x.toFixed(2) : 'NaN');
 const pc = (x) => (x * 100).toFixed(1) + '%';
 
@@ -81,7 +87,16 @@ export function evaluateMechanisms(recs, targets) {
     const sum = (path) => pool.reduce((a, r) => a + (getPath(r, path) || 0), 0);
     const v = m.kind === 'ratio' ? sum(m.num) / Math.max(1, sum(m.den)) : m.kind === 'mean' ? avg(pool.map((r) => getPath(r, m.path))) : share(pool, (r) => fired(r, m.fired));
     const fmt = m.kind === 'mean' ? f2 : pc; // ratio 與 share 都用百分比
-    add((m.min == null || v >= m.min) && (m.max == null || v <= m.max), '機制', m.name + (m.mode || m.where ? `（${pool.length} 局）` : ''), fmt(v), `${m.min == null ? '' : fmt(m.min)}～${m.max == null ? '' : fmt(m.max)}`, m.note || '');
+    const inR = (x) => (m.min == null || x >= m.min) && (m.max == null || x <= m.max);
+    let ok = inR(v), pending = false, ci = '';
+    if (m.kind !== 'mean' && m.kind !== 'ratio') {
+      // 比例用 Wilson 95% 信賴區間判斷：整段區間都在範圍外才算 ✗；子群體不到 200 局而點估計在範圍外（區間有重疊）時只標 △、不擋 CI
+      const [lo, hi] = wilson(Math.round(v * pool.length), pool.length);
+      ci = `，95% 區間 ${pc(lo)}～${pc(hi)}`;
+      const overlap = (m.min == null || hi >= m.min) && (m.max == null || lo <= m.max);
+      if (!ok) { if (!overlap) ok = false; else if (pool.length < 200) { pending = true; ok = false; ci += `，只有 ${pool.length} 局（<200）`; } else ok = true; }
+    }
+    rows.push({ ok, pending, group: '機制', name: m.name + (m.mode || m.where ? `（${pool.length} 局）` : ''), value: fmt(v) + ci, range: `${m.min == null ? '' : fmt(m.min)}～${m.max == null ? '' : fmt(m.max)}`, note: pending ? '樣本不足：' + (m.note || '') : m.note || '' });
   }
   for (const d of targets.mechanisms.directions || []) {
     const scoped = (d.where || []).length ? recs.filter((x) => d.where.every((c) => fired(x, c))) : recs;

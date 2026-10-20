@@ -10,7 +10,7 @@
     "sim": "node tools/simulate.mjs 200",
     "bench": "node tools/bench.mjs",
     "sensitivity": "node tools/sensitivity.mjs 30",
-    "check-design": "node tools/check-design.mjs 1500",
+    "check-design": "node tools/check-design.mjs 3000",
     "golden": "node tools/golden.mjs",
     "impact": "node tools/impact.mjs"
   }

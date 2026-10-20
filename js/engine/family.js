@@ -6,7 +6,7 @@ import { mulberry32, pickWeighted, gauss, rngAt } from './rng.js';
 export const STREAMS = {
   county: 0x1a2b3c4d, job: 0x2b3c4d5e, econ: 0x3c4d5e6f, struct: 0x4d5e6f70, partner: 0x5e6f7081, elders: 0x6f708192,
   housing: 0x708192a3, support: 0x8192a3b4, upbringing: 0x92a3b4c5, child: 0xa3b4c5d6, childNeeds: 0xb4c5d6e7, childInterest: 0xc5d6e7f8,
-  childName: 0xd6e7f809, background: 0x5a6b7c8d, rank: 0x3d4e5f60, transport: 0x4e5f6071, commute: 0x5f607182, childResp: 0xc3d4e5f6, siblings: 0xe7f8091a, space: 0xf8091a2b, pet: 0x091a2b3c, school: 0x1a2b3c5d, childcare: 0x2b3c4d6e,
+  childName: 0xd6e7f809, background: 0x5a6b7c8d, rank: 0x3d4e5f60, transport: 0x4e5f6071, commute: 0x5f607182, childResp: 0xc3d4e5f6, siblings: 0xe7f8091a, space: 0xf8091a2b, pet: 0x091a2b3c, school: 0x1a2b3c5d, childcare: 0x2b3c4d6e, elderCare: 0x3c4d5e7f,
 };
 const rs = (seed, name) => mulberry32(((seed >>> 0) ^ STREAMS[name]) >>> 0);
 const wpick = (r, opts, ws) => pickWeighted(r, opts.map((o, i) => ({ o, w: ws[i] })), (x) => x.w)?.o ?? opts[0];
@@ -109,7 +109,7 @@ export function generateFamily(seed, idn) {
   if (idn.elders.byStruct[struct.id]) ew = mulArr(ew, idn.elders.byStruct[struct.id]);
   const eldersStatus = wpick(r8, idn.elders.options, ew);
   const eldersWho = wpick(r8, idn.elders.who, idn.elders.whoW);
-  const elders = { status: eldersStatus, who: eldersStatus === '沒有' ? null : eldersWho };
+  const elders = { status: eldersStatus, who: eldersStatus === '沒有' ? null : eldersWho, caution: eldersStatus === '沒有' ? null : wpick(rs(seed, 'elderCare'), idn.elders.caution.options, idn.elders.caution.w) }; // 長輩接送時的警覺：用長輩的謹慎，不是孩子的交通安全認知
 
   // 9 住屋（家境 × 城鄉 × 長輩）
   const H = idn.housing;
@@ -256,7 +256,7 @@ export function familyCtx(fam, role, turn) {
     職業: fam.job.name, 工時: fam.pattern, 家庭: fam.structure,
     職位: fam.rank || '基層', 交通工具: fam.transport || '機車', 通勤距離: fam.commute || '中', // 舊存檔沒有時由 migrate 補上，這裡只是保險
     學校有交通車: schoolBusOf(fam.seed, fam.urban),
-    另一半: fam.partner.attitude || '', 有另一半: !!fam.partner.present, 長輩: fam.elders.status, 住屋: fam.housing, 孩子空間: fam.space,
+    另一半: fam.partner.attitude || '', 有另一半: !!fam.partner.present, 長輩: fam.elders.status, 長輩謹慎: fam.elders.caution || '普通', 住屋: fam.housing, 孩子空間: fam.space,
     升學資源: fam.support, 被帶大: fam.upbringing, ...siblingRelations(fam, turn),
     有寵物: !!fam.pet, 寵物種類: fam.pet ? fam.pet.type : '',
     孩子性別: fam.child.sex, 孩子活動量: fam.child.temperament.活動量, 孩子敏感度: fam.child.temperament.敏感度, 孩子堅持度: fam.child.temperament.堅持度,
