@@ -28,13 +28,17 @@ test('引擎：顯示的文字、結果與套用的標籤都用同一個情境�
   const c = card('fx_sports_day');
   const lowV = describeCard(c, fresh(1).st, data, fresh(1).tl), highV = describeCard(c, fresh(6).st, data, fresh(6).tl);
   const labelOf = (v, i) => v.choices.find((x) => x.i === i).label;
-  assert.notEqual(labelOf(lowV, 0), labelOf(highV, 0));
-  assert.match(labelOf(highV, 0), /跟同學自己比/);
+  assert.equal(labelOf(lowV, 0), labelOf(highV, 0)); // 規則 22：請假去現場加油，每個年級標籤都一樣，只換後果
+  assert.notEqual(labelOf(lowV, 2), labelOf(highV, 2));
+  assert.match(labelOf(highV, 2), /跟同學自己比/);
   const { st, tl } = fresh(6);
-  const out = applyChoice(st, data, c, 0, tl, stateRng(st, 'rngS'));
-  assert.ok(out.entry.tags.includes('讓他試著自己做') && !out.entry.tags.includes('放下手機陪'));
-  assert.equal(out.entry.label, labelOf(highV, 0));
+  const out = applyChoice(st, data, c, 2, tl, stateRng(st, 'rngS'));
+  assert.ok(out.entry.tags.includes('讓他試著自己做') && !out.entry.tags.includes('說沒關係就結束'));
+  assert.equal(out.entry.label, labelOf(highV, 2));
   assert.match(out.result, /互相打氣/);
+  const hi0 = fresh(6);
+  const out0 = applyChoice(hi0.st, data, c, 0, hi0.tl, stateRng(hi0.st, 'rngS'));
+  assert.match(out0.result, /你可以不用來/); // 同一個做法，高年級的後果
   const lo = fresh(1);
   const out2 = applyChoice(lo.st, data, c, 0, lo.tl, stateRng(lo.st, 'rngS'));
   assert.ok(out2.entry.tags.includes('放下手機陪'));
@@ -58,12 +62,12 @@ test('lint：情境版本展開成虛擬卡，跟一般的卡跑同一套規則�
   const raw = structuredClone(loadRaw());
   const c = raw.events.cards.find((x) => x.id === 'fx_sports_day');
   assert.ok(expandVariantCards(raw.events.cards).some((v) => v._variantOf === 'fx_sports_day'));
-  c.choices[0].effectsIf[0].value = { 體力: 4, 耐心: -1 };
+  c.choices[2].effectsIf[0].value = { 體力: 4, 耐心: -1 };
   assert.match(lintData(raw).errors.join('\n'), /fx_sports_day~v1.*體力 \+4 和標籤的 now 矛盾/);
   const raw2 = structuredClone(loadRaw());
-  raw2.events.cards.find((x) => x.id === 'fx_sports_day').choices[0].tagsIf[0].value = ['硬撐'];
+  raw2.events.cards.find((x) => x.id === 'fx_sports_day').choices[2].tagsIf[0].value = ['硬撐'];
   assert.match(lintData(raw2).errors.join('\n'), /tagsIf 不能改變有自帶代價的標籤/);
   const raw3 = structuredClone(loadRaw());
-  raw3.events.cards.find((x) => x.id === 'fx_sports_day').choices[0].labelIf[0].if = '不存在的變數 > 1';
+  raw3.events.cards.find((x) => x.id === 'fx_sports_day').choices[2].labelIf[0].if = '不存在的變數 > 1';
   assert.match(lintData(raw3).errors.join('\n'), /條件用到不存在的變數/);
 });

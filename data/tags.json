@@ -149,6 +149,8 @@
   "warmCues_why": "tools/bots.mjs 的 warmest 機器人讀這份（markerWords 也是 bots 的唯一來源）：暖語線索（問、聽、等他、蹲下來、陪、先…再…）每個 +1，斥責與絕對語（驚嘆號、一定、直接、算了…）每個 −1，選最高分。warmest 親子 − 隨機要 ≤ 8（tools/design-targets.json）。",
   "rule11Enforce": true,
   "rule11_why": "規則 11（表面對等）：帶 research:true 標籤的選項＝研究支持的選項。(a) 一張卡裡研究選項不能是嚴格最長（除非有非研究選項只短 1 字內），這種卡占全體 ≤ researchLongestMax；(b) 研究選項含 markerWords 時，同卡至少一個非研究選項也要含。rule11Enforce=false 時只報告（獨立的『rule 11』類別，不擋 CI）；內容改寫完成後改成 true。tools/surface.mjs 逐檔報告。",
+  "variantBehaviorOk_why": "規則 22：tagsIf 新增的標籤若不在原本的標籤裡、同一個 if 又沒有 labelIf，lint 會提醒。這裡登記「卡id#選項序號」：已逐一確認，新增的標籤描述的就是標籤文字已經看得到的同一個做法（例如已經在問，就加『問具體的事』）。不要為了讓提醒消失而登記；做法不一樣就寫 labelIf。",
+  "variantBehaviorOk": ["kid_share#3", "kid_bite#4", "kid_picky#2", "kid_tv_dinner#0", "kid_tv_dinner#1", "lo_want_art_again#1", "fu_camp_again#0", "fu_ask_again#0", "fu_ask_again#1", "fx_sports_day#1"],
   "restTag": "父母自己休息",
   "restPool": "父母自己",
   "restPoolExempt": ["V2", "V3", "一眼看穿"],

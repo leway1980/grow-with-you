@@ -173,3 +173,25 @@ test('工作插播：選項的 chance 若用 ping_big，必須是 p＝0.3 且沒
   c.choices[0].chance.p = 0.5;
   assert.ok(lintData(raw).errors.some((e) => e.includes('ping_big')));
 });
+
+test('規則 22：tagsIf 新增原本沒有的標籤、同一個 if 又沒有 labelIf 時提醒；有 labelIf 或登記在 variantBehaviorOk 就不提醒；不是錯誤', () => {
+  const run = (mutate) => { const raw = JSON.parse(JSON.stringify(loadRaw())); mutate(raw); return lintData(raw); };
+  const pick = (raw) => raw.events.cards.find((x) => x.id === 'fx_field_trip').choices[0];
+  const hit = (r) => r.warns.some((w) => w.includes('規則 22：fx_field_trip#0'));
+  // 隱藏的行為：新增標籤、label 沒變
+  const hidden = run((raw) => { const ch = pick(raw); delete ch.labelIf; ch.tagsIf = [{ if: '年級 >= 5', value: ['全部替他做'] }]; });
+  assert.ok(hit(hidden));
+  assert.deepEqual(hidden.errors, []); // 只是提醒，不擋
+  // 同一個 if 有 labelIf：做法看得到，不提醒
+  assert.ok(!hit(run((raw) => { const ch = pick(raw); ch.labelIf = [{ if: '年級 >= 5', value: '一早做便當，行程單和零用錢也替{他}收進書包' }]; ch.tagsIf = [{ if: '年級 >= 5', value: ['全部替他做'] }]; })));
+  // 登記在 variantBehaviorOk：不提醒
+  assert.ok(!hit(run((raw) => { const ch = pick(raw); delete ch.labelIf; ch.tagsIf = [{ if: '年級 >= 5', value: ['全部替他做'] }]; raw.tags.cardRules.variantBehaviorOk.push('fx_field_trip#0'); })));
+  // 標籤沒有新增（只是拿掉）：不提醒
+  assert.ok(!hit(run((raw) => { const ch = pick(raw); delete ch.labelIf; ch.tagsIf = [{ if: '年級 >= 5', value: [ch.tags[0]] }]; })));
+  // 現有資料的登記項目都指向真的存在的卡與選項
+  const raw = loadRaw();
+  for (const key of raw.tags.cardRules.variantBehaviorOk) {
+    const [id, i] = key.split('#');
+    assert.ok(raw.events.cards.find((x) => x.id === id)?.choices[Number(i)], `variantBehaviorOk「${key}」找不到`);
+  }
+});

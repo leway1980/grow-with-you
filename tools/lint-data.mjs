@@ -190,7 +190,7 @@ export function lintData(raw = loadRaw()) {
     if (!(c.choices || []).some((ch) => !ch.showIf && !ch.grayIf)) errors.push(`${W}：沒有任何「一定可選」的選項（不含 showIf 與 grayIf）`);
     const avail = (c.choices || []).filter((ch) => !ch.grayIf).length;
     if (avail < 2) warns.push(`${W}：不會變灰的選項少於 2 個`);
-    for (const ch of c.choices || []) {
+    for (const [chIdx, ch] of (c.choices || []).entries()) {
       if (!c._variantOf) nChoices++;
       const WC = `${W}／${ch.label}`;
       for (const k of Object.keys(ch)) if (!allowedChoiceKeys.has(k)) errors.push(`${WC}：不認得的欄位「${k}」${k === 'hidden' ? '（選項不能寫 hidden，隱藏數值只能由 tags 換算，見 DESIGN §3.6）' : ''}`);
@@ -240,6 +240,11 @@ export function lintData(raw = loadRaw()) {
             else {
               const cost = (a) => [...new Set((a || []).filter((t) => (T.tagCosts || {})[t]))].sort().join('、');
               if (cost(v.value) !== cost(ch.tags)) errors.push(`${WV}：tagsIf 不能改變有自帶代價的標籤（原本「${cost(ch.tags)}」，版本「${cost(v.value)}」）`);
+              // 規則 22：版本新增的標籤若不在原本的標籤裡，而且同一個 if 沒有 labelIf（看得到的做法沒變），提醒：標籤要描述玩家看得到的做法。確認做法沒變的，登記在 cardRules.variantBehaviorOk（"卡id#選項序號"）
+              const added = v.value.filter((t) => !(ch.tags || []).includes(t));
+              const labelShown = (ch.labelIf || []).some((x) => x.if === v.if);
+              const okKey = `${c.id}#${chIdx}`;
+              if (added.length && !labelShown && !(R.variantBehaviorOk || []).includes(okKey)) warns.push(`規則 22：${okKey}「${ch.label}」的 tagsIf[${k}]（${v.if || '一律'}）新增標籤「${added.join('、')}」，但同一個 if 沒有 labelIf；確認做法沒變後，把「${okKey}」加進 cardRules.variantBehaviorOk`);
             }
           }
           if (field === 'effects') for (const [kk, vv] of Object.entries(v.value || {})) if (!VISIBLE.includes(kk) || typeof vv !== 'number') errors.push(`${WV}：效果「${kk}」不合法`);
