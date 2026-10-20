@@ -121,12 +121,16 @@ test('資料：initiate 的卡都是父母主動去找孩子；固定事件、�
   assert.ok(back.choices[1].tags.some((t) => A.missTags.includes(t)) && back.choices[2].tags.some((t) => A.missTags.includes(t)), '沒回去＝錯過');
 });
 
-test('主動找他池：進入「不太來找你」時權重 ×repairBoost（2.5），那 6 張卡只在這個狀態出現', () => {
+test('主動找他池：進入「不太來找你」時權重 ×repairBoost（2.5），國小 6 張＋國中 5 張＋高中 3 張，都只在這個狀態出現', () => {
   const A = data.tags.approach, pool = data.pools['主動找他'];
   assert.ok(pool && pool.mods.some((m) => m.if === '不太來找你' && m.x === A.repairBoost));
   assert.ok(A.repairBoost >= 2 && A.repairBoost <= 3);
   const cards = Object.values(data.cardIndex).filter((c) => c.pool === '主動找他');
-  assert.ok(cards.length >= 4 && cards.length <= 6);
+  assert.equal(cards.filter((c) => c.stages.some((x) => ['幼兒園', '國小低', '國小中高'].includes(x))).length, 6);
+  assert.equal(cards.filter((c) => c.stages.includes('國中')).length, 5); // M3 B2：青少年的修復不是不可能，只是慢（DESIGN §6『木已成舟』）
+  assert.equal(cards.filter((c) => c.stages.includes('高中')).length, 3);
+  assert.equal(Object.values(data.cardIndex).filter((c) => c.approach && c.stages && c.stages.includes('國中')).length, 3);
+  assert.equal(Object.values(data.cardIndex).filter((c) => c.approach && c.stages && c.stages.includes('高中')).length, 2);
   for (const c of cards) { assert.equal(c.initiate, true); assert.equal(c.requires.expr, '不太來找你'); }
   assert.equal(A.approachCredit, 1);
 });
