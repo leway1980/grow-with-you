@@ -44,6 +44,13 @@ export function influenceMeter(st, data) {
   return { stop() { setTagObserver(null); }, result() { flush(); return { tag: r2(tag), card: r2(card), pool: r2(pool), edgeTurn: r2(edgeTurn), edgeGame: r2(edgeGame) }; } };
 }
 
+/** 『第 30 回合的錢』的月份版：國小開始之後第一個月齡 ≥ 6 個月的回合的錢（用回合序號 t 找曲線，從國小開始的局曲線不從 0 起，不能用陣列位置）；沒玩到就是 null */
+export function moneyAtSchoolPlus(st, data, e, months = 6) {
+  const tl = data.timeline, t = tl.findIndex((x, i) => i >= e && x.ageMonths >= tl[e].ageMonths + months);
+  const c = st.vcurves.find((x) => x.t === t);
+  return c ? c.錢 : null;
+}
+
 /* ───── 一局 ───── */
 export function playGame(data, bot, seed, opts = {}) {
   const st = newState(seed, data, { role: opts.role || (seed % 2 ? '媽媽' : '爸爸'), startMode: opts.startMode || 'birth' });
@@ -58,7 +65,7 @@ export function playGame(data, bot, seed, opts = {}) {
   const rec = {
     bot, seed, partner: f.partner.attitude || '無', econ: f.econ, pattern: f.pattern, support: f.support, struct: f.structure,
     ax: [ax.親子, ax.人際, ax.學習], w: [w.child, w.parent, w.between], route: rp.kind, combo: comboOf(ax),
-    hid: { ...st.hidden }, money30: st.vcurves[e + 6]?.錢 ?? null, lowBody: st.vcurves.filter((c) => c.體力 < 35).length / st.vcurves.length,
+    hid: { ...st.hidden }, money30: moneyAtSchoolPlus(st, data, e), lowBody: st.vcurves.filter((c) => c.體力 < 35).length / st.vcurves.length,
     elemTurns, elemNonFixed, nTurnsElem, fu: st.hist.filter((h) => h.fu != null).map((h) => h.fu), cards: st.hist.length,
   };
   if (opts.mech) {

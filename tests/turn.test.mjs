@@ -505,3 +505,15 @@ test('日曆 72：每個固定事件的月齡和舊 92 回合日曆相差在 ±3
   // 國小中高每學年 4 回合裡固定的：3、4、5 年級 2 個，6 年級 3 個（運動會、校外教學、畢業典禮）；合計 9／16
   assert.deepEqual([3, 4, 5, 6].map((g) => newTl.filter((t) => t.grade === g && t.fixed.length).length), [2, 2, 2, 3]);
 });
+
+test('模擬器的 money30 以月計：從出生與從國小開始的局都有值（國小開始後第一個月齡 ≥ 6 個月的回合）', async () => {
+  const { playGame, moneyAtSchoolPlus } = await import('../tools/simulate.mjs');
+  const data = loadData();
+  for (const startMode of ['birth', 'elementary']) {
+    const r = playGame(data, 'warmFirm', 5, { startMode, st: true });
+    assert.equal(typeof r.money30, 'number', startMode);
+    const e = startTurnOf(data, 'elementary'), t = data.timeline.findIndex((x, i) => i >= e && x.ageMonths >= data.timeline[e].ageMonths + 6);
+    assert.equal(r.money30, r.st.vcurves.find((c) => c.t === t).錢);
+    assert.equal(moneyAtSchoolPlus(r.st, data, e), r.money30);
+  }
+});

@@ -78,29 +78,45 @@ export const deserialize = (s) => {
 const v1MonthsAtTurn = (t) => (t < 8 ? t * 3 : t < 20 ? 24 + (t - 8) * 4 : 72 + (t - 20) * 2);
 const V1_PLAYABLE = 56;
 /**
- * 舊回合 → 月齡 → 新回合（第一個 ageMonths ≥ 該月齡的回合；找不到就是時間軸長度）。
- * played＝這個序號是『已經玩過的回合』（st.turn、hist、曲線、父母的收穫）：舊的最後一個可玩回合（國小六年級暑假，月齡 142）
- * 在新日曆沒有對應的回合，會對到國中開頭，所以已玩過的序號夾在可玩範圍最後一回合以內，結局才不會把國小畢業算成國中。
+ * 舊回合 → 月齡 → 新回合。兩種對應：
+ * ・向上（ceil）：第一個 ageMonths ≥ 該月齡的回合（找不到就是時間軸長度）。給『還沒發生』的序號：st.turn、delayed、cooldowns、openPools、症狀發作與確診。
+ * ・向下（floor，played）：最後一個 ageMonths ≤ 該月齡的回合。給『已經玩過』的序號：hist、曲線、父母的收穫。
+ *   已玩過的紀錄一定要落在 st.turn 之前，而向上對應會把舊的最後一個可玩回合（國小六年級暑假，月齡 142）對到國中開頭，所以已玩過的用向下。
  */
 function remapper(data) {
-  const tl = data.timeline, last = data.calendar.playableTurns - 1;
-  const first = (m) => { const i = tl.findIndex((t) => t.ageMonths >= m); return i < 0 ? tl.length : i; };
-  return (t, played = false) => {
-    if (typeof t !== 'number') return t;
-    const n = first(v1MonthsAtTurn(t));
-    return played && t < V1_PLAYABLE ? Math.min(n, last) : n;
-  };
+  const tl = data.timeline;
+  const ceil = (m) => { const i = tl.findIndex((t) => t.ageMonths >= m); return i < 0 ? tl.length : i; };
+  const floor = (m) => { let k = 0; for (let i = 0; i < tl.length && tl[i].ageMonths <= m; i++) k = i; return k; };
+  return { ceil: (t) => (typeof t === 'number' ? ceil(v1MonthsAtTurn(t)) : t), floor: (t) => (typeof t === 'number' ? floor(v1MonthsAtTurn(t)) : t) };
 }
 function migrateV1(st, data) {
-  const map = remapper(data);
-  st.turn = map(st.turn, true);
-  for (const e of st.hist || []) e.turn = map(e.turn, true);
-  for (const c of st.curves || []) c.t = map(c.t, true);
-  for (const c of st.vcurves || []) c.t = map(c.t, true);
-  for (const g of st.parentGrowth || []) if (g.turn !== undefined) g.turn = map(g.turn, true);
-  for (const d of st.delayed || []) { d.due = map(d.due); if (d.from !== undefined) d.from = map(d.from); }
-  for (const k of Object.keys(st.cooldowns || {})) st.cooldowns[k] = map(st.cooldowns[k]);
-  for (const o of Object.values(st.openPools || {})) o.until = map(o.until);
+  const { ceil, floor } = remapper(data);
+  const last = data.calendar.playableTurns - 1;
+  const oldTurn = st.turn;
+  st.hist ||= []; st.parentGrowth ||= [];
+  for (const e of st.hist) e.turn = floor(e.turn);
+  for (const g of st.parentGrowth) if (g.turn !== undefined) g.turn = floor(g.turn);
+  for (const c of [...(st.curves || []), ...(st.vcurves || [])]) c.t = floor(c.t);
+  const lastPlayed = Math.max(-1, ...st.hist.map((e) => e.turn), ...(st.curves || []).map((c) => c.t), ...(st.vcurves || []).map((c) => c.t));
+  // 已結束的存檔：回合就是可玩範圍的終點；沒結束的：向上對應，但不早於『最後一筆紀錄的下一回合』，也不超過最後一個可玩回合
+  st.turn = st.ended || oldTurn >= V1_PLAYABLE ? data.calendar.playableTurns : Math.min(Math.max(ceil(oldTurn), lastPlayed + 1), last);
+  // 最後一個可玩回合已經玩了一張卡又存檔（st.turn 被夾在 last）：這張卡的紀錄退到前一個回合，已玩過的紀錄才不會落在 st.turn 或之後
+  if (!st.ended) {
+    for (const e of st.hist) if (e.turn >= st.turn) e.turn = st.turn - 1;
+    for (const g of st.parentGrowth) if (g.turn !== undefined && g.turn >= st.turn) g.turn = st.turn - 1;
+    for (const c of [...(st.curves || []), ...(st.vcurves || [])]) if (c.t >= st.turn) c.t = st.turn - 1;
+  }
+  // 曲線：兩個舊回合可能對到同一個新回合，每個 t 只留最後一筆
+  const uniq = (arr) => [...new Map((arr || []).map((c) => [c.t, c])).values()];
+  st.curves = uniq(st.curves); st.vcurves = uniq(st.vcurves);
+  for (const d of st.delayed || []) { d.due = ceil(d.due); if (d.from !== undefined) d.from = ceil(d.from); }
+  for (const k of Object.keys(st.cooldowns || {})) st.cooldowns[k] = ceil(st.cooldowns[k]);
+  for (const o of Object.values(st.openPools || {})) o.until = ceil(o.until);
+  // 特殊需求的發作與確診回合（v1 日曆的回合序號）也要換成新的回合序號
+  for (const n of (st.family && st.family.child && st.family.child.needs) || []) {
+    n.onset = ceil(n.onset);
+    if (n.dxTurn != null) n.dxTurn = ceil(n.dxTurn);
+  }
   for (const s of (st.family && st.family.siblings) || []) {
     s.arriveMonths = s.older || s.arriveTurn == null ? null : v1MonthsAtTurn(s.arriveTurn);
     delete s.arriveTurn;

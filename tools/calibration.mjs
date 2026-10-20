@@ -59,7 +59,7 @@ export function evaluateCalibration(games) {
   chk('econ-parent-gap', '同一個機器人，寬裕 vs 吃緊的父母幸福差距（各策略取最大）', worstGap, `${f1(worstGap)}（${worstBot}）`);
   let worstBroke = 0;
   for (const [, g] of Object.entries(games)) { const t = (groupBy(g, (x) => x.econ).吃緊 || []).filter((x) => x.money30 != null); if (t.length) worstBroke = Math.max(worstBroke, share(t, (x) => x.money30 < 5)); }
-  chk('broke-share', '吃緊的局，第 30 回合錢 < 5 的比例（各策略取最大）', worstBroke, null, true);
+  chk('broke-share', '吃緊的局，國小開始後 6 個月（第一個月齡 ≥ 開學 + 6 的回合）錢 < 5 的比例（各策略取最大）', worstBroke, null, true);
   // 開局條件
   let worst = 0, worstVar = '';
   for (const [name, f] of [['家境', (g) => g.econ], ['工時', (g) => g.pattern], ['升學資源', (g) => g.support]]) {
