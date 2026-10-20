@@ -3,7 +3,7 @@
 // 改為：每回合一張卡、學前節奏較快、固定事件＋延遲後續卡＋兩段式抽卡，並在每回合結束記錄隱藏曲線給結局用。
 import { stateRng, rngAt } from './rng.js';
 import { setSlotData } from './slots.js';
-import { buildCtx, pickFixed, pickDelayed, drawCard, describeCard, applyChoice, applyEffects, rollLoads, fill, cardById, setGates } from './events.js';
+import { buildCtx, passes, pickFixed, pickDelayed, drawCard, describeCard, applyChoice, applyEffects, rollLoads, fill, cardById, setGates } from './events.js';
 import { driftHidden, applyTags } from './tags.js';
 import { doseView } from './dose.js';
 
@@ -100,6 +100,11 @@ export function startTurn(st, data) {
   const r = stateRng(st, 'rngS');
   let card = pickFixed(st, data, tl, ctx), fu = null;
   const twoSlot = !!card;
+  // 同一回合有兩個固定事件（例如一年級開學日：開學第一天、上下學怎麼走）：第二個排成到期的後續卡，當作第二張卡
+  if (card) for (const id of tl.fixed || []) {
+    const c2 = data.cardIndex[id];
+    if (id !== card.id && c2 && passes(c2, st, ctx) && !st.delayed.some((d) => d.card === id)) st.delayed.push({ card: id, due: st.turn, from: st.turn });
+  }
   if (!card) {
     const d = pickDelayed(st, data, tl, ctx);
     if (d) { card = d.card; fu = d.delay; } else card = drawCard(st, data, ctx, tl, r);

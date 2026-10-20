@@ -115,6 +115,10 @@ export const evalCond = (expr, ctx) => !!compile(expr)(ctx);
 
 /* ───────────── 條件環境 ───────────── */
 
+/** 工作插播（§4.28）：孩子來問的事「其實重要」的機率與骰子的名字。選項的 chance 要寫 id＝PING_BIG_ID、p＝PING_BIG_P（lint 檢查）。 */
+export const PING_BIG_ID = 'ping_big';
+export const PING_BIG_P = 0.3;
+
 /** 具名門檻（tags.json 的 gates）：卡片寫「了解度高」，不寫 55，全遊戲只有一個地方改門檻 */
 let GATES = {};
 export function setGates(g) { GATES = g || {}; }
@@ -135,13 +139,15 @@ export function buildCtx(st, tl, extra = {}) {
   const month = tl.month ?? ((f.child.birthMonth - 1 + Math.floor(tl.ageMonths / 12) * 12 + (tl.ageMonths % 12)) % 12) + 1;
   const ctx = {
     __flags: st.flags,
-    ...familyCtx(f, st.role),
+    ...familyCtx(f, st.role, st.turn),
     ...st.hidden, // 隱藏數值只在引擎內部給條件用（例如選項的門檻）；不會出現在任何畫面
     體力: P.體力, 耐心: P.耐心, 錢: P.錢, 工作表現: P.工作表現, 夫妻關係: P.夫妻關係,
     心情: C.心情, 成績: C.成績, 作業: C.作業, 三C: C['3C時間'], 睡眠: C.睡眠, 同學往來: C.同學往來,
     回合: st.turn, 階段: tl.stage, 年齡: Math.floor(tl.ageMonths / 12), 年級: tl.grade, 假期: !!tl.vacation, 月: month,
     托育方式: st.vars.托育方式, 幼兒園類型: st.vars.幼兒園類型, 照顧者: st.vars.照顧者, 換照顧者次數: st.vars.換照顧者次數,
     孩子不再開口: st.vars.孩子不再開口 || 0, 孩子主動開口: st.vars.孩子主動開口 || 0, 起點: st.startMode,
+    上學方式: st.vars.上學方式 || '',
+    來問重要: rngAt(st.seed, st.turn, PING_BIG_ID) < PING_BIG_P, // 命運骰：孩子這次來問的事其實重不重要（§4.28）；和選項的 chance（id＝ping_big、p＝0.3）用同一顆骰子，文字與結果才會一致
     意願強度: willOf(st, extra.topic),
     疲勞: Math.round(((st.costEMA && st.costEMA.體力) || 0) + ((st.costEMA && st.costEMA.耐心) || 0)), // 最近幾回合體力與耐心花費的累積（「父母自己」池的權重用）
   };
@@ -361,6 +367,7 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
   const acc = {}; // 這個選項自己造成的可見變化；回合的合計由呼叫端累加
   const scope = cardScope(st, card.id);
   const parts = [fill(ch.result, st, ctx, scope)];
+  let branchTags = [];
   // 陪伴時段不在：用體力硬換或請假，代價照實顯示在劑量表上，選項不會消失
   for (const need of ch.needs || []) if (!slotAvailable(st, data, need)) applyEffects(st, data.tags.slotCost[need], acc);
   applyBranch(st, { ...ch, effects: scaleCosts(data.tags.costMods, ch, ctx) }, st.turn, r, ctx, acc);
@@ -372,14 +379,16 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
     applyBranch(st, b, st.turn, r, ctx, acc);
     parts.push(fill(b.result, st, ctx, scope));
     st.flags[`${c.id}_${win ? '中' : '落'}`] = true;
+    branchTags = b.tags || []; // 分支也可以帶行為標籤（隱藏數值仍然只經由標籤換算）
   }
-  applyTags(st, ch.tags, data.tags, { turn: st.turn, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope) });
+  const allTags = [...(ch.tags || []), ...branchTags];
+  applyTags(st, allTags, data.tags, { turn: st.turn, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope) });
   if (isGrowthChoice(data.tags, ch.tags)) recordGrowth(st, data.tags, ch, scope);
   if (card.once) st.used[card.id] = true;
   if (card.cooldown) st.cooldowns[card.id] = st.turn + card.cooldown + 1;
   const d = {};
   for (const [k, v] of Object.entries(acc)) if (Math.abs(v) >= 0.05) d[k] = Math.round(v * 10) / 10;
-  const entry = { turn: st.turn, card: card.id, title: fill(card.title, st, ctx, scope), ch: idx, label: fill(ch.label, st, ctx, scope), tags: ch.tags || [], d };
+  const entry = { turn: st.turn, card: card.id, title: fill(card.title, st, ctx, scope), ch: idx, label: fill(ch.label, st, ctx, scope), tags: allTags, d };
   if (extra.fu != null) entry.fu = extra.fu;
   st.hist.push(entry);
   return { result: parts.filter(Boolean).join(' '), acc, entry };

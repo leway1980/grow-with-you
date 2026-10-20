@@ -1,7 +1,7 @@
 // 開局抽籤：家庭與孩子（DESIGN §2.1 第 1–13 步，含 12b 寵物）。純函式、無 DOM。
 // 沿用《高中，只有一次》(leway1980/Game 47wan @ ce1d972) identity.js 的作法：每一步用「種子 XOR 常數」derive 出自己的亂數流，
 // 改某一張權重表只會改變那一步（以及依賴它的後續步驟），不會讓其他獨立的抽籤整批重洗。
-import { mulberry32, pickWeighted, gauss } from './rng.js';
+import { mulberry32, pickWeighted, gauss, rngAt } from './rng.js';
 
 export const STREAMS = {
   county: 0x1a2b3c4d, job: 0x2b3c4d5e, econ: 0x3c4d5e6f, struct: 0x4d5e6f70, partner: 0x5e6f7081, elders: 0x6f708192,
@@ -202,17 +202,47 @@ export function generateFamily(seed, idn) {
   };
 }
 
-/** 條件環境裡跟家庭有關的部分（用在 startAdjust 與卡片條件） */
-export function familyCtx(fam, role) {
-  const adhd = fam.child.needs.find((n) => n.kind === 'ADHD');
+/**
+ * 棒球、壘球風氣較盛的縣市（花東、原鄉、嘉南一帶）。設計估計，待確認（docs/DATA.md §5）：
+ * 目前只列整個縣市，沒有細到鄉鎮；原鄉在花蓮、臺東、屏東、嘉義的山區，這裡用縣市近似。
+ */
+export const BASEBALL_COUNTIES = ['花蓮縣', '臺東縣', '嘉義縣', '嘉義市', '臺南市', '屏東縣'];
+
+/** 學校有沒有交通車（上下學，§4.29）。設計估計，待確認：都會較多、偏鄉反而常常沒有。由種子決定（命運骰），不存進存檔。 */
+export const SCHOOL_BUS_P = { 都會核心: 0.5, 都會外圍: 0.55, 中小城鎮: 0.5, 偏鄉: 0.3, 離島: 0.45 };
+export const schoolBusOf = (seed, urban) => rngAt(seed >>> 0, 0, 'schoolbus') < (SCHOOL_BUS_P[urban] ?? 0.5);
+
+const SIB_LABEL = { 姐姐: '姊姊', 姊姊: '姊姊', 哥哥: '哥哥', 弟弟: '弟弟', 妹妹: '妹妹' };
+/** 弟弟妹妹出生時，孩子大約幾歲（回合 → 月齡，與 data/calendar.json 的階段對應） */
+const monthsAtTurn = (t) => (t < 8 ? t * 3 : t < 20 ? 24 + (t - 8) * 4 : 72 + (t - 20) * 2);
+/**
+ * 手足關係：和孩子年齡最近的那一位（哥哥／姊姊／弟弟／妹妹）；沒有手足是 ''。
+ * 弟弟妹妹要到出生的回合（arriveTurn）才算；turn 沒給時（開局抽籤）全部都算。年長手足：最近的哥哥／姊姊。
+ */
+export function siblingRelations(fam, turn) {
+  const gap = (s) => (s.older ? s.ageGap : monthsAtTurn(s.arriveTurn ?? 0) / 12);
+  const live = fam.siblings.filter((s) => s.older || turn == null || (s.arriveTurn ?? 0) <= turn);
+  const nearest = [...live].sort((a, b) => gap(a) - gap(b))[0];
+  const elder = fam.siblings.filter((s) => s.older).sort((a, b) => a.ageGap - b.ageGap)[0];
+  const lab = (s) => (s ? SIB_LABEL[s.rel] || s.rel : '');
+  return { 手足關係: lab(nearest), 年長手足: lab(elder) };
+}
+
+/** 條件環境裡跟家庭有關的部分（用在 startAdjust 與卡片條件）。turn 給了就把還沒出生的弟弟妹妹排除。 */
+export function familyCtx(fam, role, turn) {
+  const has = (k) => fam.child.needs.some((n) => n.kind === k);
   return {
-    角色: role, 經濟: fam.econ, 城鄉: fam.urban, 職業: fam.job.name, 工時: fam.pattern, 家庭: fam.structure,
+    角色: role, 經濟: fam.econ, 城鄉: fam.urban, 縣市: fam.county, 棒球重鎮: BASEBALL_COUNTIES.includes(fam.county),
+    職業: fam.job.name, 工時: fam.pattern, 家庭: fam.structure,
     職位: fam.rank || '基層', 交通工具: fam.transport || '機車', 通勤距離: fam.commute || '中', // 舊存檔沒有時由 migrate 補上，這裡只是保險
+    學校有交通車: schoolBusOf(fam.seed, fam.urban),
     另一半: fam.partner.attitude || '', 有另一半: !!fam.partner.present, 長輩: fam.elders.status, 住屋: fam.housing, 孩子空間: fam.space,
-    升學資源: fam.support, 被帶大: fam.upbringing, 手足數: fam.siblings.filter((s) => s.older).length,
+    升學資源: fam.support, 被帶大: fam.upbringing, 手足數: fam.siblings.filter((s) => s.older).length, ...siblingRelations(fam, turn),
     有寵物: !!fam.pet, 寵物種類: fam.pet ? fam.pet.type : '',
     孩子性別: fam.child.sex, 孩子活動量: fam.child.temperament.活動量, 孩子敏感度: fam.child.temperament.敏感度, 孩子堅持度: fam.child.temperament.堅持度,
-    有特殊需求ADHD: !!adhd, 有特殊需求: fam.child.needs.some((n) => n.kind !== '資優'),
+    // 特殊需求：各類各一個旗標（卡片的訊號與修正用精確的這幾個）；有特殊需求ADHD 沿用舊名
+    有ADHD: has('ADHD'), 有學習障礙: has('學習障礙'), 有自閉症類群: has('自閉症'), 有發展遲緩: has('發展遲緩'),
+    有特殊需求ADHD: has('ADHD'), 有特殊需求: fam.child.needs.some((n) => n.kind !== '資優'),
     偏鄉: fam.urban === '偏鄉' || fam.urban === '離島', 都會: fam.urban === '都會核心' || fam.urban === '都會外圍',
   };
 }
