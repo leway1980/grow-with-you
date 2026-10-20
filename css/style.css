@@ -4,6 +4,17 @@
   --accent: #c2562f; --accent-ink: #ffffff; --good: #2a7a5f; --bad: #b4690e;
   --chip-good: #dff1ea; --chip-bad: #fbe9d0; --bar: #8a7e6c; --shadow: 0 2px 10px rgba(0, 0, 0, .07);
   --c-up: #2a7a5f; --c-dn: #c2562f;
+  --sc-wall: #eadcc2; --sc-floor: #c9a77c; --sc-floor2: #b8935f; --sc-frame: #7a5a3a; --sc-curtain: #d98c7a; --sc-ac: #f4f1ea; --sc-ac2: #c9c4b8; --sc-lamp: #f2d27a;
+  --sc-furn: #a77b4d; --sc-furn2: #8a6038; --sc-redwood: #8e3a2b; --sc-redwood2: #6f2c20; --sc-red: #c8372d; --sc-paperw: #fbf8f0; --sc-brick: #b5654a; --sc-brick2:
+  #9a5239; --sc-roof: #5a4a46; --sc-roof2: #473a37; --sc-door: #8a5a35; --sc-stone: #bdb5a6; --sc-stone2: #a79f90; --sc-skyd: #9fd3f0; --sc-skye: #f4b883; --sc-skyn:
+  #26325c; --sc-sun: #ffd24a; --sc-moon: #f5f1d0; --sc-cloud: #ffffff; --sc-hill: #7fb48a; --sc-leaf: #4f9a5a; --sc-leaf2: #3e8049; --sc-grass: #8cc277; --sc-grass2:
+  #6fa95e; --sc-skyline: #7d8fa5; --sc-dusk: #ff8a3d; --sc-night: #101a3a; --sc-ink: #2a2230; --sc-mouth: #b5535b; --sc-bag: #8a6f9c; --sc-lid: #8a7a86; --sc-blush:
+  #f0a0a0; --sc-mask: #f4f8fb; --sc-rim: #5b4630; --sc-metal: #aab3bd; --sc-cast: #fbfbf7; --sc-plaster: #f6d9d0; --sc-shoe: #4a3a34; --sc-cap: #f2c230; --sc-cap2:
+  #d9a81c; --sc-pack: #3f6fb0; --sc-strap: #2c4f86; --sc-uni1: #fbfbf7; --sc-uni2: #34466e; --sc-uni3: #dbe9f6; --sc-uni4: #5b6b52; --sc-uni5: #34466e; --sc-suit:
+  #c2562f; --sc-suit2: #8f3a1e; --sc-phone: #2b2f3a; --sc-screen: #8fd3ff; --sc-bagc: #4b5563; --sc-strapb: #303741; --sc-c1: #d8625c; --sc-c2: #e4a23a; --sc-c3: #5ea0d6;
+  --sc-c4: #6aaa72; --sc-c5: #9a78c4; --sc-c6: #d98cae; --sc-p1: #4b5d84; --sc-p2: #6a5b4d; --sc-p3: #3f4d45; --sc-grey: #c9c5bd; --sc-pet1: #c8935a; --sc-pet2: #6e4a2c;
+  --sc-pet3: #4a4340; --sc-pet4: #e9e3d6; --sc-white: #fbfbf7; --sc-water: #8ccfe8; --sc-fish: #f08a3c; --sc-glass: #cfe9f2; --sc-wood: #b98c5a; --sc-wood2: #8f6a41;
+  --sc-blanket: #a9d0e8; --sc-blanket2: #e8f2f8; --sc-ball: #e8833a; --sc-ballb: #8f4a1c;
   --font: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 @media (prefers-color-scheme: dark) {
@@ -12,6 +23,17 @@
     --accent: #e0825a; --accent-ink: #1a0f0a; --good: #5cc3a1; --bad: #e6aa5c;
     --chip-good: #1c3a31; --chip-bad: #40321c; --bar: #b3a791; --shadow: 0 2px 10px rgba(0, 0, 0, .4);
     --c-up: #5cc3a1; --c-dn: #e0825a;
+    --sc-wall: #463c34; --sc-floor: #5d4a38; --sc-floor2: #4a3a2c; --sc-frame: #8f6d49; --sc-curtain: #a86556; --sc-ac: #bdb8ae; --sc-ac2: #8e8a80; --sc-lamp: #e8c466;
+    --sc-furn: #8a643e; --sc-furn2: #6d4c2c; --sc-redwood: #a24535; --sc-redwood2: #7d3427; --sc-red: #d9483d; --sc-paperw: #ece7d9; --sc-brick: #8b4a37; --sc-brick2:
+    #703a2b; --sc-roof: #2f2826; --sc-roof2: #231e1c; --sc-door: #6c4527; --sc-stone: #6e685d; --sc-stone2: #5a554b; --sc-skyd: #5f9ec2; --sc-skye: #c9825a; --sc-skyn:
+    #141b38; --sc-sun: #f4c23a; --sc-moon: #e8e4c0; --sc-cloud: #dfe8ee; --sc-hill: #3f6b4b; --sc-leaf: #3a7a47; --sc-leaf2: #2d6038; --sc-grass: #4f8a45; --sc-grass2:
+    #3d7036; --sc-skyline: #4a5a70; --sc-dusk: #e86a1c; --sc-night: #050a1c; --sc-ink: #2a2230; --sc-mouth: #b5535b; --sc-bag: #8a6f9c; --sc-lid: #8a7a86; --sc-blush:
+    #f0a0a0; --sc-mask: #e6edf2; --sc-rim: #5b4630; --sc-metal: #aab3bd; --sc-cast: #e9e6dc; --sc-plaster: #e6c8bf; --sc-shoe: #4a3a34; --sc-cap: #e6b526; --sc-cap2:
+    #c9981a; --sc-pack: #4f7fc2; --sc-strap: #3a5f9a; --sc-uni1: #e9e6dc; --sc-uni2: #4a5d8c; --sc-uni3: #c4d6e8; --sc-uni4: #6f8064; --sc-uni5: #4a5d8c; --sc-suit:
+    #d3683f; --sc-suit2: #a04822; --sc-phone: #2b2f3a; --sc-screen: #8fd3ff; --sc-bagc: #4b5563; --sc-strapb: #303741; --sc-c1: #d0605a; --sc-c2: #dc9a34; --sc-c3:
+    #5a9ad0; --sc-c4: #62a46a; --sc-c5: #9372bd; --sc-c6: #d286a8; --sc-p1: #6a7ea8; --sc-p2: #8a7969; --sc-p3: #5a6b60; --sc-grey: #d2cec6; --sc-pet1: #c8935a;
+    --sc-pet2: #6e4a2c; --sc-pet3: #4a4340; --sc-pet4: #e0dacc; --sc-white: #e9e6dc; --sc-water: #6fb0cc; --sc-fish: #f08a3c; --sc-glass: #9fc4d2; --sc-wood: #a4784a;
+    --sc-wood2: #7d5b38; --sc-blanket: #7fa9c4; --sc-blanket2: #c4d9e6; --sc-ball: #e3782f; --sc-ballb: #8f4a1c;
   }
 }
 :root[data-theme="dark"] {
@@ -19,6 +41,17 @@
   --accent: #e0825a; --accent-ink: #1a0f0a; --good: #5cc3a1; --bad: #e6aa5c;
   --chip-good: #1c3a31; --chip-bad: #40321c; --bar: #b3a791; --shadow: 0 2px 10px rgba(0, 0, 0, .4);
   --c-up: #5cc3a1; --c-dn: #e0825a;
+  --sc-wall: #463c34; --sc-floor: #5d4a38; --sc-floor2: #4a3a2c; --sc-frame: #8f6d49; --sc-curtain: #a86556; --sc-ac: #bdb8ae; --sc-ac2: #8e8a80; --sc-lamp: #e8c466;
+  --sc-furn: #8a643e; --sc-furn2: #6d4c2c; --sc-redwood: #a24535; --sc-redwood2: #7d3427; --sc-red: #d9483d; --sc-paperw: #ece7d9; --sc-brick: #8b4a37; --sc-brick2:
+  #703a2b; --sc-roof: #2f2826; --sc-roof2: #231e1c; --sc-door: #6c4527; --sc-stone: #6e685d; --sc-stone2: #5a554b; --sc-skyd: #5f9ec2; --sc-skye: #c9825a; --sc-skyn:
+  #141b38; --sc-sun: #f4c23a; --sc-moon: #e8e4c0; --sc-cloud: #dfe8ee; --sc-hill: #3f6b4b; --sc-leaf: #3a7a47; --sc-leaf2: #2d6038; --sc-grass: #4f8a45; --sc-grass2:
+  #3d7036; --sc-skyline: #4a5a70; --sc-dusk: #e86a1c; --sc-night: #050a1c; --sc-ink: #2a2230; --sc-mouth: #b5535b; --sc-bag: #8a6f9c; --sc-lid: #8a7a86; --sc-blush:
+  #f0a0a0; --sc-mask: #e6edf2; --sc-rim: #5b4630; --sc-metal: #aab3bd; --sc-cast: #e9e6dc; --sc-plaster: #e6c8bf; --sc-shoe: #4a3a34; --sc-cap: #e6b526; --sc-cap2:
+  #c9981a; --sc-pack: #4f7fc2; --sc-strap: #3a5f9a; --sc-uni1: #e9e6dc; --sc-uni2: #4a5d8c; --sc-uni3: #c4d6e8; --sc-uni4: #6f8064; --sc-uni5: #4a5d8c; --sc-suit:
+  #d3683f; --sc-suit2: #a04822; --sc-phone: #2b2f3a; --sc-screen: #8fd3ff; --sc-bagc: #4b5563; --sc-strapb: #303741; --sc-c1: #d0605a; --sc-c2: #dc9a34; --sc-c3: #5a9ad0;
+  --sc-c4: #62a46a; --sc-c5: #9372bd; --sc-c6: #d286a8; --sc-p1: #6a7ea8; --sc-p2: #8a7969; --sc-p3: #5a6b60; --sc-grey: #d2cec6; --sc-pet1: #c8935a; --sc-pet2: #6e4a2c;
+  --sc-pet3: #4a4340; --sc-pet4: #e0dacc; --sc-white: #e9e6dc; --sc-water: #6fb0cc; --sc-fish: #f08a3c; --sc-glass: #9fc4d2; --sc-wood: #a4784a; --sc-wood2: #7d5b38;
+  --sc-blanket: #7fa9c4; --sc-blanket2: #c4d9e6; --sc-ball: #e3782f; --sc-ballb: #8f4a1c;
 }
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
@@ -131,3 +164,14 @@ ul, ol { padding-left: 20px; }
 .end .btns { display: grid; gap: 10px; max-width: 420px; margin: 8px auto 0; width: 100%; }
 @media (prefers-reduced-motion: reduce) { .progress i, .meter .mb i { transition: none; } }
 .load { margin: 0 0 8px; padding-left: 10px; border-left: 3px solid var(--line); font-size: 14px; } /* 情境負荷：附在卡片上的當下處境（帳單……） */
+
+/* 像素家庭場景（DESIGN §8.5）：色彩全用 --sc-* 變數（上面淺色／深色各一組）；沒有閃動，淡入只在使用者沒要求減少動態時才有 */
+.scene-box { margin: 0 0 12px; padding: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--card); box-shadow: var(--shadow); line-height: 0; }
+.scene-box svg.scene { display: block; width: 100%; height: auto; max-width: 100%; image-rendering: pixelated; }
+@media (prefers-reduced-motion: no-preference) { .scene-box svg.scene { animation: sc-fade .3s ease-out; } }
+@keyframes sc-fade { from { opacity: .55; } to { opacity: 1; } }
+.portrait { margin: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; line-height: 0; }
+.portrait svg.scene { display: block; width: 100%; height: auto; }
+.album { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.album li { flex: 1 1 72px; max-width: 110px; min-width: 64px; text-align: center; font-size: 13px; color: var(--muted); line-height: 1.4; }
+.album svg.sprite { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 4px; }

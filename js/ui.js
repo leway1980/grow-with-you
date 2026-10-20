@@ -1,6 +1,7 @@
 // 畫面元件。沿用《高中，只有一次》(leway1980/Game 47wan @ ce1d972) ui.js 的 h() 小工具與畫面拆法（標題、開場、遊戲、終局）；
 // 改為親子遊戲：數值條只畫長條與一個字，劑量表只畫 ▲▼ 與格數，隱藏數值在終局之前不會出現在任何元素裡。
 import { REVEAL_GROUPS } from './engine/ending.js';
+import { sceneSVG } from './engine/scene.js';
 
 export function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -59,6 +60,8 @@ export function renderGame(root, { speed, onSpeed, onAuto, onSkipEnd, onQuit }) 
   refs.speedBtns = [[0, '暫停'], [1, '1×'], [2, '2×'], [4, '4×']].map(([v, t]) => h('button', { 'data-speed': v, 'aria-pressed': String(v === speed), onClick: () => onSpeed(v) }, t));
   refs.autoBtn = h('button', { 'data-act': 'auto', 'aria-pressed': 'false', onClick: onAuto }, '讓他自己過');
   refs.prog = h('i');
+  refs.scene = h('figure', { class: 'scene-box', id: 'scene' });
+  refs.sceneKey = '';
   refs.panel = h('section', { class: 'panel paper', 'aria-live': 'polite', id: 'panel' });
   refs.child = h('div', { class: 'meters' });
   refs.parent = h('div', { class: 'meters' });
@@ -69,6 +72,7 @@ export function renderGame(root, { speed, onSpeed, onAuto, onSkipEnd, onQuit }) 
       h('div', { class: 'wrap bar tools' }, refs.autoBtn, h('button', { 'data-act': 'skip-end', onClick: onSkipEnd }, '直接看結局'), h('button', { 'data-act': 'quit', onClick: onQuit }, '回標題')),
       h('div', { class: 'progress', role: 'progressbar', 'aria-label': '陪伴的進度' }, refs.prog)),
     h('main', { class: 'wrap game' },
+      refs.scene,
       refs.panel,
       h('div', { class: 'two-col' },
         h('section', { class: 'paper', 'aria-label': '孩子' }, h('h2', { class: 'sec' }, '孩子'), refs.child),
@@ -78,6 +82,13 @@ export function renderGame(root, { speed, onSpeed, onAuto, onSkipEnd, onQuit }) 
   return refs;
 }
 
+/** 場景（DESIGN §8.5）：規格沒變就不重畫，所以選完選項後只有真的變了的地方才會閃一下淡入 */
+export function setScene(refs, spec) {
+  const svg = sceneSVG(spec);
+  if (refs.sceneKey === svg) return;
+  refs.sceneKey = svg;
+  refs.scene.innerHTML = svg;
+}
 export function setSpeedButtons(refs, speed) { for (const b of refs.speedBtns) b.setAttribute('aria-pressed', String(+b.dataset.speed === speed)); }
 export function setAutoButton(refs, on) { refs.autoBtn.setAttribute('aria-pressed', String(on)); }
 export function setHeader(refs, label, progress) {
@@ -102,7 +113,7 @@ export function showCard(refs, card, eyebrow, onChoose) {
   refs.panel.replaceChildren(
     h('div', { class: 'eyebrow' }, eyebrow),
     h('h2', { id: 'card-title' }, card.title),
-    (card.loads || []).map((t) => h('p', { class: 'load muted' }, t)),
+    ...(card.loads || []).map((t) => h('p', { class: 'load muted' }, t)),
     h('p', { class: 'body' }, card.text),
     h('div', { class: 'choices' }, card.choices.map((c) =>
       h('button', { class: 'choice', 'data-act': 'choice', 'data-pos': c.pos, disabled: c.disabled, onClick: () => onChoose(c) },
@@ -167,10 +178,14 @@ export function spark(key, s) {
   return svg;
 }
 
-export function renderEnding(root, e, { seed, onSame, onNew }) {
+export function renderEnding(root, e, { seed, onSame, onNew, portrait, album }) {
   const w = e.wellbeing;
   root.replaceChildren(h('main', { class: 'wrap end stack' },
     h('header', { class: 'head' }, h('div', { class: 'small muted' }, `陪伴到：${e.to}`), h('h1', null, '你們一起的樣子')),
+    portrait && h('section', { class: 'paper', id: 'ending-portrait' },
+      h('h2', { class: 'sec' }, '全家福'),
+      h('figure', { class: 'portrait', html: portrait }),
+      album && album.length > 0 && h('ol', { class: 'album', 'aria-label': '成長相簿' }, album.map((a) => h('li', null, h('span', { html: a.svg }), a.label)))),
     h('section', { class: 'paper', id: 'ending-wellbeing' },
       h('h2', { class: 'sec' }, '你們一起的幸福'),
       h('p', { class: 'big' }, e.line),

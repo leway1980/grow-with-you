@@ -8,6 +8,7 @@ import { openingText, childcareText } from './engine/family.js';
 import { buildEnding } from './engine/ending.js';
 import { selfChoice, playRestAuto } from './engine/auto.js';
 import { meterView } from './engine/dose.js';
+import { sceneSpec, sceneSVG, albumSpecs } from './engine/scene.js';
 import * as ui from './ui.js';
 
 const root = document.getElementById('app');
@@ -101,6 +102,7 @@ function beginTurn() {
   const tl = res.tl;
   ui.setHeader(refs, tl.label, progress());
   ui.renderMeters(refs, meterView(st, tl.stage));
+  ui.setScene(refs, sceneSpec(st, data, tl));
   if (res.card) {
     showCurrentCard(res.card, tl);
   } else {
@@ -130,6 +132,7 @@ function pick(c) {
   const out = chooseCard(st, data, c.i);
   phase = 'result';
   ui.renderMeters(refs, meterView(st, tl.stage));
+  ui.setScene(refs, sceneSpec(st, data, tl));
   const next = out.more ? continueTurn : endTurn;
   ui.showResult(refs, { title: view.title, label: c.label, result: out.result, dose: out.dose }, next, out.more ? '繼續（還有一件事）' : '繼續');
   ui.appendLog(refs, `${tl.label}・${view.title}：${c.label}`);
@@ -181,8 +184,11 @@ function showEnding() {
   const e = buildEnding(st, data);
   store.del();
   const seed = st.seed, role = st.role, mode = st.startMode;
+  const last = data.timeline[Math.max(0, Math.min(st.turn, data.calendar.playableTurns) - 1)]; // 離家那天；目前只開放到國小，就是最後一個可玩的回合
+  const portrait = sceneSVG(sceneSpec(st, data, last, { portrait: true }));
+  const album = albumSpecs(st, data).map((a) => ({ label: a.label, svg: sceneSVG(a) }));
   ui.renderEnding(root, e, {
-    seed,
+    seed, portrait, album,
     onSame: () => { introRole = role; introMode = mode; startGame(newState(seed, data, { role, startMode: mode })); },
     onNew: () => showIntro(newSeed()),
   });
