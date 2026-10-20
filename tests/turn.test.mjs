@@ -285,3 +285,81 @@ test('一整局玩下來，每回合都玩完（含固定事件的第二張）�
   }
 });
 void applyEffects; void choiceCtx; void loadRaw;
+
+/* ───── 第二輪：個別差異、花費倍率、家庭變故、休息 ───── */
+import { scaleCosts } from '../js/engine/events.js';
+import { BOTS } from '../tools/simulate.mjs';
+
+test('反向機器人 antiDose 存在：永遠選看得到的變化最差的選項', () => {
+  assert.ok(BOTS.antiDose);
+  const ch = (e) => ({ effects: e, tags: ['不轉述消息'] });
+  assert.ok(BOTS.antiDose.score(data.tags, ch({ 心情: 5 })) < BOTS.antiDose.score(data.tags, ch({ 心情: -5 })));
+});
+
+test('孩子的接受度（responsive）是個別差異：由自己的亂數流抽，不影響其他開局抽籤；影響所有標籤的幅度', () => {
+  const vals = new Set();
+  for (let seed = 1; seed <= 200; seed++) vals.add(newState(seed, data, {}).family.child.responsive);
+  assert.ok(vals.size > 30);
+  const R = data.identities.child.responsive;
+  for (const v of vals) assert.ok(v >= R.min && v <= R.max);
+  // 其他抽籤不受影響：同一個種子的家庭，除了 responsive 之外和加這個欄位之前一樣（職業、家境、孩子氣質）
+  const f = newState(7, data, {}).family;
+  assert.equal(f.child.name.length > 1, true);
+});
+
+test('花費倍率（costMods）：ADHD 的孩子，訂規則與跟進要付更多耐心；另一半一起陪，什麼都比較省力；只動花費，不動好處', () => {
+  const ch = { effects: { 耐心: -4, 體力: -2, 心情: 3, 錢: -2 }, tags: ['事前訂規則'] };
+  const m = data.tags.costMods;
+  const adhd = scaleCosts(m, ch, { 有特殊需求ADHD: true, 另一半: '只出錢' });
+  assert.equal(adhd.耐心, -6); assert.equal(adhd.體力, -3); assert.equal(adhd.心情, 3); assert.equal(adhd.錢, -2);
+  const together = scaleCosts(m, ch, { 有特殊需求ADHD: false, 另一半: '一起陪' });
+  assert.ok(Math.abs(together.耐心 - -2.8) < 1e-9);
+  const both = scaleCosts(m, ch, { 有特殊需求ADHD: true, 另一半: '一起陪' });
+  assert.ok(Math.abs(both.耐心 - -4.2) < 1e-9);
+  assert.equal(scaleCosts(m, { effects: { 耐心: 3 }, tags: ['事前訂規則'] }, { 有特殊需求ADHD: true, 另一半: '' }).耐心, 3); // 正的（回復）不放大
+});
+
+test('孩子的氣質改變規則的效果：堅持度高 → 事前訂規則比較難見效；ADHD 也是', () => {
+  const lo = { 孩子堅持度: 3, 有特殊需求ADHD: false }, hi = { 孩子堅持度: 5, 有特殊需求ADHD: false }, adhd = { 孩子堅持度: 3, 有特殊需求ADHD: true };
+  assert.ok(modifierFactorOf('事前訂規則', hi) < modifierFactorOf('事前訂規則', lo));
+  assert.ok(modifierFactorOf('事前訂規則', adhd) < modifierFactorOf('事前訂規則', lo));
+});
+import { modifierFactor as modifierFactorOf0 } from '../js/engine/tags.js';
+const modifierFactorOf = (tag, ctx) => modifierFactorOf0(data.tags, tag, ctx);
+
+test('家庭變故（loads 帶 tags）：隱藏數值也只經由標籤改變；同一個種子的變故和玩家的選擇無關', () => {
+  const d = loadData();
+  d.loads = [{ id: 't', text: '突發狀況。', p: 0.999, effects: { 耐心: -5 }, tags: ['夫妻當孩子面吵'] }];
+  const st = newState(5, d, {}); st.turn = 3;
+  const res = startTurn(st, d);
+  const s0 = st.hidden.安全感;
+  chooseCard(st, d, res.card.choices.find((c) => !c.disabled).i);
+  assert.ok(st.hidden.安全感 < s0, '夫妻當孩子面吵的標籤降低了安全感');
+  assert.ok(st.tagCounts.夫妻當孩子面吵 >= 1);
+  // 變故出現與否只看 (種子, 回合)
+  const a = newState(9, data, {}), b = newState(9, data, {});
+  a.turn = b.turn = 12;
+  const ra = startTurn(a, data), rb = startTurn(b, data);
+  assert.deepEqual(ra.card && ra.card.loads, rb.card && rb.card.loads);
+  const shocks = new Set(data.loads.map((l) => l.id));
+  assert.ok(['孩子生病', '長輩住院', '夫妻失和', '工作變動', '貴人相助'].every((id) => shocks.has(id)));
+});
+
+test('真的休息會減輕累積的疲勞（relief）；不是隱藏數值', () => {
+  const st = fresh(5); st.turn = 30; st.costEMA = { 體力: 10, 耐心: 10 };
+  const tl = data.timeline[30];
+  applyTagsLocal(st, ['父母自己休息'], tl);
+  assert.ok(st.costEMA.體力 < 2 && st.costEMA.耐心 < 2, JSON.stringify(st.costEMA));
+});
+import { applyTags as applyTagsRaw } from '../js/engine/tags.js';
+const applyTagsLocal = (st, tags, tl) => applyTagsRaw(st, tags, data.tags, { turn: st.turn, stage: tl.stage, ctx: buildCtx(st, tl, {}) });
+
+test('不敏感的孩子，壓力有時真的把成績撐住；敏感的孩子反過來被拖累', () => {
+  const run = (sens) => {
+    const st = fresh(2); st.turn = 40; st.family.child.temperament.敏感度 = sens;
+    st.hidden.期待壓力 = 70; st.hidden.替他做主 = 60; st.child.成績 = 50;
+    for (let i = 0; i < 20; i++) { st.turn = 40 + (i % 12); finishTurn(st, data); st.hidden.期待壓力 = 70; st.hidden.替他做主 = 60; }
+    return st.child.成績;
+  };
+  assert.ok(run(1) > run(3) + 3 && run(3) > run(5) + 3, `${run(1)} ${run(3)} ${run(5)}`);
+});

@@ -18,6 +18,6 @@ test('效能：500 張合成卡，每種策略 20 局（所有策略平行）在
   const t0 = Date.now();
   const g = await runBots(20, 1, { synthetic: 500 });
   const ms = Date.now() - t0;
-  assert.equal(Object.values(g).flat().length, 120);
+  assert.equal(Object.values(g).flat().length, 20 * Object.keys(g).length);
   assert.ok(ms < 10000, `${ms} ms`);
 });

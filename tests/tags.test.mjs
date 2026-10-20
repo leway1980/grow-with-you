@@ -12,7 +12,7 @@ const fresh = (seed = 5) => newState(seed, data, { role: '媽媽' });
 const tlAt = (turn) => data.timeline[turn];
 const apply = (st, tags, turn, extra = {}) => { const tl = tlAt(Math.min(turn, 55)); return applyTags(st, tags, T, { turn, stage: tl.stage, ctx: buildCtx(st, tl, {}), ...extra }); };
 // 把「飽和」與「增益」排除，直接算對照表的預期值
-const expected = (def, k, st, tl, ctx, tag, mult = 1) => saturate(st.hidden[k], def.d[k] * (T.gain ?? 1) * stageMult(def, tl.stage) * modifierFactor(T, tag, ctx) * mult);
+const expected = (def, k, st, tl, ctx, tag, mult = 1) => saturate(st.hidden[k], def.d[k] * (T.gain ?? 1) * (st.family?.child.responsive ?? 1) * stageMult(def, tl.stage) * modifierFactor(T, tag, ctx) * mult);
 
 test('隱藏數值只能經由標籤改變：沒有標籤、只有可見效果 → 隱藏數值完全不動', () => {
   const st = fresh(); st.turn = 30;
@@ -34,7 +34,7 @@ test('標籤的換算：結果＝對照表 × 增益 × 階段倍率 × 情境�
   const def = T.tags['替他決定'];
   const before = st.hidden.主見;
   apply(st, ['替他決定'], 30);
-  const exp = expected(def, '主見', { hidden: { 主見: before } }, tl, ctx, '替他決定');
+  const exp = expected(def, '主見', { hidden: { 主見: before }, family: st.family }, tl, ctx, '替他決定');
   assert.ok(Math.abs(st.hidden.主見 - (before + exp)) < 1e-9, `${st.hidden.主見} vs ${before + exp}`);
   assert.ok(exp < 0);
 });
@@ -98,7 +98,7 @@ test('方向加速（§3.3）：只放大壓力那一側（期待壓力↑、主
   const st = fresh(); st.turn = 30; st.dirCount.科學 = 8;
   const b = st.hidden.替他做主;
   const { deltas } = apply(st, ['轉述消息_特地'], 30, { direction: '科學' });
-  const base = T.tags['轉述消息_特地'].d.替他做主 * T.gain * modifierFactor(T, '轉述消息_特地', buildCtx(st, tlAt(30), {})) * 1.0 * repetitionMult(st, '轉述消息_特地', 30, T);
+  const base = T.tags['轉述消息_特地'].d.替他做主 * T.gain * st.family.child.responsive * modifierFactor(T, '轉述消息_特地', buildCtx(st, tlAt(30), {})) * 1.0 * repetitionMult(st, '轉述消息_特地', 30, T);
   assert.ok(Math.abs(deltas.替他做主 - saturate(b, base)) < 1e-9);
 });
 

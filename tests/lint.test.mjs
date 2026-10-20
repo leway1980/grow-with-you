@@ -27,10 +27,13 @@ const card = (raw, id) => raw.events.cards.find((c) => c.id === id);
 test('可見效果的方向由標籤的 now 決定：與標籤矛盾的 effects 會被擋下', () => {
   // 替他決定 → 作業／成績只能 ≥ 0
   assert.match(mut((r) => { const c = card(r, 'kid_dress'); c.choices[3].effects = { 作業: -3, 心情: -3 }; }), /作業 -3 和標籤的 now 矛盾/);
-  // 研究支持的行為（先接住情緒）→ 孩子的心情只能 ≤ 0
-  assert.match(mut((r) => { const c = card(r, 'kid_share'); c.choices[0].effects = { 心情: 4, 耐心: -2 }; }), /心情 \+4 和標籤的 now 矛盾/);
-  // 吵了才讓步 → 心情只能 ≥ 0（看起來划算）
-  assert.match(mut((r) => { const c = card(r, 'fu_screen_ask'); c.choices[0].effects = { 心情: -3, 耐心: 4 }; }), /心情 -3 和標籤的 now 矛盾/);
+  // 研究支持的行為（先接住情緒）→ 花體力，不能反而回體力
+  assert.match(mut((r) => { const c = card(r, 'kid_share'); c.choices[0].effects = { 體力: 4, 耐心: -2 }; }), /體力 \+4 和標籤的 now 矛盾/);
+  // 吵了才讓步（給平板）→ 睡眠只能 ≤ 0（看得到的代價），耐心只能 ≥ 0（看起來划算）
+  assert.match(mut((r) => { const c = card(r, 'fu_screen_ask'); c.choices[0].effects = { 睡眠: 3, 耐心: 4 }; }), /睡眠 \+3 和標籤的 now 矛盾/);
+  assert.match(mut((r) => { const c = card(r, 'fu_screen_ask'); c.choices[0].effects = { 耐心: -3, 心情: 4 }; }), /耐心 -3 和標籤的 now 矛盾/);
+  // 第二輪修訂：研究支持的行為孩子的心情可以小小 ▲、捷徑也可以 ▼（不再限制符號）
+  assert.doesNotMatch(mut((r) => { const c = card(r, 'kid_share'); c.choices[0].effects = { 心情: 2, 耐心: -2 }; }), /kid_share.*矛盾/);
   // 嚴格的 now（出遊_一起準備與討論 的體力必須 < 0）：沒寫體力也算矛盾
   assert.match(mut((r) => { const c = card(r, 'hi_trip'); c.choices[0].effects = { 心情: 3 }; c.choices[0].tags = ['出遊_一起準備與討論']; }), /體力 0 和標籤的 now 矛盾/);
   // 多個標籤取聯集：一個說 ≤0、一個說 ≥0 → 都可以
@@ -88,4 +91,10 @@ test('direction 可以寫 @槽名；槽的每個值都要有 dir；needs 只能�
 test('情境負荷與漂移的資料也會被檢查', () => {
   assert.match(mut((r) => { r.pools.loads[0].effects = { 隱藏: 3 }; }), /loads 帳單吃緊：可見數值「隱藏」不存在/);
   assert.match(mut((r) => { r.tags.drift.to.不存在 = { to: 1, rate: 0.1 }; }), /drift：隱藏數值「不存在」不存在/);
+});
+
+test('看得到的方向不能預測隱藏好壞（正反都不行）：每張卡的劑量分數 vs 隱藏分數的 Spearman 相關平均要在 ±0.3 內', () => {
+  assert.match(mut((r) => { for (const c of r.events.cards) for (const ch of c.choices) { ch.effects = { 耐心: -((ch.tags.length) * 3) }; } }), /平均 Spearman 相關/);
+  const { stats } = lintData();
+  assert.ok(Math.abs(stats.meanCorrelation) <= 0.3, String(stats.meanCorrelation));
 });
