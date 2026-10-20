@@ -1164,6 +1164,8 @@
 ### 資料讀取
 
 - 和 47 萬相同：所有事件、槽、行事曆都是靜態 JSON，開局時一次讀進來，之後每回合不再向伺服器讀取。
+- 事件與槽分檔：`data/manifest.json` 列出 `events/*.json`（依階段與用途：infant、preschool、elem_low、elem_high、followups、fixed、parent_self）與 `slots/*.json`；網頁（`js/main.js`）與 Node（`tools/data-node.mjs`）共用 `js/engine/dataload.js` 合併。卡片 id、槽名跨檔必須唯一（lint 檢查）；別的檔要擴充已存在的槽，必須寫 `{"extends": true, "values": [...]}`。之後新增池（例如依職位的「工作插播」）只要加事件檔並在 `pools.json` 加池名，新的槽（`{工作插播}`、`{孩子來問}`）加槽檔即可。
+- 「父母自己」池（§11 規則 6）的權重用條件環境的 `疲勞`（體力與耐心花費的指數移動平均合計）、體力、耐心與有沒有人可以分擔來調；寫卡規則的檢查項目與禁用詞清單在 `tags.json` 的 `cardRules`。
 - 匿名統計（若沿用 47 萬的 Worker）只在開局、學期結束、結局時送出；首頁人數用快照加快取時間，不頻繁讀取。47 萬目前正在進行的讀取優化，完成後一併沿用。
 
 ## 7. 結局：最先看到的是你們一起的幸福

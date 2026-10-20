@@ -27,10 +27,10 @@ export const BOTS = {
     const v = tagVec(T, ch);
     return 2 * (v.替他做主 || 0) + (v.規範監督 || 0) - 0.3 * (v.溫暖陪伴 || 0) + 3 * hasTag(ch, ['替他決定', '罵一頓', '只看成績', '送去補習', '拿別人比較', '轉述消息_特地', '全部替他做', '提議別的', '沒聽孩子重複的要求']);
   } },
-  warmFirm: { desc: '溫暖＋堅定', score: (T, ch) => sum(tagVec(T, ch), { 溫暖陪伴: 1, 規範監督: 1, 親子信任: 0.5, 了解度: 0.5, 主見: 0.5, 替他做主: -1, 期待壓力: -0.5, 試探度: -0.5, 規則一致性: 0.3 }) },
+  warmFirm: { desc: '溫暖＋堅定（自己的事一律放著，不休息）', score: (T, ch) => sum(tagVec(T, ch), { 溫暖陪伴: 1, 規範監督: 1, 親子信任: 0.5, 了解度: 0.5, 主見: 0.5, 替他做主: -1, 期待壓力: -0.5, 試探度: -0.5, 規則一致性: 0.3 }) },
   doseGreedy: { desc: '只看劑量表（每次選看得到的變化最好的）', score: (T, ch) => doseScore(ch) },
   antiDose: { desc: '反過來只看劑量表（每次選看得到的變化最差的）', score: (T, ch) => -doseScore(ch) },
-  warmFirmRest: { desc: '溫暖＋堅定，耐心見底時先休息', score: (T, ch) => BOTS.warmFirm.score(T, ch) },
+  warmFirmRest: { desc: '溫暖＋堅定，疲勞時用「父母自己」池的卡與卡裡自然的休息選項', score: (T, ch) => BOTS.warmFirm.score(T, ch) },
 };
 
 export function botPolicy(botName, seedSalt) {
@@ -42,10 +42,20 @@ export function botPolicy(botName, seedSalt) {
       const r = stateRng(holder, 'r');
       const opts = view.choices.filter((c) => !c.disabled);
       if (botName === 'random') return opts[Math.floor(r() * opts.length)].i;
-      if (botName === 'warmFirmRest' && st.parent.耐心 < 35) {
-        const rest = opts.find((o) => (raw.choices[o.i].tags || []).includes('父母自己休息'));
-        if (rest) return rest.i;
+      const selfCare = (o) => (raw.choices[o.i].tags || []).some((t) => data.tags.tags[t]?.relief);
+      if (botName === 'warmFirmRest') {
+        // 「父母自己」池的卡出現時（權重已隨疲勞變大）：選讓情緒穩定度回升最多的自我照顧選項；
+        // 孩子的事件卡裡，耐心見底時才用卡裡自然的『先到這裡』選項（沒有就照常選）。
+        if (raw.pool === '父母自己') {
+          const cand = opts.filter(selfCare);
+          if (cand.length) return cand.reduce((a, b) => (tagVec(data.tags, raw.choices[b.i]).父母情緒穩定度 > tagVec(data.tags, raw.choices[a.i]).父母情緒穩定度 ? b : a)).i;
+        } else if (st.parent.耐心 < 35) {
+          const rest = opts.find((o) => (raw.choices[o.i].tags || []).includes(data.tags.cardRules.restTag));
+          if (rest) return rest.i;
+        }
       }
+      // warmFirm（不休息的版本）：自己的事一律放著，不選任何自我照顧的選項（除非整張卡只剩這些）
+      if (botName === 'warmFirm') { const keep = opts.filter((o) => !selfCare(o)); if (keep.length) { opts.length = 0; opts.push(...keep); } }
       let best = null, bs = -1e9;
       for (const o of opts) {
         const s = bot.score(data.tags, raw.choices[o.i]) + r() * 1e-6; // 平手時用亂數決定（決定性）

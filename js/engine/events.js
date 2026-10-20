@@ -143,6 +143,7 @@ export function buildCtx(st, tl, extra = {}) {
     托育方式: st.vars.托育方式, 幼兒園類型: st.vars.幼兒園類型, 照顧者: st.vars.照顧者, 換照顧者次數: st.vars.換照顧者次數,
     孩子不再開口: st.vars.孩子不再開口 || 0, 孩子主動開口: st.vars.孩子主動開口 || 0, 起點: st.startMode,
     意願強度: willOf(st, extra.topic),
+    疲勞: Math.round(((st.costEMA && st.costEMA.體力) || 0) + ((st.costEMA && st.costEMA.耐心) || 0)), // 最近幾回合體力與耐心花費的累積（「父母自己」池的權重用）
   };
   for (const [k, m] of Object.entries(GATES)) for (const [n, thr] of Object.entries(m)) ctx[k + n] = st.hidden[k] >= thr;
   return ctx;
