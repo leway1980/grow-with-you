@@ -2,6 +2,7 @@
 // 盲測檔只有：卡片編號、標題、內文（變數槽用固定種子填好）、洗亂順序的選項文字。沒有標籤、沒有效果、沒有結果文字。
 // 另外寫一個對照檔（key），只記每個位置是原來的第幾個選項，評分完才拿來還原；不含任何標籤或數值。
 // 用法：node tools/obviousness.mjs [輸出資料夾=$SCRATCHPAD 或系統暫存] [種子=1]
+// 選項：--cards <正規表示式>＝只匯出 id 符合的卡；--raters <N>＝切成 N 份評分檔（預設 4）。
 // --context 模式（雙問題盲測，DESIGN §3.6 驗收＋§11 規則 21）：node tools/obviousness.mjs [輸出資料夾] [種子=1] --context
 //   每張卡 2 題，放在兩個不同的孩子情境；變體卡一題在預設情境、一題在『最佳選項換人』的情境。見 exportContext()。
 import { fileURLToPath } from 'node:url';
@@ -138,11 +139,12 @@ const sameOrig = (a, b) => a.opts.length === b.opts.length && a.opts.every((o, k
  * 每張卡 2 題。變體卡：預設情境（沒有任何情境版本的 if 成立）＋ 最佳選項（綜合幸福，見 compositeWeights）換人的情境（條件和 rule21-gap 相同：套用情境版本後的選項，用和終局 wellbeing 同一個組合；舊的親子軸數字留在 key.axisParent）。
  * 非變體卡：兩個隨機情境（孩子描述不同）。題目 id 是不透明的流水號。
  */
-export function exportContext(data = loadData(), seed = 1) {
+export function exportContext(data = loadData(), seed = 1, { cards: cardRe = null, raters = 4 } = {}) {
   const dot = (W) => (ch, stages) => Object.entries(tagVec(data.tags, ch, stages)).reduce((a, [k, v]) => a + (W[k] || 0) * v, 0);
   const axisOf = dot(compositeWeights(data.model)), axisParentOf = dot(outcomeWeights(data.model)['親子']);
   const items = [], stats = { relaxed: [], skipped: [] };
   data.events.cards.forEach((card, ci) => {
+    if (cardRe && !cardRe.test(card.id)) return;
     const r = mulberry32((hashStr(card.id) ^ (seed * 0x9e3779b1)) >>> 0);
     const variant = hasVariant(card);
     const cands = [];
@@ -184,11 +186,11 @@ export function exportContext(data = loadData(), seed = 1) {
     key[id] = { card: card.id, k, kind, variant, switch: variant && sw, order: o.map((x) => x.i), axis: o.map((x) => Math.round(x.axis * 1000) / 1000), axisParent: o.map((x) => Math.round(x.axisParent * 1000) / 1000), best: bestOf(o), temperament: it.temperament, grade: it.grade, ageMonths: it.ageMonths, parentState: it.parentState };
   });
   // 切 4 份：同一張卡的兩題分給不同的評分者；每份平均
-  const files = [[], [], [], []];
+  const files = Array.from({ length: raters }, () => []);
   const cardNo = new Map();
   for (const b of blind) { const c = key[b.id].card; if (!cardNo.has(c)) cardNo.set(c, cardNo.size); }
   const half = new Map();
-  for (const b of blind) { const kk = key[b.id], c = cardNo.get(kk.card); files[(c + (half.get(kk.card) ? 2 : 0)) % 4].push(b); half.set(kk.card, true); }
+  for (const b of blind) { const kk = key[b.id], c = cardNo.get(kk.card); files[(c + (half.get(kk.card) ? Math.ceil(raters / 2) : 0)) % raters].push(b); half.set(kk.card, true); }
   return { blind, key, files, stats };
 }
 function passesCard(card, cand, data) {
@@ -211,17 +213,20 @@ Q2　如果你是這個家長，看到上面的變化和今天的體力、耐心
 `;
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const args = process.argv.slice(2), ctxMode = args.includes('--context'), pos = args.filter((a) => !a.startsWith('--'));
+  const args = process.argv.slice(2), ctxMode = args.includes('--context');
+  const optVal = (name) => { const i = args.indexOf(name); return i >= 0 ? args.splice(i, 2)[1] : null; };
+  const cardsOpt = optVal('--cards'), ratersOpt = optVal('--raters');
+  const pos = args.filter((a) => !a.startsWith('--'));
   const out = pos[0] || process.env.SCRATCHPAD || tmpdir();
   const seed = parseInt(pos[1] || '1', 10);
   mkdirSync(out, { recursive: true });
   if (ctxMode) {
-    const { blind, key, files, stats } = exportContext(loadData(), seed);
+    const { blind, key, files, stats } = exportContext(loadData(), seed, { cards: cardsOpt ? new RegExp(cardsOpt) : null, raters: ratersOpt ? parseInt(ratersOpt, 10) : 4 });
     const w = (f, o) => writeFileSync(join(out, f), JSON.stringify(o, null, 1) + '\n');
     w('blind.json', blind); w('key.json', key);
     files.forEach((f, i) => w(`blind-${i + 1}.json`, f));
     writeFileSync(join(out, 'rater-prompt.md'), RATER_PROMPT);
-    console.log(`--context：匯出 ${blind.length} 題（${new Set(Object.values(key).map((k) => k.card)).size} 張卡，種子 ${seed}）→ ${join(out, 'blind.json')}、blind-1..4.json（各 ${files.map((f) => f.length).join('/')} 題）、key.json（評分前不要給評分者）、rater-prompt.md${stats.relaxed.length ? `；前置條件放寬的卡 ${stats.relaxed.length} 張` : ''}`);
+    console.log(`--context：匯出 ${blind.length} 題（${new Set(Object.values(key).map((k) => k.card)).size} 張卡，種子 ${seed}）→ ${join(out, 'blind.json')}、blind-1..N.json（各 ${files.map((f) => f.length).join('/')} 題）、key.json（評分前不要給評分者）、rater-prompt.md${stats.relaxed.length ? `；前置條件放寬的卡 ${stats.relaxed.length} 張` : ''}`);
     process.exit(0);
   }
   const { blind, key } = exportBlind(loadData(), seed);
