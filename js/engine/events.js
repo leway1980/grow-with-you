@@ -427,7 +427,7 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
   const k = cardDoseK(data.model, tl.span ?? 2, card, !!(data.preview || st.preview)); // 劑量倍率：一張卡代表這個回合那麼長的時間
   const scope = cardScope(st, card.id);
   const parts = [fill(ch.result, st, ctx, scope)];
-  let branchTags = [];
+  let branchTags = [], approved = true;
   // 陪伴時段不在：用體力硬換或請假，代價照實顯示在劑量表上，選項不會消失
   for (const need of ch.needs || []) if (!slotAvailable(st, data, need)) applyEffects(st, scaleEffects(data.tags.slotCost[need], k), acc);
   applyBranch(st, { ...ch, effects: scaleCosts(data.tags.costMods, ch, ctx) }, st.turn, r, ctx, acc, scope, tl, k);
@@ -436,6 +436,7 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
     const p = clamp(c.p * mulMods(c.mods, ctx), 0, 0.97);
     const win = rngAt(st.seed, st.turn, c.id) < p; // 命運骰：和玩家的選擇無關，同一個人生結果相同
     const b = win ? c.win : c.lose;
+    approved = win;
     applyBranch(st, b, st.turn, r, ctx, acc, scope, tl, k);
     parts.push(fill(b.result, st, ctx, scope));
     st.flags[`${c.id}_${win ? '中' : '落'}`] = true;
@@ -445,7 +446,7 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
   applyTags(st, allTags, data.tags, { turn: st.turn, months: tl.ageMonths, span: tl.span ?? 2, scale: k, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope), approach: !!card.approach, initiate: !!card.initiate });
   if (isGrowthChoice(data.tags, ch.tags)) recordGrowth(st, data.tags, ch, scope);
   applyClassroomTags(st, allTags, data.tags, ctx, k); // 班級共享狀態（§4.38）：標籤自帶的老師投入度效果，不是孩子的隱藏數值
-  if (ch.classroom && ch.classroom.reset) resetClassroom(st, data.tags, tl, 'transfer'); // 轉班：換老師，重抽班上的家長
+  if (ch.classroom && ch.classroom.reset && approved) resetClassroom(st, data.tags, tl, 'transfer'); // 轉班：換老師，重抽班上的家長（選項帶 chance 時，只有核准才換；沒核准就留在原來的班）
   if (card.once) st.used[card.id] = true;
   if (card.cooldownMonths) st.cooldowns[card.id] = tl.ageMonths + card.cooldownMonths; // 最早可以再出現的月齡
   const d = {};

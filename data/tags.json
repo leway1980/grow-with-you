@@ -197,7 +197,7 @@
  "classroom": {
   "_why": "班級共享狀態（DESIGN §4.38）：老師投入度 0–100，不是孩子的隱藏數值，不進結果模型；只經由 data/model.json 的邊 k:老師投入度→班級風氣 推班級風氣。換老師的年級（teacherGrades）或選項帶 classroom.reset（轉班）時重抽『班上常投訴的家長』，起點＝這個階段的基準 − 每位常投訴的家長 × perParent；背景每月再下滑 dropPerParentMonth × 家長人數（A2.5 月制，span 個月的回合乘 span）。標籤自帶的玩家效果寫在 tags.*.classroom（{d, when?, unverified?}；when 讀選項的條件環境，對象＝選項的 toward）。所有數字是設計估計，待老師複核；現場經驗，證據強度低。",
   "parentWeights": [0.45, 0.3, 0.17, 0.08],
-  "parentWeights_src": "設計估計（現場經驗：多數班沒有或只有一位常投訴的家長；3 位以上少見）",
+  "transferApproveP": 0.5, "transferApproveP_src": "設計估計（現場經驗：轉班要看各班人數與校方裁量，不一定核准；待老師複核）", "parentWeights_src": "設計估計（現場經驗：多數班沒有或只有一位常投訴的家長；3 位以上少見）",
   "teacherGrades": [1, 3, 5, 7, 10],
   "start": {"base": {"國小低": 70, "國小中高": 65, "國中": 48, "高中": 45}, "perParent": 10, "default": 70, "src": "設計估計；國中以後吵鬧是常態（§4.38 補充），所以基準較低"},
   "dropPerParentMonth": 0.5,

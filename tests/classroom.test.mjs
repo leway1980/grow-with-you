@@ -157,15 +157,37 @@ test('延後後果的卡只在老師投入度低時出現，而且每張都明�
   }
 });
 
-test('轉班：選項帶 classroom.reset 就換老師、重抽家長', () => {
+test('轉班：不一定核准（機率 0.5，設計估計）；核准才換老師、重抽家長並付同學往來的代價，沒核准就留在原班、只付申請的體力與耐心', () => {
+  assert.equal(C.transferApproveP, 0.5);
+  assert.match(C.transferApproveP_src, /設計估計/);
   const t = firstTurnOf((x) => x.stage === '國小中高');
-  const st = fresh(4); startTurn(st, data);
-  const r0 = st.classroom.resets;
-  const card = data.cardIndex.cl_noisy;
-  st.turn = t;
-  applyChoice(st, data, card, card.choices.findIndex((c) => c.classroom && c.classroom.reset), data.timeline[t], stateRng(st, 'rngS'));
-  assert.equal(st.classroom.resets, r0 + 1);
-  assert.equal(st.flags.科目冷掉, undefined);
+  const transfers = [];
+  for (const id of ['cl_noisy', 'cl_bully', 'cl_stamp']) {
+    const idx = data.cardIndex[id].choices.findIndex((c) => c.classroom && c.classroom.reset);
+    const ch = data.cardIndex[id].choices[idx];
+    assert.equal(ch.chance.p, C.transferApproveP, id); assert.ok(ch.chance.lose.result.includes('不能轉班'), id);
+    assert.ok(!('同學往來' in ch.effects) && ch.chance.win.effects.同學往來 < 0, id);
+    transfers.push([id, idx]);
+  }
+  let won = 0, lost = 0;
+  for (let seed = 1; seed <= 60; seed++) {
+    const st = fresh(seed); startTurn(st, data); st.turn = t;
+    const [id, idx] = transfers[seed % 3], card = data.cardIndex[id];
+    const r0 = st.classroom.resets, peers0 = st.child.同學往來, cl0 = JSON.stringify(st.classroom);
+    st.flags.科目冷掉 = true;
+    const out = applyChoice(st, data, card, idx, data.timeline[t], stateRng(st, 'rngS'));
+    if (st.flags[`transfer_${id}_中`]) {
+      won++;
+      assert.equal(st.classroom.resets, r0 + 1); assert.equal(st.flags.科目冷掉, undefined);
+      assert.ok(st.child.同學往來 < peers0); assert.ok(out.result.includes('教務處交了轉班申請書'));
+    } else {
+      lost++;
+      assert.equal(st.classroom.resets, r0, '沒核准就不換老師'); assert.equal(st.flags.科目冷掉, true);
+      assert.equal(st.child.同學往來, peers0, '沒核准就沒有轉班的同學代價'); assert.equal(JSON.stringify(st.classroom), cl0);
+      assert.ok(out.result.includes('不能轉班'));
+    }
+  }
+  assert.ok(won >= 15 && lost >= 15, `${won}/${lost}`);
 });
 
 test('討厭那一科：旗標讓成績與心情每月慢慢往下，換老師才停', () => {
