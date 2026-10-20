@@ -502,7 +502,8 @@ test('日曆 72：起點回合由時間軸算出（從國小開始＝第一個�
 
 test('日曆 72：每個固定事件的月齡和舊 92 回合日曆相差在 ±3 個月內；每個 schoolFixed 都排得進時間軸', () => {
   const oldTl = buildTimeline(LEGACY_V2), newTl = data.timeline;
-  const evs = new Set(newTl.flatMap((t) => t.fixed));
+  // 預覽用的國中、高中、離家固定事件（第 50 回合以後）在舊日曆沒有對應，不比
+  const evs = new Set(newTl.slice(0, data.calendar.playableTurns).flatMap((t) => t.fixed));
   for (const ev of evs) {
     const olds = oldTl.filter((t) => t.fixed.includes(ev));
     assert.ok(olds.length, `${ev} 在舊日曆裡有`);

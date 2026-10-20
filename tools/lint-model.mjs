@@ -138,7 +138,7 @@ export function lintModel(raw, data, cards) {
   const worstEdge = {}, worstAxis = Object.fromEntries(AXES.map((a) => [a, { v: 0, who: '' }]));
   // A2.5：劑量倍率 (回合月數/2)^α 讓一張卡在 3 個月的回合裡放大；靜態上限要用這張卡可能出現的階段裡最大的倍率（一次性的固定事件 scale:false 不放大）
   const alpha = (M.timeScale && M.timeScale.alpha) || 0, stageK = {};
-  for (const t of data.timeline.slice(0, raw.calendar.playableTurns)) stageK[t.stage] = Math.max(stageK[t.stage] || 0, Math.pow(t.span / 2, alpha));
+  for (const t of data.timeline.slice(0, raw.calendar.previewTurns ?? raw.calendar.playableTurns)) stageK[t.stage] = Math.max(stageK[t.stage] || 0, Math.pow(t.span / 2, alpha));
   for (const c of cards) {
     const stg = c.stages || PLAYED_STAGES;
     const k = c.scale === false ? 1 : Math.max(1, ...stg.map((s) => stageK[s] || 1));
