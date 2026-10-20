@@ -12,6 +12,7 @@ import { approachTracker } from './approach-log.mjs';
 import { outcomeAxes, wellbeing, routePosition, comboOf, COMBOS, estimateDeltas, chainRecords, endingContext, pickLines, lineContradictions } from '../js/engine/ending.js';
 import { setTagObserver } from '../js/engine/tags.js';
 import { outcomeWeights, AXES, edgeForTagEffect } from '../js/engine/model.js';
+import { cardDoseK } from '../js/engine/timescale.js';
 import { mechRecord } from './mech.mjs';
 import { loadRaw, loadData } from './data-node.mjs';
 import { avg, pct, median, paired } from './stats.mjs';
@@ -30,13 +31,15 @@ export function influenceMeter(st, data) {
   setTagObserver(({ turn, perTag }) => {
     if (turn !== curTurn) { flush(); curTurn = turn; }
     const cid = st.cur && st.cur.cardId, p = cid && data.cardIndex[cid] ? data.cardIndex[cid].pool : null;
+    // 單回合的邊變動用『參考劑量』（÷ 這張卡的劑量倍率 k）記，maxTurn 以每 2 個月的一次為單位；整局累計（edgeGame）仍用實際值
+    const kk = cid && data.cardIndex[cid] ? cardDoseK(data.model, data.timeline[Math.min(turn, data.timeline.length - 1)].span ?? 2, data.cardIndex[cid], !!(data.preview || st.preview)) : 1;
     for (const [t, ds] of Object.entries(perTag)) {
       const vec = [0, 0, 0];
       for (const [k, d] of Object.entries(ds)) {
         if (!d) continue;
         AXES.forEach((ax, i) => { vec[i] += Math.abs((W[ax][k] || 0) * d); });
         const e = t === '@父母的收穫' ? data.model.edges.find((x) => x.id === 'h:父母的收穫+') : edgeForTagEffect(data.model, t, k, d);
-        if (e) { turnAcc[e.id] = (turnAcc[e.id] || 0) + Math.abs(d); edgeGame[e.id] = (edgeGame[e.id] || 0) + Math.abs(d); }
+        if (e) { turnAcc[e.id] = (turnAcc[e.id] || 0) + Math.abs(d) / kk; edgeGame[e.id] = (edgeGame[e.id] || 0) + Math.abs(d); }
       }
       if (vec.some((x) => x)) { add(tag, t, vec); if (cid) add(card, cid, vec); if (p) add(pool, p, vec); }
     }
@@ -64,7 +67,11 @@ export function playGame(data, bot, seed, opts = {}) {
   const elemTurns = st.hist.filter((h) => h.turn >= e).length;
   const elemNonFixed = st.hist.filter((h) => h.turn >= e && !data.cardIndex[h.card].pool.startsWith('_')).length;
   const nTurnsElem = Math.max(1, st.curves.filter((c) => c.t >= e).length);
+  // 預先登記的指標（A2.5 審查）：開學後前 24 個月的可見成績平均，用來成對比較 controlling 與 warmFirm（短期的學業收益，§3.2）
+  const sm = data.timeline[e].ageMonths;
+  const g24 = avg(st.vcurves.filter((c) => c.m >= sm && c.m < sm + 24).map((c) => c.成績));
   const rec = {
+    g24, sens: f.child.temperament.敏感度,
     bot, seed, partner: f.partner.attitude || '無', econ: f.econ, pattern: f.pattern, support: f.support, struct: f.structure,
     ax: [ax.親子, ax.人際, ax.學習], w: [w.child, w.parent, w.between], route: rp.kind, combo: comboOf(ax),
     hid: { ...st.hidden }, money30: moneyAtSchoolPlus(st, data, e), lowBody: st.vcurves.filter((c) => c.體力 < 35).length / st.vcurves.length,

@@ -136,17 +136,21 @@ export function lintModel(raw, data, cards) {
   // ── 靜態上限：每個選項對每條邊的名義變動量 ≤ maxTurn；對每條結果軸的名義影響 ≤ perChoiceStatic ──
   const cap = M.influenceCaps || {};
   const worstEdge = {}, worstAxis = Object.fromEntries(AXES.map((a) => [a, { v: 0, who: '' }]));
-  // A2.5：劑量倍率 (回合月數/2)^α 讓一張卡在 3 個月的回合裡放大；靜態上限要用這張卡可能出現的階段裡最大的倍率（一次性的固定事件 scale:false 不放大）
+  // A2.5：靜態上限（edge maxTurn、perChoiceStatic）以『參考劑量（一個 2 個月的回合）』為單位，比的是未乘劑量倍率的名義值；
+  // check-design 量到的單回合變動也先除以那張卡的倍率 k 再比（tools/simulate.mjs influenceMeter），所以上限不會隨回合長度改寫。
+  // stageK＝各階段在整條時間軸上的最大倍率（含預覽的國中、高中、離家）；只用來報告『實際會放大多少』，不參與上限比較。
   const alpha = (M.timeScale && M.timeScale.alpha) || 0, stageK = {};
-  for (const t of data.timeline.slice(0, raw.calendar.previewTurns ?? raw.calendar.playableTurns)) stageK[t.stage] = Math.max(stageK[t.stage] || 0, Math.pow(t.span / 2, alpha));
+  for (const t of data.timeline) stageK[t.stage] = Math.max(stageK[t.stage] || 0, Math.pow(t.span / 2, alpha));
+  stats.stageK = stageK;
+  let worstRealised = { v: 0, who: '' };
   for (const c of cards) {
     const stg = c.stages || PLAYED_STAGES;
     const k = c.scale === false ? 1 : Math.max(1, ...stg.map((s) => stageK[s] || 1));
     for (const ch of c.choices || []) {
       if (!(ch.tags || []).every((t) => raw.tags.tags[t])) continue;
       const nom = nominalChoice(T, W, ch.tags, stg);
-      for (const id of Object.keys(nom.edges)) nom.edges[id] *= k;
-      for (const a of AXES) nom.axes[a] *= k;
+      const real = Math.max(...AXES.map((a) => nom.axes[a])) * k;
+      if (real > worstRealised.v) worstRealised = { v: real, who: `${c.id}／${ch.label.slice(0, 10)}（k＝${k}）` };
       for (const [id, v] of Object.entries(nom.edges)) {
         if (!worstEdge[id] || v > worstEdge[id].v) worstEdge[id] = { v, who: `${c.id}／${ch.label.slice(0, 10)}` };
         const e = byId.get(id);
@@ -161,6 +165,7 @@ export function lintModel(raw, data, cards) {
   }
   for (const a of AXES) if (!cap.perChoiceStatic || typeof cap.perChoiceStatic[a] !== 'number') errors.push(`因果圖 influenceCaps.perChoiceStatic.${a}：缺少（執行 node tools/check-design.mjs --write-caps）`);
   for (const k of ['perTag', 'perCard', 'perPool']) if (!cap[k] || typeof cap[k] !== 'object') errors.push(`因果圖 influenceCaps.${k}：缺少（執行 node tools/check-design.mjs --write-caps）`);
+  stats.worstRealised = worstRealised;
   stats.staticMax = Object.fromEntries(AXES.map((a) => [a, worstAxis[a].v.toFixed(2)]));
   stats.staticRaw = { axes: Object.fromEntries(AXES.map((a) => [a, worstAxis[a].v])), edges: Object.fromEntries(Object.entries(worstEdge).map(([k, v]) => [k, v.v])) };
 

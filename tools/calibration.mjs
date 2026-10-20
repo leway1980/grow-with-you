@@ -23,6 +23,23 @@ const ax = (g, i) => avg(g.map((x) => x.ax[i]));
 const wb = (g, i) => avg(g.map((x) => x.w[i]));
 const hid = (g, k) => avg(g.map((x) => x.hid[k]));
 
+/** 成對差（controlling − warmFirm）的平均與 95% 信賴區間（常態近似）；rows 依種子成對 */
+function pairedCI(C, W, pick) {
+  const idx = C.map((_, i) => i).filter((i) => pick(C[i]));
+  const d = idx.map((i) => C[i].g24 - W[i].g24);
+  const m = avg(d), h = d.length > 1 ? 1.96 * Math.sqrt(avg(d.map((x) => (x - m) ** 2)) / (d.length - 1)) : NaN;
+  return { n: d.length, mean: m, lo: m - h, hi: m + h };
+}
+/**
+ * 預先登記的 controlling-learn 指標（A2.5 審查 Issue 4）：同一批種子，controlling 與 warmFirm 在開學後前 24 個月的平均可見成績之差。
+ * 閘門：整體平均 > 0，且孩子敏感度 ≤ 2 的 95% 信賴區間下界 > 0。敏感度 ≥ 4 的反轉另列為資訊（規則 21 的教學點：壓力對敏感的孩子會反效果），不進閘門。
+ */
+export function controllingLearn(C, W) {
+  const all = pairedCI(C, W, () => true), lowS = pairedCI(C, W, (r) => r.sens <= 2), hiS = pairedCI(C, W, (r) => r.sens >= 4);
+  const f = (o) => `${o.mean >= 0 ? '+' : ''}${o.mean.toFixed(2)} [${o.lo.toFixed(2)}, ${o.hi.toFixed(2)}] n=${o.n}`;
+  return { id: 'controlling-learn', desc: 'controlling − warmFirm 開學後 24 個月的平均成績（成對）：整體；敏感度 ≤ 2；敏感度 ≥ 4（資訊）', value: `整體 ${f(all)}；敏感度≤2 ${f(lowS)}；敏感度≥4（資訊）${f(hiS)}`, target: '整體 > 0 且 敏感度 ≤ 2 的區間下界 > 0', ok: all.mean > 0 && lowS.lo > 0, detail: { all, lowS, hiS } };
+}
+
 /** games: { bot: [紀錄…] }（從出生開始、各策略共用同一批種子） */
 export function evaluateCalibration(games) {
   const out = [];
@@ -84,7 +101,7 @@ export function evaluateCalibration(games) {
   const wfAx = W.map((g) => g.ax[0]);
   chk('wf-width', 'warmFirm 親子 P10–P90 的寬度（教養是機率，不是必然）', pct(wfAx, 0.9) - pct(wfAx, 0.1));
   chk('wf-outside-good', 'warmFirm 的局落在兩個好組合之外的比例', share(W, (g) => g.combo !== '三邊都顧到' && g.combo !== '關係好、人際好，成績普通'), null, true);
-  chk('controlling-learn', 'controlling 學習 P90 − warmFirm 學習 P50（壓力有時真的把成績撐住）', pct(C.map((g) => g.ax[2]), 0.9) - pct(W.map((g) => g.ax[2]), 0.5));
+  out.push(controllingLearn(C, W));
   const pg = groupBy(W, (x) => x.partner);
   const together = pg['一起陪'] || [], absent = [...(pg['只出錢'] || []), ...(pg['幾乎不在家'] || [])];
   const pgap = wb(together, 1) - wb(absent, 1);

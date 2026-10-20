@@ -195,3 +195,25 @@ test('規則 22：tagsIf 新增原本沒有的標籤、同一個 if 又沒有 la
     assert.ok(raw.events.cards.find((x) => x.id === id)?.choices[Number(i)], `variantBehaviorOk「${key}」找不到`);
   }
 });
+
+/* ───── A2.5 審查 Issue 5、6：scale 宣告與靜態上限的單位 ───── */
+test('規則 24：once 的卡與國中、高中、離家的卡要明寫 scale；離家一定是 false；scale 只能是布林', () => {
+  const dropScale = (id) => mut((r) => { delete card(r, id).scale; });
+  assert.match(dropScale('hi_phone'), /hi_phone：一次性（once）的卡要明寫 scale/);
+  assert.match(dropScale('sh_scooter'), /sh_scooter：國中、高中、離家的卡要明寫 scale/);
+  assert.match(dropScale('jh_sleep'), /jh_sleep：國中、高中、離家的卡要明寫 scale/);
+  assert.match(mut((r) => { card(r, 'fx_leave_day').scale = true; }), /fx_leave_day：離家的卡要寫 scale:false/);
+  assert.match(mut((r) => { card(r, 'hi_phone').scale = 'yes'; }), /scale 要是 true 或 false/);
+  assert.doesNotMatch(mut((r) => { card(r, 'hi_phone').scale = true; card(r, 'cm_hospital').scale = false; }), /scale/); // true 與 false 都合法
+});
+
+test('靜態上限用『參考劑量』的名義值比較（不乘劑量倍率）：把一張 scale:true 的高中卡放大 3 倍不會讓它超過上限，而名義值超過就會', () => {
+  const raw = loadRaw();
+  const r1 = lintData(raw); assert.deepEqual(r1.errors, []);
+  assert.ok(r1.stats.model.stageK['高中'] >= 3); // 高中 5–7 個月一回合，倍率 2.5–3.5（整條時間軸，含預覽階段）
+  assert.equal(r1.stats.model.stageK['離家'], 0.5);
+  assert.ok(r1.stats.model.stageK['國小中高'] === 1.5);
+  const bad = structuredClone(raw);
+  bad.model.influenceCaps.perChoiceStatic.親子 = 1; // 把上限壓到 1：每張有親子影響的卡都該被擋下
+  assert.match(lintData(bad).errors.join('\n'), /對「親子」軸的名義影響/);
+});

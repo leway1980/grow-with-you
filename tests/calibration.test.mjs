@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runBots, BOTS } from '../tools/simulate.mjs';
-import { evaluateCalibration } from '../tools/calibration.mjs';
+import { evaluateCalibration, controllingLearn } from '../tools/calibration.mjs';
 import { sensitivity, SENSITIVITY_FLOOR } from '../tools/sensitivity.mjs';
 
 // 兩組種子（1–200、201–400）都要過：只在其中一組過的目標不算完成
@@ -21,24 +21,23 @@ test('模擬器：六種策略、每種 200 局、同一批種子', () => {
   assert.ok(sets[0].results.length >= 15);
 });
 
-// controlling-learn 是 P90 − P50 的差，200 局的取樣誤差約 ±0.7：改用兩組種子合併的 400 局評估（附 bootstrap 95% 信賴區間）
+// controlling-learn（預先登記的指標，A2.5 審查 Issue 4）：兩組種子合併成 400 局成對種子；
+// 指標＝開學後前 24 個月的平均可見成績，controlling − warmFirm。閘門：整體 > 0，且孩子敏感度 ≤ 2 的 95% 區間下界 > 0。
+// 敏感度 ≥ 4 的反轉（壓力對敏感的孩子反效果，規則 21 的教學點）只報告、不進閘門。
 const POOLED = ['controlling-learn'];
 const pooledGames = Object.fromEntries(Object.keys(sets[0].games).map((b) => [b, [...sets[0].games[b], ...sets[1].games[b]]]));
-const pooled = evaluateCalibration(pooledGames).filter((r) => POOLED.includes(r.id));
-function bootstrapCI(games, n = 400) {
-  const C = games.controlling.map((g) => g.ax[2]), W = games.warmFirm.map((g) => g.ax[2]);
-  let seed = 12345; const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
-  const q = (a, p) => { const b = [...a].sort((x, y) => x - y); return b[Math.min(b.length - 1, Math.floor(p * b.length))]; };
-  const res = [];
-  for (let i = 0; i < n; i++) { const idx = Array.from({ length: C.length }, () => Math.floor(rnd() * C.length)); res.push(q(idx.map((k) => C[k]), 0.9) - q(idx.map((k) => W[k]), 0.5)); }
-  res.sort((a, b) => a - b); return [res[Math.floor(n * 0.025)], res[Math.floor(n * 0.975)]];
-}
-for (const r of pooled) {
-  const [lo, hi] = bootstrapCI(pooledGames);
-  test(`校準（合併種子 1–400）：${r.desc}＝${r.value}（95% 區間 ${lo.toFixed(1)}～${hi.toFixed(1)}；目標 ${r.target}）`, () => {
-    assert.ok(r.ok, `${r.desc}：現況 ${r.value}（95% 區間 ${lo.toFixed(1)}～${hi.toFixed(1)}），目標 ${r.target}`);
+{
+  const cl = controllingLearn(pooledGames.controlling, pooledGames.warmFirm);
+  assertPaired(pooledGames);
+  test(`校準（合併種子 1–400，成對）：${cl.desc}＝${cl.value}`, () => {
+    assert.ok(cl.ok, `${cl.desc}：${cl.value}；目標 ${cl.target}`);
+  });
+  test('校準：controlling-learn 的資訊列——敏感度 ≥ 4 的孩子，壓力反而拖累成績（平均差 < 0），這是規則 21 要教的', () => {
+    assert.ok(cl.detail.hiS.n >= 30);
+    assert.ok(cl.detail.hiS.mean < 0, `敏感度 ≥ 4：${cl.detail.hiS.mean.toFixed(2)}`);
   });
 }
+function assertPaired(g) { assert.deepEqual(g.controlling.map((x) => x.seed), g.warmFirm.map((x) => x.seed)); }
 
 for (const { s0, results } of sets) {
   for (const r of results.filter((x) => !POOLED.includes(x.id))) {

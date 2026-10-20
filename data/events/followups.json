@@ -55,6 +55,7 @@
   {
    "id": "fu_kg_lost",
    "pool": "剛入托",
+   "scale": false,
    "title": "沒抽到公幼之後",
    "text": "公幼的抽籤結果出來了，候補在三十名以後，開學只剩幾個月。你開始想接下來怎麼辦。",
    "requires": {"flags":["沒抽到公幼"]},
@@ -71,6 +72,7 @@
   {
    "id": "fu_kg_waitlist",
    "pool": "剛入托",
+   "scale": false,
    "title": "候補名單的順位",
    "text": "開學前一週，公幼辦公室來電：候補名單前進到第十六名，今年大概輪不到。這段時間{孩子}白天的安排一直是臨時湊的。",
    "requires": {"flags":["幼兒園_候補中"]},
@@ -125,6 +127,7 @@
   {
    "id": "fu_teacher_call",
    "pool": "老師來電",
+   "scale": false,
    "title": "老師打電話來",
    "text": "老師打電話來，說{孩子}這個月有五次作業沒交。上週你說「回家再提醒」，但後來沒有人再問過。",
    "requires": {"flags":["聯絡簿_簽名帶過"]},
@@ -160,6 +163,7 @@
   {
    "id": "fu_team2",
    "pool": "球隊",
+   "scale": false,
    "title": "比賽輸了",
    "text": "{孩子}今天的{球類}比賽輸了，最後一球是{他}漏接的。回到車上，{他}一直低頭，眼睛紅紅的。",
    "requires": {"flags":["參加球類社團"]},
@@ -322,6 +326,7 @@
   {
    "id": "fu_kg_visit",
    "pool": "托育互動",
+   "scale": false,
    "title": "請家長來說故事",
    "text": "老師在聯絡簿寫：下週五想邀一位家長到班上說十分鐘的故事。{孩子}看到了，小聲問：「你會來嗎？」",
    "requires": {"flags":["幼兒園_入園"]},
@@ -339,6 +344,7 @@
   {
    "id": "as_outcome",
    "pool": "鑑定後續",
+   "scale": false,
    "title": "評估報告出來了",
    "stages": ["幼兒園","國小低","國小中高"],
    "requires": {"flags":["送評估"]},
@@ -357,6 +363,7 @@
   {
    "id": "as_iep",
    "pool": "鑑定後續",
+   "scale": false,
    "title": "個別化教育計畫會議",
    "stages": ["國小低","國小中高"],
    "requires": {"flags":["鑑定_有結果"]},
@@ -374,6 +381,7 @@
   {
    "id": "as_med",
    "pool": "鑑定後續",
+   "scale": false,
    "title": "醫師問：要不要考慮藥物",
    "stages": ["國小低","國小中高"],
    "requires": {"flags":["鑑定_有結果"],"expr":"有ADHD"},

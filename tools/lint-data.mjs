@@ -176,7 +176,10 @@ export function lintData(raw = loadRaw()) {
     if (!pools[c.pool]) errors.push(`${W}：池「${c.pool}」不存在`);
     // 時間單位（A2.5）：冷卻是『月』；scale:false＝一次性的固定事件，劑量不隨回合長度放大
     if ('cooldownMonths' in c && !(Number.isInteger(c.cooldownMonths) && c.cooldownMonths >= 0)) errors.push(`${W}：cooldownMonths 要是 ≥ 0 的整數（月）`);
-    if ('scale' in c && c.scale !== false) errors.push(`${W}：scale 只能寫 false（預設隨回合長度放大）`);
+    if ('scale' in c && typeof c.scale !== 'boolean') errors.push(`${W}：scale 要是 true 或 false（true＝隨回合長度放大的『一段時間的政策』，false＝一次性事件）`);
+    // 規則 24（A2.5 審查 Issue 6）：一次性的卡與國中、高中、離家的卡要明寫 scale——單一事件寫 false，設定規矩／安排的卡寫 true；離家（逐月）一律 false，否則 k＝0.5 會把效果減半
+    if ((c.once || (c.stages || []).some((x) => ['國中', '高中', '離家'].includes(x))) && !('scale' in c)) errors.push(`${W}：${c.once ? '一次性（once）' : '國中、高中、離家'}的卡要明寫 scale（單一事件 false；設定規矩或安排的政策卡 true）`);
+    if ((c.stages || []).includes('離家') && c.scale !== false) errors.push(`${W}：離家的卡要寫 scale:false（逐月回合，不能依回合長度縮放）`);
     if (c.pool.startsWith('_') && c.scale !== false) errors.push(`${W}：固定事件（池 ${c.pool}）是一次性的，要寫 scale:false（劑量不隨回合長度放大）`);
     for (const s of c.stages || []) if (!stages.has(s)) errors.push(`${W}：階段「${s}」不存在`);
     if (c.topic && !(c.topic in st.interest)) errors.push(`${W}：topic「${c.topic}」不是興趣類別`);
