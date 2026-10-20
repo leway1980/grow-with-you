@@ -42,6 +42,7 @@
   },
   {
    "id": "fu_phone_reclaim",
+   "traceOf": "3C規則",
    "pool": "手機後續",
    "habit": "手機規則",
    "title": "手機玩到三更半夜",

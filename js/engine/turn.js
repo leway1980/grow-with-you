@@ -143,7 +143,7 @@ export function prepareData(raw) {
   setPaths(raw.events.paths); // 路線（M3 B4）：學制、去向、中途離校的前兆；沒有 paths 資料時不登記
   const tags = raw.model ? { ...raw.tags, model: raw.model } : raw.tags;
   const data = {
-    identities: raw.identities, tags, model: raw.model, ending: raw.ending, habits: raw.habits || null, paths: raw.events.paths || null, events, pools: raw.pools.pools, loads: raw.pools.loads || [], calendar: raw.calendar,
+    identities: raw.identities, tags, model: raw.model, ending: raw.ending, habits: raw.habits || null, paths: raw.events.paths || null, chains: raw.events.chains || null, research: raw.events.research || null, events, pools: raw.pools.pools, loads: raw.pools.loads || [], calendar: raw.calendar,
     cardIndex: Object.fromEntries(events.cards.map((c) => [c.id, c])), index,
     timeline: buildTimeline(raw.calendar),
   };
@@ -296,6 +296,7 @@ export function finishTurn(st, data) {
   const r1 = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.round(v * 10) / 10]));
   st.curves.push({ t: st.turn, m: tl.ageMonths, ...r1(st.hidden) });
   st.vcurves.push({ t: st.turn, m: tl.ageMonths, ...r1(st.parent), ...r1(st.child) });
+  if (tl.grade > 0 && st.classroom) (st.classLog ||= []).push({ t: st.turn, m: tl.ageMonths, grade: tl.grade, v: Math.round(st.classroom.v), cold: !!st.flags.科目冷掉 }); // 終局的班級段落（chains.js classroomSummary）
   st.cur = null;
   st.turn++;
   if (st.turn >= endOf(st, data)) { st.ended = true; st.endReason = '待續'; }

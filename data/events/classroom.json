@@ -817,6 +817,7 @@
   },
   {
    "id": "cl_noisy",
+   "traceOf": "班級",
    "pool": "班級後果",
    "scale": false,
    "title": "上課被吵到聽不到",
@@ -968,6 +969,7 @@
   },
   {
    "id": "cl_bully",
+   "traceOf": "班級",
    "pool": "班級後果",
    "scale": false,
    "title": "同學一直欺負{孩子}",
@@ -1114,6 +1116,7 @@
   },
   {
    "id": "cl_stamp",
+   "traceOf": "班級",
    "pool": "班級後果",
    "scale": false,
    "title": "聯絡簿只剩蓋章",
@@ -1258,6 +1261,7 @@
   },
   {
    "id": "cl_flow_after",
+   "traceOf": "班級",
    "pool": "班級追蹤",
    "scale": false,
    "title": "反映的結果",
@@ -1396,6 +1400,7 @@
   },
   {
    "id": "cl_hate_class",
+   "traceOf": "班級",
    "pool": "班級後果",
    "scale": false,
    "title": "「那堂課都在等下課」",

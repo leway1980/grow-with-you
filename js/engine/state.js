@@ -56,6 +56,7 @@ export function newState(seed, data, opts = {}) {
     flags: {}, flagExpiry: {}, cooldowns: {}, used: {}, openPools: {}, delayed: [], slotLast: {}, cardScope: null,
     hist: [], curves: [], vcurves: [], done: {},
     habits: {},                                // 習慣（M3 B2）：{ 家族: { pattern, shift:{n} } }；現在還沒有東西寫入
+    classLog: [],                              // 班級的紀錄（每個回合一筆）{t, m, grade, v（老師投入度）, cold（那一科冷掉）}：終局『這些年，孩子的班上』用
     autoLog: [],                               // 習慣自動帶入的紀錄 {turn, family, pattern, line}（不進 hist）
     parentGrowth: [],                          // 父母一起參與過的活動（§7.2b）：{turn, slot, value} 或 {turn, tag}
     cur: null, ended: false, endReason: null,
@@ -167,7 +168,7 @@ export function migrate(st, data) {
   st.costEMA = { 體力: 0, 耐心: 0, ...(st.costEMA || {}) };
   for (const k of ['dirCount', 'tagCounts', 'flags', 'flagExpiry', 'cooldowns', 'used', 'openPools', 'slotLast', 'done', 'habits']) st[k] ||= {};
   st.classroom = { ...newClassroom(T), ...(st.classroom || {}) }; // 舊存檔沒有班級狀態：下一個換老師的年級會重抽；在那之前用預設值
-  for (const k of ['delayed', 'hist', 'curves', 'vcurves', 'parentGrowth', 'autoLog']) st[k] ||= [];
+  for (const k of ['delayed', 'hist', 'curves', 'vcurves', 'parentGrowth', 'autoLog', 'classLog']) st[k] ||= [];
   // 舊存檔沒有職位、交通工具、通勤距離：用同一個種子補上（各自獨立的亂數流，不影響已經抽好的其他東西）
   const f = st.family, jd = data.identities.jobs.find((j) => j.name === f.job.name);
   if (jd && !(f.rank && f.transport && f.commute)) Object.assign(f, rollWork(st.seed, data.identities, jd, f.econ, f.urban));

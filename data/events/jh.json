@@ -195,6 +195,7 @@
   },
   {
    "id": "jh_dm_found",
+   "traceOf": "3C規則",
    "pool": "手機後續",
    "scale": false,
    "title": "手機上的記號",
@@ -1352,6 +1353,7 @@
   },
   {
    "id": "jh_cram",
+   "traceOf": "考後反應",
    "pool": "日常_國中",
    "scale": false,
    "title": "放在桌上的考卷",

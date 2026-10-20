@@ -24,7 +24,9 @@
   "events/pathways.json"
  ],
  "extras": [
-  "paths.json"
+  "paths.json",
+  "chains.json",
+  "research.json"
  ],
  "slots": [
   "slots/core.json",
