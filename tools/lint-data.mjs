@@ -19,6 +19,7 @@ export const V4B_BOUND = 0.5;
 
 export function lintData(raw = loadRaw()) {
   const errors = [], warns = [], stats0 = {};
+  for (const m of raw.mergeProblems || []) errors.push(`資料分檔：${m}`);
   const data = loadData(raw);
   const T = raw.tags;
   const st = newState(1, data, {});

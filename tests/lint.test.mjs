@@ -98,3 +98,24 @@ test('看得到的方向不能預測隱藏好壞（正反都不行）：每張�
   const { stats } = lintData();
   assert.ok(Math.abs(stats.meanCorrelation) <= 0.3, String(stats.meanCorrelation));
 });
+
+/* ───── 多檔資料（data/manifest.json） ───── */
+import { mergeData } from '../js/engine/dataload.js';
+test('分檔：卡片 id 與槽名跨檔重複會被擋下；擴充槽要寫 extends', () => {
+  const card = (id) => ({ id, pool: 'x', title: 't', text: 't', choices: [] });
+  const m = { events: ['a', 'b'], slots: ['s1', 's2'] };
+  const ok = mergeData(m, { a: { cards: [card('1')] }, b: { cards: [card('2')] }, s1: { slots: { 球: [{ t: 'x' }] } }, s2: { slots: { 球: { extends: true, values: [{ t: 'y' }] } } } });
+  assert.deepEqual(ok.problems, []);
+  assert.equal(ok.events.cards.length, 2);
+  assert.equal(ok.slots.slots.球.length, 2);
+  const dup = mergeData(m, { a: { cards: [card('1')] }, b: { cards: [card('1')] }, s1: { slots: { 球: [{ t: 'x' }] } }, s2: { slots: { 球: [{ t: 'y' }] } } });
+  assert.equal(dup.problems.length, 2);
+  assert.match(dup.problems.join(), /卡片 id「1」重複/);
+  assert.match(dup.problems.join(), /槽名「球」重複/);
+  assert.match(mergeData({ slots: ['s2'] }, { s2: { slots: { 球: { extends: true, values: [] } } } }).problems.join(), /extends 但之前沒有/);
+});
+test('分檔：lint 會回報合併時的問題', () => {
+  const raw = structuredClone(loadRaw());
+  raw.mergeProblems = ['卡片 id「x」重複：a 與 b'];
+  assert.match(lintData(raw).errors.join('\n'), /資料分檔：卡片 id「x」重複/);
+});

@@ -1,6 +1,7 @@
 // 控制器：時間流動、事件暫停、存檔，把引擎和畫面接起來。
 // 沿用《高中，只有一次》(leway1980/Game 47wan @ ce1d972) main.js 的結構（安全儲存、?seed=、暫停／加速、讓他自己過、資料一次載入），
 // 改為一回合一張卡：選擇 → 劑量表 → 時間流動 → 下一回合；沒有線上統計。
+import { mergeData, manifestFiles } from './engine/dataload.js';
 import { prepareData, startTurn, chooseCard, nextCard, finishTurn } from './engine/turn.js';
 import { newState, writeSave, readSave, store } from './engine/state.js';
 import { openingText, childcareText } from './engine/family.js';
@@ -20,8 +21,12 @@ let timer = null, pending = null, tickTimer = null;
 
 async function loadData() {
   const get = async (f) => { const r = await fetch(`data/${f}`); if (!r.ok) throw new Error(`載入 ${f} 失敗 (${r.status})`); return r.json(); };
-  const [identities, tags, events, pools, slots, calendar] = await Promise.all(['identities.json', 'tags.json', 'events.json', 'pools.json', 'slots.json', 'calendar.json'].map(get));
-  data = prepareData({ identities, tags, events, pools, slots, calendar });
+  const manifest = await get('manifest.json');
+  const names = manifestFiles(manifest);
+  const [identities, tags, pools, calendar, ...rest] = await Promise.all(['identities.json', 'tags.json', 'pools.json', 'calendar.json', ...names].map(get));
+  const m = mergeData(manifest, Object.fromEntries(names.map((f, i) => [f, rest[i]])));
+  if (m.problems.length) throw new Error('資料檔有問題：' + m.problems.join('；'));
+  data = prepareData({ identities, tags, events: m.events, pools, slots: m.slots, calendar });
 }
 
 /* ───── 排程：暫停（速度 0）時不走；改速度時重新排 ───── */

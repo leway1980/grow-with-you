@@ -1,0 +1,14 @@
+{
+ "_readme": "事件卡骨架（DESIGN §6.2 三層池的第二層）。M1 只是最小證明：每個階段約 4 張日常卡 + 後續池卡 + 固定事件。格式沿用 47wan events.json：pool、requires/excludes（flags、expr）、modifiers、textIf、choices[grayIf]；新增 stages（限定階段）、topic（孩子興趣類別，用來算意願強度）、choice.tags（行為標籤，隱藏數值只能由 tags 換算，不能寫 hidden）、choice.showIf（選項層級條件：了解度門檻）、choice.opens（打開或加重後續池）、choice.followUp（排定後續卡）、choice.chance（抽籤分支，用 rngAt）、choice.setVars（托育方式等）、choice.direction（父母一直傳遞的方向）。 2026-10-20 修訂（DESIGN §3.4／§3.6）：choice.needs（陪伴時段：晚餐、睡前、早晨、週末；工作型態沒有該時段時，額外的體力或工作表現代價會顯示在劑量表上）、choice.direction 可寫 \"@槽名\"（取抽到的槽值的 dir，例如 營隊→科學）、門檻用名字（了解度高、了解度中；數字只在 tags.json 的 gates）、可見效果的方向受標籤的 now 約束（lint 檢查）、每張卡有陷阱選項（V2）。 【分檔】事件在 data/events/*.json、槽在 data/slots/*.json，由本檔列出；卡片 id 與槽名跨檔必須唯一，擴充別處的槽要寫 {\"extends\":true,\"values\":[...]}（js/engine/dataload.js、lint 檢查）。",
+ "events": [
+  "events/infant.json",
+  "events/preschool.json",
+  "events/elem_low.json",
+  "events/elem_high.json",
+  "events/followups.json",
+  "events/fixed.json"
+ ],
+ "slots": [
+  "slots/core.json"
+ ]
+}
