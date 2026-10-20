@@ -32,14 +32,14 @@ export function isGrowthChoice(T, tags) {
   return g.some((t) => !only.includes(t));
 }
 
-/** 同一個標籤在最近 windowMonths 個月內出現過幾次（含這次之前的）；months＝現在的月齡（A2.5：窗口以月計，不隨回合長度變） */
+/** 同一個標籤在最近 windowMonths 個月內出現過幾次（含這次之前的；依劑量加權）；months＝現在的月齡（A2.5：窗口以月計，不隨回合長度變） */
 export function recentCount(st, tag, months, T) {
   const w = T.repetition.windowMonths;
   let n = 0;
   for (let i = st.hist.length - 1; i >= 0; i--) {
     const h = st.hist[i];
     if (months - h.m > w) break;
-    if (h.tags && h.tags.includes(tag)) n++;
+    if (h.tags && h.tags.includes(tag)) n += (h.k ?? 1); // 劑量加權：一張 3 倍劑量的卡算 3 次反覆出現的時刻
   }
   return n;
 }
@@ -112,7 +112,7 @@ export const applyTags = writer((st, tags, T, opts) => {
       const key = direction || '_';
       const prior = st.dirCount[key] || 0;
       dirMult = Math.min(T.repetition.directionCap, 1 + T.repetition.directionPer * prior);
-      st.dirCount[key] = prior + def.dir;
+      st.dirCount[key] = prior + def.dir * scale; // 劑量加權（scale＝這張卡的劑量倍率）
     }
     for (const [k, d] of Object.entries(def.d || {})) {
       const m = mult * (def.dirAccel && def.dirAccel.includes(k) && pressureSide(k, d) ? dirMult : 1);

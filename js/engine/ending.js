@@ -84,11 +84,11 @@ export const getEnding = () => {
   return currentEnding;
 };
 
-/** 在連續 win 個月內，帶有某標籤的選擇最多出現幾次（A2.5：以月齡 m 計；6 個國小回合＝12 個月） */
+/** 在連續 win 個月內，帶有某標籤的選擇累積的『劑量加權次數』（A2.5：以月齡 m 計；每筆算 h.k 次，舊存檔沒有 k 算 1）。atLeast 以 2 個月回合的一次為單位 */
 export function maxInWindow(hist, tag, win) {
-  const turns = hist.filter((h) => (h.tags || []).includes(tag)).map((h) => h.m);
+  const ev = hist.filter((h) => (h.tags || []).includes(tag)).map((h) => ({ m: h.m, k: h.k ?? 1 }));
   let best = 0;
-  for (let i = 0; i < turns.length; i++) { let j = i; while (j + 1 < turns.length && turns[j + 1] - turns[i] < win) j++; best = Math.max(best, j - i + 1); }
+  for (let i = 0; i < ev.length; i++) { let sum = 0; for (let j = i; j < ev.length && ev[j].m - ev[i].m < win; j++) sum += ev[j].k; best = Math.max(best, sum); }
   return best;
 }
 /** 決定鏈紀錄（ending.json 的 records）：{ 名稱: 0|1 }。結局句子只能讀這些，不能讀單張卡的選擇 */
@@ -234,11 +234,20 @@ export function curveSeries(st) {
   return out;
 }
 
+/** 成就欄的結尾句：看遊戲玩到哪裡。國小畢業（一般版）講還沒鋪好的後面；玩到離家（預覽）用離家的句子；其他停在中途的給一句泛用的 */
+function endNote(nm, st, tl) {
+  const he = st.family.child.pronoun || '他';
+  if (tl.stage === '離家') return `${nm}離開家了。你陪到這一天為止；接下來的日子，是${he}自己的。`;
+  if (tl.stage === '國小中高' && tl.grade === 6) return `${nm}國小畢業了。接下來是國中，這一版先寫到這裡，後面的路還沒有鋪好。`;
+  return `${nm}現在是${tl.label}。這一版先寫到這裡，後面的路還沒有鋪好。`;
+}
+
 export function buildEnding(st, data) {
   const w = wellbeing(st, data.identities.parentModel);
   const axes = outcomeAxes(st);
   const nm = st.family.child.given;
-  const stageNow = data.timeline[Math.min(st.turn, data.timeline.length - 1)];
+  // 陪伴到哪裡：最後一個玩過的回合（遊戲結束時 st.turn 已經指向下一個回合，不能拿它當結束的地方）
+  const lastTl = data.timeline[Math.max(0, Math.min(st.ended ? st.turn - 1 : st.turn, data.timeline.length - 1))];
   const score = avgVis(st, '成績', 24);
   const E = data.ending || getEnding(), route = routePosition(st), combo = comboOf(axes);
   const lines = pickLines(endingContext({ axes, wellbeing: w, route, combo }, chainRecords(st, E), E), E).map((l) => ({ ...l, text: fillName(l.text, st) }));
@@ -250,7 +259,7 @@ export function buildEnding(st, data) {
     axes,                                  // 三條結果軸：獨立的一組，不在 achievement 裡，也不進幸福
     achievement: {                         // 只放成績與學校去向
       scoreWord: score >= 70 ? '課業穩穩跟得上' : score >= 55 ? '課業大致跟得上' : score >= 40 ? '課業有些吃力' : '課業很辛苦',
-      note: `${nm}國小畢業了。接下來是國中，這一版先寫到這裡，後面的路還沒有鋪好。`,
+      note: endNote(nm, st, lastTl),
     },
     route,
     growth: growthSection(st, data.tags),  // 你也重新長大了一次（§7.2b）：UI 放在幸福畫面之後
@@ -259,7 +268,7 @@ export function buildEnding(st, data) {
     moments: keyMoments(st, data),
     groups: REVEAL_GROUPS,
     series: curveSeries(st),
-    to: stageNow.label,
+    to: lastTl.stage === '離家' ? '離家' : lastTl.label,
     resources: [
       { name: '安心專線', tel: '1925', note: '24 小時，心理健康與情緒困擾，免費' },
       { name: '教育部家庭教育諮詢專線', tel: '412-8185（手機加 02）', note: '親職、親子溝通與家庭相處的諮詢' },

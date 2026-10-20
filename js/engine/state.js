@@ -53,6 +53,7 @@ export function newState(seed, data, opts = {}) {
     parentGrowth: [],                          // 父母一起參與過的活動（§7.2b）：{turn, slot, value} 或 {turn, tag}
     cur: null, ended: false, endReason: null,
   };
+  if (opts.preview) st.preview = true;            // 預覽版（?preview=1）：玩到 18 歲離家；存進存檔，『繼續』時不必再帶網址參數
   // 「從國小開始」：學前托育由抽籤決定（DATA §4），並給國小起點一點差異
   if (startMode === 'elementary') {
     const cc = fam.childcare;

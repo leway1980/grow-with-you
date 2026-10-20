@@ -7,6 +7,8 @@ import { prepareData, playToEnd } from '../js/engine/turn.js';
 import { newState } from '../js/engine/state.js';
 import { REF_MONTHS, monthlyFromRef, perSpan, refRate, doseScale, scaleEffects, turnAtOrAfter } from '../js/engine/timescale.js';
 import { guardHidden } from './helpers.mjs';
+import { recentCount } from '../js/engine/tags.js';
+import { maxInWindow } from '../js/engine/ending.js';
 
 const data = loadData();
 
@@ -106,4 +108,59 @@ test('合成日曆：策略真的有作用（放任與溫暖堅定的隱藏數�
   const d = synthetic(2, 1);
   const w = finalOf(d, 'warmFirm'), p = finalOf(d, 'permissive');
   assert.ok(w.hidden.溫暖陪伴 - p.hidden.溫暖陪伴 > 3 || w.hidden.規則一致性 - p.hidden.規則一致性 > 3);
+});
+
+/* ───── A2.5 審查 Issue 3：12 個月的合成日曆，涵蓋『重複加速』（罵一頓、拿別人比較、只看成績）與『方向計數』（轉述消息_特地），
+        並檢查可見的父母數值（體力、耐心）與疲勞累積（costEMA），不只隱藏數值。
+        修補前（疲勞 EMA 沒有除以劑量倍率、重複與方向計數按『次』不按『劑量』）這幾個案例會失敗：
+        每月 1 回合 vs 每 6 個月 1 回合，harsh 的親子信任差約 9.6（20.1 vs 29.7），pressDir 的期待壓力差約 23.6（86.1 vs 62.5），
+        warmFirm 的耐心差約 5（44.3 vs 38.6，3 個月回合；6 個月回合到 30.0），costEMA 隨回合變長成倍增加（0.70 → 4.20）。 ───── */
+const POLICIES = {
+  warmFirm: { effects: { 耐心: -3, 體力: -2, 心情: 2 }, tags: ['放下手機陪', '事前訂規則', '說到做到'] },
+  harsh: { effects: { 耐心: -1 }, tags: ['罵一頓', '拿別人比較', '只看成績'] }, // 重複加速（accel）
+  pressDir: { effects: {}, tags: ['轉述消息_特地'], direction: '升學競爭' },       // 方向計數
+  fatigue: { effects: { 耐心: -4, 體力: -4 }, tags: [] },                         // 只有可見的消耗：疲勞累積
+};
+function synthetic12(step, policy) {
+  const raw = loadRaw();
+  const n = 12 / step;
+  raw.calendar = { ...raw.calendar, stages: [{ id: '國小中高', turns: n, startMonths: 96, stepMonths: step }], totalTurns: n, playableTurns: n, fixed: [], schoolFixed: [] };
+  raw.model.timeScale.alpha = 1;
+  raw.pools = { ...raw.pools, loads: [] };
+  raw.events = { ...raw.events, cards: [{ id: 'syn_card', pool: '日常_國小中高', stages: ['國小中高'], title: '合成卡', text: '合成卡。', weight: 1, once: false, direction: policy.direction,
+    choices: [{ label: 'x', effects: policy.effects, tags: policy.tags, result: '。' }] }] };
+  return prepareData(raw);
+}
+const run12 = (step, policy) => {
+  const d = synthetic12(step, policy);
+  const st = guardHidden(newState(11, d, { role: '媽媽', startMode: 'birth' }));
+  st.turn = 0;
+  playToEnd(st, d, { choose: (s, v) => v.choices[0].i });
+  return st;
+};
+for (const [name, pol] of Object.entries(POLICIES)) {
+  test(`合成日曆 12 個月（${name}）：每月、每 2、3、6 個月 1 回合 — 隱藏數值差 ≤ 5（每月～每 3 個月 ≤ 2.5）、體力與耐心差 ≤ 3、疲勞累積（costEMA）差 ≤ 0.3`, () => {
+    const runs = [1, 2, 3, 6].map((step) => run12(step, pol));
+    const spread = (f) => { const v = runs.map(f); return Math.max(...v) - Math.min(...v); };
+    // 6 個月一回合只有 2 次機會，飽和與離散化讓它和逐月差一點（約 3–4.5）；每月、2、3 個月三者要幾乎一樣
+    for (const k of Object.keys(runs[0].hidden)) {
+      assert.ok(spread((st) => st.hidden[k]) <= 5, `${name}：隱藏「${k}」差 ${spread((st) => st.hidden[k]).toFixed(2)}（${runs.map((st) => st.hidden[k].toFixed(1)).join(' / ')}）`);
+      const near = runs.slice(0, 3).map((st) => st.hidden[k]);
+      assert.ok(Math.max(...near) - Math.min(...near) <= 2.5, `${name}：隱藏「${k}」在每月～每 3 個月差 ${(Math.max(...near) - Math.min(...near)).toFixed(2)}`);
+    }
+    for (const k of ['體力', '耐心']) {
+      assert.ok(spread((st) => st.parent[k]) <= 3, `${name}：${k} 差 ${spread((st) => st.parent[k]).toFixed(2)}（${runs.map((st) => st.parent[k].toFixed(1)).join(' / ')}）`);
+      assert.ok(spread((st) => st.costEMA[k]) <= 0.3, `${name}：costEMA.${k} 差 ${spread((st) => st.costEMA[k]).toFixed(2)}（${runs.map((st) => st.costEMA[k].toFixed(2)).join(' / ')}）`);
+    }
+    for (const k of ['心情', '睡眠', '成績']) assert.ok(spread((st) => st.child[k]) <= 3, `${name}：孩子的${k} 差 ${spread((st) => st.child[k]).toFixed(2)}`);
+  });
+}
+
+test('劑量加權：hist 每筆記錄 k；recentCount 與 maxInWindow 依 k 加權（舊存檔沒有 k 算 1）', () => {
+  const st = run12(6, POLICIES.harsh);
+  assert.ok(st.hist.every((h) => h.k === 3), '6 個月的回合 k＝3');
+  const T = loadData().tags;
+  assert.equal(recentCount(st, '罵一頓', 100, T), 6); // 2 筆 × 3
+  assert.equal(recentCount({ hist: [{ m: 99, tags: ['罵一頓'] }] }, '罵一頓', 100, T), 1);
+  assert.equal(maxInWindow([{ m: 0, k: 3, tags: ['x'] }, { m: 6, k: 3, tags: ['x'] }, { m: 30, tags: ['x'] }], 'x', 12), 6);
 });

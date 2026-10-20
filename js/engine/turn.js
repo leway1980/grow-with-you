@@ -204,7 +204,7 @@ export function chooseCard(st, data, idx) {
     const c2 = d ? d.card : drawCard(st, data, ctx, tl, r, card.id);
     if (c2) { cur.next = { id: c2.id, fu: d ? d.delay : null }; return { result: out.result, dose: null, more: true }; }
   }
-  return { result: out.result, dose: doseView(cur.acc, st, tl.stage), more: false };
+  return { result: out.result, dose: doseView(cur.acc, st, tl.stage, tl.span), more: false };
 }
 
 /** 固定事件回合的第二張卡 */
@@ -233,8 +233,9 @@ function drift(st, data, tl) {
   // 父母：花費會累積。目標 = 常態 − k × 最近花費的指數移動平均，回復速度慢（每月 ~5%），所以連續幾個月的付出不會一回合就被洗掉。
   const acc = (st.cur && st.cur.acc) || {};
   const a = perSpan(monthlyFromRef(2 / (M.emaMonths / REF_MONTHS + 1)), sp); // 平均的跨度 emaMonths 個月；2 個月的回合 a＝2/(emaMonths/2+1)
+  // acc 已經乘過這回合的劑量倍率（k），而 a 又是跨 span 的權重：把花費除回『每參考回合（2 個月）』的速率再進 EMA，疲勞才不會隨回合變長而加深（A2.5 審查 Issue 1）
   // 花費可以是負的（休息那一回合是「還債」），累積的疲勞不會低於 0
-  for (const k of ['體力', '耐心']) st.costEMA[k] = Math.max(0, st.costEMA[k] + a * (-(acc[k] || 0) - st.costEMA[k]));
+  for (const k of ['體力', '耐心']) st.costEMA[k] = Math.max(0, st.costEMA[k] + a * (-(acc[k] || 0) / (sp / REF_MONTHS) - st.costEMA[k]));
   const recover = perSpan(M.recoverMonth, sp);
   to(P, '體力', 74 + pat.體力 - M.kBody * st.costEMA.體力, recover);
   const load = (tp.活動量 >= 4 ? 3 : 0) + (tp.敏感度 >= 4 ? 3 : 0) + (adhd ? 4 : 0) + (st.flags.等公托候補 && tl.stage === '嬰幼兒' ? 3 : 0);

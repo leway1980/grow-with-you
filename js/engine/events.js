@@ -4,7 +4,7 @@ import { pickWeighted, clamp, rngAt, shuffleOrder } from './rng.js';
 import { fillSlots, persistedSlots } from './slots.js';
 import { familyCtx } from './family.js';
 import { applyTags, isGrowthChoice } from './tags.js';
-import { doseScale, scaleEffects, turnAtOrAfter, REF_MONTHS } from './timescale.js';
+import { cardDoseK, scaleEffects, turnAtOrAfter, REF_MONTHS } from './timescale.js';
 
 /* ───────────── 小型條件求值器 ─────────────
    語法：數字、'字串'、變數名(中文可)、#旗標、== != < <= > >=、and or not（也可用 && || !）、括號、true/false */
@@ -135,6 +135,8 @@ export function willOf(st, topic) {
   return w;
 }
 
+/** 旗標 前綴_值 → 值（例如 學制_普高 → '普高'）；沒有就是空字串。P1 的旗標照舊可用，這裡只是讓條件式可以直接寫 學制 == '普高' */
+const flagValue = (flags, prefix) => { for (const k of Object.keys(flags || {})) if (flags[k] && k.startsWith(prefix)) return k.slice(prefix.length); return ''; };
 export function buildCtx(st, tl, extra = {}) {
   const f = st.family, P = st.parent, C = st.child;
   const month = tl.month ?? ((f.child.birthMonth - 1 + Math.floor(tl.ageMonths / 12) * 12 + (tl.ageMonths % 12)) % 12) + 1;
@@ -147,6 +149,7 @@ export function buildCtx(st, tl, extra = {}) {
     回合: st.turn, 階段: tl.stage, 月齡: tl.ageMonths, 回合月數: tl.span ?? 2, 年齡: Math.floor(tl.ageMonths / 12), 年級: tl.grade, 假期: !!tl.vacation, 月: month,
     托育方式: st.vars.托育方式, 幼兒園類型: st.vars.幼兒園類型, 照顧者: st.vars.照顧者, 換照顧者次數: st.vars.換照顧者次數,
     孩子不再開口: st.vars.孩子不再開口 || 0, 孩子主動開口: st.vars.孩子主動開口 || 0, 起點: st.startMode,
+    學制: flagValue(st.flags, '學制_'), 去向: flagValue(st.flags, '去向_'), // 高中的學制（普高／技高／綜高）、離家的去向（外地／本地／工作）
     上學方式: st.vars.上學方式 || '', 孩子來找_連續錯過: st.vars.孩子來找_連續錯過 || 0, 不太來找你: !!st.vars.不太來找你,
     事故骰: rngAt(st.seed, st.turn, 'acc_dice'), // 命運骰（0–1）：重大意外（cm_hospital）只在這個回合的骰子夠小時才可能出現，不因為『池裡剩下它』就被抽到
     訊號骰: rngAt(st.seed, st.turn, 'sig_dice'), // 一般孩子版的訊號卡（_gen）只在骰子夠小時才出現，不因為『池裡剩下它』就被抽到（規則 16）
@@ -412,7 +415,7 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
   const gs = choiceState(ch, ctx);
   if (gs.hidden || gs.disabled) throw new Error(`選項不可選: ${card.id}#${idx}`);
   const acc = {}; // 這個選項自己造成的可見變化；回合的合計由呼叫端累加
-  const k = doseScale(data.model && data.model.timeScale ? data.model.timeScale.alpha : 0, tl.span ?? 2, card); // 劑量倍率：一張卡代表這個回合那麼長的時間
+  const k = cardDoseK(data.model, tl.span ?? 2, card, !!(data.preview || st.preview)); // 劑量倍率：一張卡代表這個回合那麼長的時間
   const scope = cardScope(st, card.id);
   const parts = [fill(ch.result, st, ctx, scope)];
   let branchTags = [];
@@ -436,7 +439,7 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
   if (card.cooldownMonths) st.cooldowns[card.id] = tl.ageMonths + card.cooldownMonths; // 最早可以再出現的月齡
   const d = {};
   for (const [k, v] of Object.entries(acc)) if (Math.abs(v) >= 0.05) d[k] = Math.round(v * 10) / 10;
-  const entry = { turn: st.turn, m: tl.ageMonths, card: card.id, title: fill(card.title, st, ctx, scope), ch: idx, label: fill(ch.label, st, ctx, scope), tags: allTags, d };
+  const entry = { turn: st.turn, m: tl.ageMonths, k, card: card.id, title: fill(card.title, st, ctx, scope), ch: idx, label: fill(ch.label, st, ctx, scope), tags: allTags, d };
   if (extra.fu != null) entry.fu = extra.fu;
   st.hist.push(entry);
   return { result: parts.filter(Boolean).join(' '), acc, entry };

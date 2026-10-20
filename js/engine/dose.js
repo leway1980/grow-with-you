@@ -23,7 +23,15 @@ export const levelOf = (d) => { const a = Math.abs(d); return a >= 9 ? 3 : a >= 
  * 劑量表：acc 是這個回合「選項本身想要造成」的變化（intended delta），不是夾在 0–100 之後的實際差。
  * 例：錢已經是 0，選了錢 −6 的選項，劑量表照樣顯示「錢▼」——玩家看到的是這件事的代價，不是剩餘的空間。
  */
-export function doseView(acc, st, stage) {
+/** 這個回合涵蓋的月數 → 劑量表的時間標籤。3 個月＝這一季，5–7 個月＝這半年（其他長度 4 個月以上沿用月數）；1–2 個月不標，維持原本的樣子 */
+export function periodLabel(span) {
+  if (!span || span < 3) return null;
+  if (span === 3) return '這一季';
+  if (span >= 5 && span <= 7) return '這半年';
+  return `這 ${span} 個月`;
+}
+
+export function doseView(acc, st, stage, span) {
   const vk = visibleKeys(st, stage);
   const row = (k) => {
     const d = acc[k] || 0;
@@ -32,7 +40,7 @@ export function doseView(acc, st, stage) {
     const dir = d > 0 ? 1 : -1;
     return { key: k, label: LABEL[k], dir, level, good: BAD_WHEN_UP.has(k) ? dir < 0 : dir > 0 };
   };
-  return { parent: vk.parent.map(row).filter(Boolean), child: vk.child.map(row).filter(Boolean) };
+  return { parent: vk.parent.map(row).filter(Boolean), child: vk.child.map(row).filter(Boolean), period: periodLabel(span) };
 }
 
 const word = (k, v) => {
