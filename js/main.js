@@ -7,6 +7,7 @@ import { newState, writeSave, readSave, store } from './engine/state.js';
 import { buildEnding } from './engine/ending.js';
 import { selfChoice, playRestAuto } from './engine/auto.js';
 import { meterView } from './engine/dose.js';
+import { yearSummary } from './engine/yearly.js';
 import { sceneSpec, sceneSVG, albumSpecs } from './engine/scene.js';
 import { introSections, rollRole } from './intro.js';
 import * as ui from './ui.js';
@@ -20,6 +21,10 @@ const newSeed = () => (Math.floor(Math.random() * 4294967296) >>> 0) || 1;
 
 let data, st = null, refs = null, speed = 1, auto = false, phase = 'idle', curView = null;
 let timer = null, pending = null, tickTimer = null;
+let yearlyShown = -1, seenFacts = []; // 「這一年」小卡：已經顯示過的回合（不進存檔，重新整理後在 st.cur 之前才會再出現一次）；這一局看過的小知識（結局用）
+const SKIP_KEY = 'gwy.prefs.skipYearly'; // 偏好設定放 localStorage，不進存檔；讀寫都包 try/catch（無痕視窗、被封鎖時照常運作）
+const skipYearly = () => { try { return localStorage.getItem(SKIP_KEY) === '1'; } catch { return false; } };
+const setSkipYearly = () => { try { localStorage.setItem(SKIP_KEY, '1'); } catch { /* 存不下就只跳過這一次 */ } };
 
 async function loadData() {
   const get = async (f) => { const r = await fetch(`data/${f}`); if (!r.ok) throw new Error(`載入 ${f} 失敗 (${r.status})`); return r.json(); };
@@ -29,6 +34,7 @@ async function loadData() {
   const m = mergeData(manifest, Object.fromEntries(names.map((f, i) => [f, rest[i]])));
   if (m.problems.length) throw new Error('資料檔有問題：' + m.problems.join('；'));
   data = prepareData({ identities, tags, model, ending, habits, events: m.events, pools, slots: m.slots, calendar });
+  try { data.yearly = await get('yearly.json'); } catch { data.yearly = null; } // 小卡的資料缺了不影響遊戲：沒有『你知道嗎』，其他照常
   if (PREVIEW) data.preview = true;
 }
 
@@ -46,8 +52,8 @@ function setSpeed(v) {
 function toggleAuto() {
   auto = !auto; ui.setAutoButton(refs, auto);
   if (auto && speed === 0) setSpeed(1);
-  if (auto) { if (phase === 'card' && st.cur) autoPick(); else if (phase === 'result' || phase === 'quiet') schedule(1200, endTurn); }
-  else if (pending && (phase === 'card' || phase === 'result' || phase === 'quiet')) { clearTimeout(timer); timer = null; pending = null; }
+  if (auto) { if (phase === 'card' && st.cur) autoPick(); else if (phase === 'result' || phase === 'quiet') schedule(1200, endTurn); else if (phase === 'yearly') schedule(3000, () => { if (phase === 'yearly') { clearTimers(); beginTurn(); } }); }
+  else if (pending && (phase === 'card' || phase === 'result' || phase === 'quiet' || phase === 'yearly')) { clearTimeout(timer); timer = null; pending = null; }
 }
 
 /* ───── 畫面流程 ───── */
@@ -81,7 +87,7 @@ function showIntro(seed) {
 }
 
 function startGame(state) {
-  clearTimers(); st = state; auto = false; speed = 1;
+  clearTimers(); st = state; auto = false; speed = 1; yearlyShown = -1; seenFacts = [];
   buildGame();
   ui.appendLog(refs, `${st.family.child.given}出生了。你是${st.role}，從現在開始陪著${st.family.child.pronoun}。`);
   if (st.startMode === 'elementary') ui.appendLog(refs, `${st.family.child.given}要上國小了。`);
@@ -91,7 +97,7 @@ function startGame(state) {
 function resume() {
   const s = readSave(data);
   if (!s) { showTitle(); return; }
-  clearTimers(); st = s; auto = false; speed = 1;
+  clearTimers(); st = s; auto = false; speed = 1; yearlyShown = -1; seenFacts = [];
   buildGame();
   ui.appendLog(refs, '（接續上次的存檔）');
   beginTurn();
@@ -107,6 +113,7 @@ const progress = () => st.turn / endTurnIdx();
 function beginTurn() {
   clearTimers();
   if (st.ended) { showEnding(); return; }
+  if (maybeYearly()) return;
   const res = startTurn(st, data);
   if (res.ended) { showEnding(); return; }
   const tl = res.tl;
@@ -121,6 +128,23 @@ function beginTurn() {
     ui.appendLog(refs, res.quiet);
     if (auto) schedule(1400, endTurn);
   }
+}
+// 新的一歲的第一回合，在回合開始前先放一張「這一年」小卡（純顯示，不改任何狀態）。回傳 true 表示小卡正在顯示、由它接手往下走
+function maybeYearly() {
+  const tl = tlNow();
+  if (!tl.newAge || st.cur || yearlyShown === st.turn || st.turn >= endTurnIdx() || skipYearly()) return false;
+  const y = yearSummary(st, data, st.turn);
+  if (!y) return false;
+  yearlyShown = st.turn; phase = 'yearly'; curView = null;
+  if (y.fact) seenFacts.push({ age: y.age, text: y.fact.text, who: y.fact.source.who, year: y.fact.source.year });
+  ui.setHeader(refs, tl.label, progress());
+  ui.renderMeters(refs, meterView(st, tl.stage));
+  ui.setScene(refs, sceneSpec(st, data, tl));
+  const go = () => { if (phase !== 'yearly') return; clearTimers(); beginTurn(); };
+  ui.showYearly(refs, { name: st.family.child.given, y, auto }, go, () => { setSkipYearly(); go(); });
+  ui.appendLog(refs, `${st.family.child.given} ${y.age} 歲了。`);
+  if (auto) schedule(3000, go);
+  return true;
 }
 function showCurrentCard(view, tl) {
   phase = 'card'; curView = view;
@@ -198,7 +222,7 @@ function showEnding() {
   const portrait = sceneSVG(sceneSpec(st, data, last, { portrait: true }));
   const album = albumSpecs(st, data).map((a) => ({ label: a.label, svg: sceneSVG(a) }));
   ui.renderEnding(root, e, {
-    seed, portrait, album,
+    seed, portrait, album, yearly: seenFacts,
     onSame: () => { startGame(newState(seed, data, newOpts({ role, startMode: mode }))); },
     onNew: () => showIntro(newSeed()),
   });

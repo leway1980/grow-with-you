@@ -23,19 +23,39 @@ try { ({ chromium } = await import('playwright')); } catch {
 }
 const browser = await chromium.launch();
 const hasCard = (page) => page.locator('[data-act="choice"]').count();
+// 「這一年」小卡（B3）：每個新的一歲的第一回合先出現。量它的位置（桌面不用捲）、內容，再按「繼續」；shot 給了就截圖一次
+const yearlyLog = [];
+async function seeYearly(page, name, shot) {
+  const m = await page.evaluate(() => {
+    const r = (sel) => { const e = document.querySelector(sel); return e ? Math.round(e.getBoundingClientRect().bottom) : -1; };
+    return { title: document.querySelector('#yearly-title').textContent, events: document.querySelectorAll('.yearly-events li').length, fact: (document.querySelector('.yearly-fact p') || {}).textContent || '',
+      src: (document.querySelector('.yearly-src') || {}).textContent || '', btn: r('[data-act="yearly-continue"]'), skip: r('[data-act="yearly-skip"]'), vh: innerHeight, sw: document.documentElement.scrollWidth <= innerWidth,
+      ico: !!document.querySelector('.yearly-ico svg'), score: /[▲▼]|\d+\s*分/.test(document.querySelector('.yearly').textContent) };
+  });
+  yearlyLog.push({ name, ...m });
+  assert.match(m.title, /^.+ \d+ 歲了$/, `${name} 小卡標題`);
+  assert.ok(m.events <= 3 && m.fact.length > 0 && /・\d{4}$/.test(m.src) && m.ico && !m.score, `${name} 小卡內容 ${JSON.stringify(m)}`);
+  assert.ok(m.sw, `${name} 小卡沒有水平捲軸`);
+  if (name !== '360') assert.ok(m.btn <= m.vh && m.skip <= m.vh, `${name} 小卡的按鈕底部 ${m.btn} 超出視窗 ${m.vh}`);
+  if (shot && shots) await page.screenshot({ path: join(shots, shot) });
+  await page.click('[data-act="yearly-continue"]');
+}
+let yearlyShot = null;
 async function advance(page) { // 選第一個可選的選項，按繼續，直到下一張卡（或結局）
   await page.locator('[data-act="choice"]:not([disabled])').first().click();
   for (let i = 0; i < 400; i++) {
     if (await page.locator('#ending-portrait').count()) return false;
     if (await page.locator('[data-act="choice"]').count()) return true;
-    if (await page.locator('[data-act="next"]').count()) await page.click('[data-act="next"]'); else await page.waitForTimeout(20);
+    if (await page.locator('[data-act="yearly-continue"]').count()) await seeYearly(page, yearlyShot || '?', yearlyLog.some((x) => x.name === yearlyShot) ? null : `yearly-${yearlyShot}.png`);
+    else if (await page.locator('[data-act="next"]').count()) await page.click('[data-act="next"]'); else await page.waitForTimeout(20);
   }
   throw new Error('卡住了');
 }
 async function toCard(page) {
   for (let i = 0; i < 400; i++) {
     if (await hasCard(page)) return;
-    if (await page.locator('[data-act="next"]').count()) await page.click('[data-act="next"]'); else await page.waitForTimeout(20);
+    if (await page.locator('[data-act="yearly-continue"]').count()) await seeYearly(page, yearlyShot || '?', yearlyLog.some((x) => x.name === yearlyShot) ? null : `yearly-${yearlyShot}.png`);
+    else if (await page.locator('[data-act="next"]').count()) await page.click('[data-act="next"]'); else await page.waitForTimeout(20);
   }
   throw new Error('等不到第一張卡');
 }
@@ -58,7 +78,7 @@ try {
     const errs = []; page.on('pageerror', (e) => errs.push(e.message));
     await page.goto(`http://localhost:${port}/?seed=11&ms=100&preview=1`);
     await page.click('[data-act="new"]'); await page.click('[data-act="start"]');
-    await page.waitForSelector('#scene svg'); await toCard(page);
+    await page.waitForSelector('#scene svg'); yearlyShot = name; await toCard(page);
     const rows = [], habitLines = []; let junior = false, habitShot = false;
     for (let n = 0; n < 150 && rows.length < 120; n++) {
       const m = await page.evaluate(() => {
@@ -76,6 +96,9 @@ try {
       if (!(await advance(page))) break;
     }
     assert.ok(rows.length >= 10, `${name} 至少取樣 10 張卡（實際 ${rows.length}）`);
+    const yl = yearlyLog.filter((x) => x.name === name);
+    assert.ok(yl.length >= 5, `${name} 玩過的每個生日都出現「這一年」小卡（${yl.length}）`);
+    console.log(name, `「這一年」小卡 ${yl.length} 張，按鈕最大底部 ${Math.max(...yl.map((x) => x.btn))} / 視窗 ${h}，例：${yl[1].title}｜${yl[1].fact}（${yl[1].src}）`);
     assert.ok(junior, `${name} 取樣包含國中回合`);
     // 習慣的一句話（M3 B2）：國中回合在卡片上方有灰色的『照平常那樣，…』，第一個國中回合多一句說明；最後一個選項仍在視窗內（上面的 bottom 斷言已涵蓋）
     assert.ok(habitLines.length >= 2, `${name} 國中回合有習慣的一句話（${habitLines.length}）`);
@@ -88,7 +111,12 @@ try {
       await page.waitForSelector('#ending-portrait svg');
       const side = await page.evaluate(() => { const a = document.querySelector('#ending-portrait').getBoundingClientRect(), b = document.querySelector('#ending-wellbeing').getBoundingClientRect(); return Math.abs(a.top - b.top) < 4 && a.right <= b.left + 1; });
       assert.ok(side, '桌面結局：全家福與幸福摘要並排');
+      assert.equal(await page.locator('#ending-yearly').count(), 1, '結局有「這些年你看過的小知識」');
+      assert.equal(await page.locator('#ending-yearly li').count(), yl.length, '結局列出看過的每一則小知識');
+      assert.equal(await page.evaluate(() => document.querySelector('#ending-yearly').open), false, '結局的小知識預設收合');
       if (shots) await page.screenshot({ path: join(shots, 'ending-1366.png') });
+      await page.click('#ending-yearly summary'); await page.locator('#ending-yearly').scrollIntoViewIfNeeded();
+      if (shots) await page.screenshot({ path: join(shots, 'ending-yearly-1366.png') });
     }
     assert.deepEqual(errs, []);
     await page.close();
@@ -96,7 +124,7 @@ try {
   { // 手機與平板
     const page = await browser.newPage({ viewport: { width: 360, height: 740 } });
     await page.goto(`http://localhost:${port}/?seed=11&ms=100&preview=1`);
-    await page.click('[data-act="new"]'); await page.click('[data-act="start"]'); await page.waitForSelector('#scene svg'); await toCard(page);
+    await page.click('[data-act="new"]'); await page.click('[data-act="start"]'); await page.waitForSelector('#scene svg'); yearlyShot = '360'; await toCard(page);
     for (let n = 0; n < 8; n++) {
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), '360px 沒有水平捲軸');
       assert.ok(await page.evaluate(() => document.querySelector('#scene').getBoundingClientRect().height <= 170), '手機場景橫幅不超過約 160px');
@@ -106,7 +134,37 @@ try {
     await page.setViewportSize({ width: 800, height: 700 });
     const cols = await page.evaluate(() => { const a = document.querySelector('#scene').getBoundingClientRect(), b = document.querySelector('#panel').getBoundingClientRect(); return a.right <= b.left + 1; });
     assert.ok(cols, '平板 800px 兩欄');
+    assert.ok(yearlyLog.some((x) => x.name === '360'), '360px 也看到「這一年」小卡');
     await page.close();
+  }
+  { // 深色模式的小卡（截圖）、「以後都跳過」存在 localStorage 而且之後不再出現、讓他自己過時停 3 秒就繼續
+    const ctx = await browser.newContext({ viewport: { width: 1366, height: 768 }, colorScheme: 'dark' });
+    const page = await ctx.newPage();
+    await page.goto(`http://localhost:${port}/?seed=11&ms=100&preview=1`);
+    await page.click('[data-act="new"]'); await page.click('[data-act="start"]'); await page.waitForSelector('#scene svg');
+    const toYearly = async () => { for (let i = 0; i < 400 && !(await page.locator('[data-act="yearly-continue"]').count()); i++) { if (await page.locator('[data-act="choice"]:not([disabled])').count()) await page.locator('[data-act="choice"]:not([disabled])').first().click(); else if (await page.locator('[data-act="next"]').count()) await page.click('[data-act="next"]'); else await page.waitForTimeout(20); } };
+    await toYearly(); assert.ok(await page.locator('[data-act="yearly-continue"]').count(), '深色：出現小卡');
+    assert.equal(await page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches), true);
+    const bg = await page.evaluate(() => getComputedStyle(document.querySelector('.yearly-fact')).backgroundColor);
+    assert.notEqual(bg, 'rgb(247, 243, 236)', '深色模式的小卡底色不是淺色');
+    if (shots) await page.screenshot({ path: join(shots, 'yearly-dark-1366.png') });
+    // 讓他自己過：小卡停約 3 秒才繼續
+    await page.click('[data-act="auto"]'); await page.waitForTimeout(1500);
+    assert.ok(await page.locator('[data-act="yearly-continue"]').count(), '自動模式：1.5 秒時小卡還在');
+    await page.waitForFunction(() => !document.querySelector('[data-act="yearly-continue"]'), null, { timeout: 4500 });
+    await page.click('[data-act="auto"]'); // 關掉自動，回到手動
+    // 以後都跳過
+    for (let i = 0; i < 400 && !(await page.locator('[data-act="yearly-continue"]').count()); i++) { if (await page.locator('[data-act="choice"]:not([disabled])').count()) await page.locator('[data-act="choice"]:not([disabled])').first().click(); else if (await page.locator('[data-act="next"]').count()) await page.click('[data-act="next"]'); else await page.waitForTimeout(20); }
+    await page.click('[data-act="yearly-skip"]');
+    assert.equal(await page.evaluate(() => localStorage.getItem('gwy.prefs.skipYearly')), '1', '跳過偏好存在 localStorage');
+    assert.ok(!(await page.evaluate(() => (localStorage.getItem('gwy.save') || localStorage.getItem('gwy.save.v1') || '') .includes('skipYearly'))), '偏好不在存檔裡');
+    await page.waitForSelector('[data-act="choice"]');
+    const before = yearlyLog.length; let n = 0;
+    for (; n < 60; n++) if (!(await advance(page))) break;
+    assert.ok(n >= 20, `跳過後又玩了 ${n} 張卡（至少跨過一個生日）`);
+    const again = yearlyLog.length - before;
+    assert.equal(again, 0, '選了「以後都跳過」之後不再出現小卡');
+    await ctx.close();
   }
   console.log('layout smoke ok');
 } finally { await browser.close(); server.close(); }

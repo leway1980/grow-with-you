@@ -68,6 +68,7 @@ const faceElder = () => svgOf(face({ style: 'bun', hair: 'g' }));
 const A = (rows, extra) => { const g = art(rows); if (extra) extra(g); return svgOf(outline(g)); };
 
 const ICONS = {
+  cake: () => A(['', '.......y........', '.......y........', '.......b........', '.......b........', '..pppppppppppp..', '..pwpwpwpwpwpp..', '..kkkkkkkkkkkk..', '..kkkkkkkkkkkk..', '..pppppppppppp..', '..cccccccccccc..', '..cccccccccccc..', '.WWWWWWWWWWWWWW.']),
   calendar: () => A(['', '', '...o......o....', '..rrrrrrrrrrrr..', '..rrrrrrrrrrrr..', '..wwwwwwwwwwww..', '..wowowowowoww..', '..wwwwwwwwwwww..', '..wowowrrwowow..', '..wwwwwwwwwwww..', '..wowowowowoww..', '..wwwwwwwwwwww..'], (g) => { put(g, 3, 2, 'M'); put(g, 3, 3, 'M'); put(g, 12, 2, 'M'); put(g, 12, 3, 'M'); }),
   heart: () => A(['', '', '', '...rrr....rrr...', '..rrrrr..rrrrr..', '.rrwrrrrrrrrrrr.', '.rrrrrrrrrrrrrr.', '.rrrrrrrrrrrrrr.', '..rrrrrrrrrrrr..', '...rrrrrrrrrr...', '....rrrrrrrr....', '.....rrrrrr.....', '......rrrr......', '.......rr.......']),
   family: () => { const g = blank(); disc(g, 5, 4, 2, 's'); rect(g, 3, 6, 5, 6, 'd'); disc(g, 11, 6, 2, 's'); rect(g, 9, 8, 5, 4, 'K'); rect(g, 4, 12, 3, 2, 'S'); rect(g, 10, 12, 3, 2, 'S'); rect(g, 3, 2, 5, 2, 'h'); rect(g, 9, 4, 5, 2, 'h'); return svgOf(outline(g)); },

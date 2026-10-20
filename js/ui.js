@@ -2,7 +2,7 @@
 // 改為親子遊戲：數值條只畫長條與一個字，劑量表只畫 ▲▼ 與格數，隱藏數值在終局之前不會出現在任何元素裡。
 import { REVEAL_GROUPS } from './engine/ending.js';
 import { sceneSVG } from './engine/scene.js';
-import { rowIcon } from './engine/icons.js';
+import { rowIcon, _icons } from './engine/icons.js';
 
 export function h(tag, attrs, ...kids) {
   const el = document.createElement(tag);
@@ -161,6 +161,30 @@ export function showResult(refs, { title, label, result, dose, note }, onNext, n
     h('button', { class: 'btn primary block', 'data-act': 'next', onClick: onNext }, nextLabel));
   const b = refs.panel.querySelector('[data-act="next"]'); if (b) b.focus({ preventScroll: true });
 }
+/* 「這一年」生日小卡（M3 B3）：每個新的一歲開始前，右欄放一張小卡；只有文字與一個像素蛋糕，不含任何分數。
+   onContinue／onSkip 由 main.js 接；按鈕的 data-act 是 yearly-continue／yearly-skip。 */
+export function showYearly(refs, { name, y, auto = false }, onContinue, onSkip) {
+  const f = y.fact;
+  refs.panel.replaceChildren(
+    h('div', { class: 'yearly' },
+      h('div', { class: 'eyebrow' }, '這一年'),
+      h('div', { class: 'yearly-head' },
+        h('span', { class: 'yearly-ico', 'aria-hidden': 'true', html: _icons.cake() }),
+        h('h2', { id: 'yearly-title' }, `${name} ${y.age} 歲了`)),
+      y.events.length > 0
+        ? h('ul', { class: 'yearly-events', 'aria-label': '這一年發生的事' }, y.events.map((e) => h('li', null, h('b', null, e.title), '　', e.label)))
+        : h('p', { class: 'yearly-events muted' }, '這一年過得平平靜靜。'),
+      f && h('aside', { class: 'yearly-fact', 'aria-label': '你知道嗎' },
+        h('div', { class: 'yearly-q' }, '你知道嗎'),
+        h('p', null, f.text),
+        h('div', { class: 'small muted yearly-src' }, `${f.source.who}・${f.source.year}`)),
+      y.together && h('p', { class: 'small muted' }, y.together),
+      h('div', { class: 'yearly-btns' },
+        h('button', { class: 'btn primary', 'data-act': 'yearly-continue', onClick: onContinue }, '繼續'),
+        h('button', { class: 'btn', 'data-act': 'yearly-skip', onClick: onSkip }, '以後都跳過')),
+      auto && h('p', { class: 'small muted yearly-auto' }, '讓他自己過的時候，這張小卡停 3 秒就繼續。')));
+  const b = refs.panel.querySelector('[data-act="yearly-continue"]'); if (b) b.focus({ preventScroll: true });
+}
 export function showQuiet(refs, eyebrow, text, onNext, habit = {}) {
   refs.panel.replaceChildren(h('div', { class: 'eyebrow' }, eyebrow), ...habitNodes(habit), h('p', { class: 'body' }, text),
     h('button', { class: 'btn primary block', 'data-act': 'next', onClick: onNext }, '繼續'));
@@ -196,7 +220,7 @@ export function spark(key, s) {
   return svg;
 }
 
-export function renderEnding(root, e, { seed, onSame, onNew, portrait, album }) {
+export function renderEnding(root, e, { seed, onSame, onNew, portrait, album, yearly = [] }) {
   const w = e.wellbeing;
   root.replaceChildren(h('main', { class: 'wrap end wide stack' },
     h('header', { class: 'head' }, h('div', { class: 'small muted' }, `陪伴到：${e.to}`), h('h1', null, '你們一起的樣子')),
@@ -231,6 +255,8 @@ export function renderEnding(root, e, { seed, onSame, onNew, portrait, album }) 
           m.moved.length > 0 && h('div', { class: 'small muted' }, `影響到：${m.moved.map((x) => `${x.key}${x.dir > 0 ? '↑' : '↓'}`).join('、')}`))))),
       REVEAL_GROUPS.map((g) => h('div', { class: 'cgroup' }, h('h3', null, g.title),
         h('div', { class: 'curves' }, g.keys.map((k) => { const s = e.series[k]; return h('div', { class: 'curve' }, h('div', { class: 'cap' }, `${k}　${Math.round(s.start)} → ${Math.round(s.end)}`), spark(k, s)); }))))),
+    yearly.length > 0 && h('details', { class: 'paper yearly-seen', id: 'ending-yearly' }, h('summary', null, '這些年你看過的小知識'),
+      h('ul', null, yearly.map((x) => h('li', null, h('b', null, `${x.age} 歲`), '　', x.text, h('span', { class: 'small muted' }, `（${x.who}・${x.year}）`))))),
     h('section', { class: 'paper', id: 'ending-resources' }, h('h2', { class: 'sec' }, '如果你或孩子需要幫忙'),
       h('ul', null, e.resources.map((r) => h('li', null, h('b', null, r.name), r.tel && `　${r.tel}`, h('div', { class: 'small muted' }, r.note)))),
       h('p', { class: 'small muted' }, e.reminder)),
