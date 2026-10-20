@@ -3,15 +3,19 @@
 // 每個選項要有 ≥1 個可見效果與 ≥1 個標籤、選項不能有 hidden、標籤必須在詞彙表、不能寫教養風格宣告。
 // 用法：node tools/lint-data.mjs（有錯誤時 exit 1）；tests 也會呼叫 lintData()
 import { fileURLToPath } from 'node:url';
-import { tokenize, compile, buildCtx } from '../js/engine/events.js';
+import { tokenize, compile, buildCtx, evalCond, gateNames, choiceState } from '../js/engine/events.js';
 import { newState } from '../js/engine/state.js';
 import { FIXED_TOKENS } from '../js/engine/slots.js';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadRaw, loadData, ROOT } from './data-node.mjs';
+import { VISIBLE_KEYS, BAD_WHEN_UP, PLAYED_STAGES, tagVec, hiddenScore, doseScore, costOf } from './metrics.mjs';
 
 const STYLE_PHRASES = [/開明/, /民主式/, /權威式/, /威權/, /放任式/, /我是.{0,6}的(父母|爸爸|媽媽)/, /尊重孩子的教養/, /當個.{0,4}的父母/, /採(用)?.{0,3}(式|型)(教養|溝通)/];
-const VISIBLE = ['體力', '耐心', '錢', '工作表現', '夫妻關係', '心情', '成績', '作業', '3C時間', '睡眠', '同學往來'];
+const VISIBLE = VISIBLE_KEYS;
+const NEEDS = ['晚餐', '睡前', '早晨', '週末'];
+/** V4b：一張卡所有選項的標籤合計，每個隱藏數值的平均推動量要落在 ±這個值之內 */
+export const V4B_BOUND = 0.5;
 
 export function lintData(raw = loadRaw()) {
   const errors = [], warns = [];
@@ -47,7 +51,18 @@ export function lintData(raw = loadRaw()) {
       if (T.derived.includes(k)) errors.push(`標籤 ${name}：「${k}」是推算出來的，不能直接由標籤改變`);
     }
     for (const k of Object.keys(def.stage || {})) if (!stages.has(k)) errors.push(`標籤 ${name}：階段「${k}」不在 stages`);
+    if (!def.now || typeof def.now !== 'object') errors.push(`標籤 ${name}：缺少 now（當下看得到的方向，DESIGN §3.6）`);
+    for (const [k, v] of Object.entries(def.now || {})) {
+      if (!VISIBLE.includes(k)) errors.push(`標籤 ${name}：now 的可見數值「${k}」不存在`);
+      if (!/^[+\-0]{1,3}$/.test(v)) errors.push(`標籤 ${name}：now.${k} 要由 + - 0 組成，不是「${v}」`);
+    }
+    for (const k of def.dirAccel || []) if (!hiddenKeys.includes(k)) errors.push(`標籤 ${name}：dirAccel「${k}」不存在`);
+    if (def.dirAccel && def.dir == null) errors.push(`標籤 ${name}：有 dirAccel 但沒有 dir`);
+    if (def.accel !== undefined && typeof def.accel !== 'boolean') errors.push(`標籤 ${name}：accel 要是 true/false`);
   }
+  for (const [k, m] of Object.entries(T.gates || {})) { if (!hiddenKeys.includes(k)) errors.push(`gates：隱藏數值「${k}」不存在`); for (const [n, v] of Object.entries(m)) if (typeof v !== 'number') errors.push(`gates.${k}.${n} 要是數字`); }
+  for (const k of Object.keys(T.drift?.to || {})) if (!hiddenKeys.includes(k)) errors.push(`drift：隱藏數值「${k}」不存在`);
+  for (const k of Object.keys(T.slotCost || {})) if (!NEEDS.includes(k) && k[0] !== '_') errors.push(`slotCost：時段「${k}」不認得`);
   T.modifiers.forEach((m, i) => { checkExpr(m.if, `標籤 modifier #${i}`); for (const t of m.tags) if (!T.tags[t]) errors.push(`標籤 modifier #${i}：標籤「${t}」不存在`); });
   T.startAdjust.forEach((r, i) => { checkExpr(r.if, `startAdjust #${i}`); for (const k of Object.keys(r.d)) if (!hiddenKeys.includes(k)) errors.push(`startAdjust #${i}：「${k}」不存在`); });
 
@@ -80,6 +95,13 @@ export function lintData(raw = loadRaw()) {
   for (const f of raw.calendar.schoolFixed) if (!ids.has(f.event)) errors.push(`日曆 schoolFixed：事件「${f.event}」不存在`);
   for (const s of raw.calendar.stages) if (!stages.has(s.id)) errors.push(`日曆階段「${s.id}」不在 tags.json 的 stages`);
 
+  // ── 情境負荷 ──
+  for (const L of raw.pools.loads || []) {
+    if (L.if) checkExpr(L.if, `loads ${L.id}`);
+    for (const k of Object.keys(L.effects || {})) if (!VISIBLE.includes(k)) errors.push(`loads ${L.id}：可見數值「${k}」不存在`);
+    if (!(L.p > 0 && L.p < 1)) errors.push(`loads ${L.id}：p 要在 0–1 之間`);
+  }
+  if (new Set((raw.pools.loads || []).map((l) => l.id)).size !== (raw.pools.loads || []).length) errors.push('loads 的 id 重複');
   // ── 池 ──
   for (const [name, def] of Object.entries(pools)) {
     (def.mods || []).forEach((m) => checkExpr(m.if, `池 ${name}`));
@@ -88,8 +110,13 @@ export function lintData(raw = loadRaw()) {
 
   // ── 事件卡 ──
   const leakRe = new RegExp(hiddenKeys.join('|'));
-  const allowedChoiceKeys = new Set(['label', 'effects', 'tags', 'result', 'showIf', 'grayIf', 'opens', 'followUp', 'chance', 'setFlags', 'clearFlags', 'setVars', 'incVars', 'direction', 'topic']);
-  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldown', 'requires', 'excludes', 'modifiers', 'stages', 'topic']);
+  const allowedChoiceKeys = new Set(['label', 'effects', 'tags', 'result', 'showIf', 'grayIf', 'opens', 'followUp', 'chance', 'setFlags', 'clearFlags', 'setVars', 'incVars', 'direction', 'topic', 'needs']);
+  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldown', 'requires', 'excludes', 'modifiers', 'stages', 'topic', 'direction']);
+  const gateVars = new Set(gateNames());
+  const seeds = [1, 2, 3, 4, 5, 6, 7, 8].map((sd) => newState(sd, data, {}));
+  const dirSlotOk = (d) => d[0] !== '@' || (slots[d.slice(1)] && slots[d.slice(1)].every((v) => v.dir));
+  let restCards = 0;
+  const choiceCtxFor = (base, ch, c) => buildCtx(base, data.timeline[0], { topic: ch.topic || c.topic }); // 每張卡＋每個選項自己的 topic
   const dirTags = new Set(Object.entries(T.tags).filter(([, d]) => d.dir != null).map(([k]) => k));
   const exposure = Object.fromEntries(hiddenKeys.map((k) => [k, 0]));
   let nChoices = 0;
@@ -131,11 +158,28 @@ export function lintData(raw = loadRaw()) {
       if ((ch.tags || []).some((t) => dirTags.has(t)) && !ch.direction) warns.push(`${WC}：用了「轉述消息」類標籤，但沒有 direction`);
       if (ch.direction && !(ch.tags || []).some((t) => dirTags.has(t))) warns.push(`${WC}：有 direction 但沒有轉述消息類標籤`);
       if (ch.topic && !(ch.topic in st.interest)) errors.push(`${WC}：topic「${ch.topic}」不是興趣類別`);
+      for (const n of ch.needs || []) if (!NEEDS.includes(n)) errors.push(`${WC}：needs「${n}」不是陪伴時段（${NEEDS.join('、')}）`);
+      if (ch.direction && !dirSlotOk(ch.direction)) errors.push(`${WC}：direction「${ch.direction}」指到的槽不存在，或這個槽的值沒有 dir`);
+      // 看得到的方向由標籤決定（§3.6 修訂）：effects 的正負號不能和標籤的 now 聯集矛盾
+      {
+        const lists = {};
+        for (const t of ch.tags || []) for (const [k, v] of Object.entries(T.tags[t]?.now || {})) { const set = (lists[k] ||= new Set()); for (const c of v) set.add(c); }
+        for (const [k, allowed] of Object.entries(lists)) {
+          const e = ch.effects?.[k] || 0;
+          const sign = e > 0 ? '+' : e < 0 ? '-' : '0';
+          if (!allowed.has(sign)) errors.push(`${WC}：${k} ${e > 0 ? '+' : ''}${e} 和標籤的 now 矛盾（標籤只允許 ${[...allowed].join('')}）`);
+        }
+      }
       for (const re of STYLE_PHRASES) if (re.test(ch.label || '')) errors.push(`${WC}：選項文字不能是教養風格宣告（${re}）（DESIGN §3、§11）`);
       checkTokens(ch.label, WC + '標籤'); checkTokens(ch.result, WC);
       if (leakRe.test(ch.label || '') || leakRe.test(ch.result || '')) errors.push(`${WC}：文字出現隱藏數值的名稱`);
       if (ch.showIf) checkExpr(ch.showIf, WC);
       for (const g of [].concat(ch.grayIf || [])) checkExpr(g.if, WC);
+      // 用這張卡＋這個選項自己的 topic 建條件環境，實際算一次（引擎顯示與套用用的是同一個環境）
+      for (const base of seeds.slice(0, 3)) {
+        const cctx = choiceCtxFor(base, ch, c);
+        try { if (ch.showIf) evalCond(ch.showIf, cctx); for (const g of [].concat(ch.grayIf || [])) evalCond(g.if, cctx); } catch (e) { errors.push(`${WC}：條件求值失敗：${e.message}`); }
+      }
       const branches = [ch, ...(ch.chance ? [ch.chance.win, ch.chance.lose] : [])];
       if (ch.chance) { (ch.chance.mods || []).forEach((m) => checkExpr(m.if, WC)); if (!(ch.chance.p > 0 && ch.chance.p < 1)) errors.push(`${WC}：chance.p 要在 0–1 之間`); checkTokens(ch.chance.win.result, WC); checkTokens(ch.chance.lose.result, WC); }
       for (const b of branches) {
@@ -153,6 +197,63 @@ export function lintData(raw = loadRaw()) {
       }
     }
   }
+  // ── 選項組合的校準規則（DESIGN §3.6 修訂版：V2 陷阱、V3 代價、V4 休息與平衡、一眼看穿、門檻的選項數）──
+  const mentionsGate = (e) => !!e && tokenize(e).some((t) => t.t === 'var' && gateVars.has(t.v));
+  for (const c of cards) {
+    const W = `卡片 ${c.id}`;
+    const all = c.choices || [];
+    if (all.length < 2 || all.some((ch) => !(ch.tags || []).every((t) => T.tags[t]))) continue;
+    const stg = c.stages || PLAYED_STAGES;
+    // 玩家實際看到的選項組合：有具名門檻的卡，每一種門檻組合各算一個版本（高了解度版、低了解度版……）
+    const names = [...new Set(all.flatMap((ch) => [ch.showIf, ...[].concat(ch.grayIf || []).map((g) => g.if)]).filter(Boolean).flatMap((e) => tokenize(e).filter((t) => t.t === 'var' && gateVars.has(t.v)).map((t) => t.v)))];
+    const variants = [];
+    for (let mask = 0; mask < (1 << names.length); mask++) {
+      const vis = all.filter((ch) => {
+        if (!ch.showIf || !mentionsGate(ch.showIf)) return true;
+        const cctx = choiceCtxFor(seeds[0], ch, c);
+        names.forEach((nm, i) => { cctx[nm] = !!(mask & (1 << i)); });
+        return evalCond(ch.showIf, cctx);
+      });
+      variants.push({ tag: names.length ? `（${names.map((nm, i) => (mask & (1 << i) ? nm : '非' + nm)).join('、')}）` : '', chs: vis });
+    }
+    if (names.length) {
+      const counts = new Set(variants.map((v) => v.chs.length));
+      if (counts.size > 1) errors.push(`${W}：具名門檻的不同版本顯示的選項數不一樣（${variants.map((v) => v.chs.length).join('、')}）`);
+    }
+    if (all.some((ch) => (ch.tags || []).includes('父母自己休息'))) {
+      restCards++;
+      for (const ch of all) if ((ch.tags || []).includes('父母自己休息') && -costOf(ch) < 3) errors.push(`${W}／${ch.label}：父母自己休息的選項，體力＋耐心要真的回 3 以上`);
+    }
+    for (const { tag, chs } of variants) {
+      if (chs.length < 2) continue;
+      const W2 = W + tag;
+      const hs = chs.map((ch) => hiddenScore(T, ch, stg)), ds = chs.map(doseScore), cs = chs.map(costOf);
+      // 研究支持的選項 R＝隱藏分數最高的（平手時取花費較高的）
+      let r = 0;
+      for (let i = 1; i < chs.length; i++) if (hs[i] > hs[r] + 1e-9 || (Math.abs(hs[i] - hs[r]) <= 1e-9 && cs[i] > cs[r])) r = i;
+      const trap = chs.findIndex((_, i) => i !== r && ds[i] >= ds[r] + 3 && hs[i] < hs[r]);
+      if (trap < 0) errors.push(`${W2}：V2 沒有陷阱選項（需要劑量表分數比研究支持的選項「${chs[r].label.slice(0, 12)}」高 3 以上、隱藏分數卻較低；劑量 ${ds.map((x) => x.toFixed(1)).join('/')}、隱藏 ${hs.map((x) => x.toFixed(1)).join('/')}）`);
+      const minCost = Math.min(...cs);
+      if (cs[r] < minCost + 3) errors.push(`${W2}：V3 研究支持的選項體力＋耐心的花費（${cs[r]}）要比最省力的選項（${minCost}）多 3 以上`);
+      // V4b：整張卡所有選項平均推動每個隱藏數值的量要接近 0，才不會「這張卡一律往同一邊推」
+      const mean = {};
+      for (const ch of chs) for (const [k, d] of Object.entries(tagVec(T, ch, stg))) mean[k] = (mean[k] || 0) + d / chs.length;
+      for (const [k, m] of Object.entries(mean)) if (Math.abs(m) > V4B_BOUND + 1e-9) errors.push(`${W2}：V4b 所有選項平均推動「${k}」${m > 0 ? '+' : ''}${m.toFixed(2)}，超過 ±${V4B_BOUND}`);
+      // 一眼看穿：某個選項在所有隱藏數值上都不輸別人（至少一項較好），而且花費不比別人高
+      const vecs = chs.map((ch) => Object.fromEntries(Object.entries(tagVec(T, ch, stg)).filter(([k]) => !T.derived.includes(k)).map(([k, d]) => [k, BAD_WHEN_UP.has(k) ? -d : d])));
+      for (let a = 0; a < chs.length; a++) {
+        let dominates = true;
+        for (let b = 0; b < chs.length && dominates; b++) {
+          if (a === b) continue;
+          const keys = Object.keys(vecs[a]);
+          const ge = keys.every((k) => vecs[a][k] >= vecs[b][k] - 1e-9), gt = keys.some((k) => vecs[a][k] > vecs[b][k] + 1e-9);
+          if (!(ge && gt && cs[a] <= cs[b])) dominates = false;
+        }
+        if (dominates) errors.push(`${W2}／${chs[a].label.slice(0, 16)}：一眼看穿——在所有隱藏數值上都最好，而且花費不比別人高`);
+      }
+    }
+  }
+  if (restCards * 5 < cards.length) errors.push(`V4a 有「父母自己休息」選項的卡只有 ${restCards}/${cards.length} 張，至少要每 5 張有 1 張`);
   for (const [f, w] of flagSet) if (!flagRead.has(f) && !/_(中|落)$/.test(f)) warns.push(`旗標「${f}」有設定（${w[0]}）但沒有任何地方讀取`);
   for (const [f, w] of flagRead) if (!flagSet.has(f)) warns.push(`旗標「${f}」被讀取（${w[0]}）但從來沒有被設定`);
   // 後續池的卡要真的有人打開
