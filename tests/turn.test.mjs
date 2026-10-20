@@ -506,7 +506,10 @@ test('日曆 72：每個固定事件的月齡和舊 92 回合日曆相差在 ±3
   const oldTl = buildTimeline(LEGACY_V2), newTl = data.timeline;
   // 預覽用的國中、高中、離家固定事件（第 50 回合以後）在舊日曆沒有對應，不比
   const evs = new Set(newTl.slice(0, data.calendar.playableTurns).flatMap((t) => t.fixed));
+  // 例外：fx_choose_jh（國中開學前一週，M3 B4）原本排在國中一年級『開學之後』（舊 92 回合日曆也沒有它），文字寫的是開學前一週，所以搬到國小六年級『期末與暑假』（畢業典禮那一回合的第二張卡）；舊日曆沒有對應，不比月齡，下面另外檢查它排在假期
+  const MOVED_IN = new Set(['fx_choose_jh']);
   for (const ev of evs) {
+    if (MOVED_IN.has(ev)) { const at = newTl.filter((t) => t.fixed.includes(ev)); assert.equal(at.length, 1); assert.ok(at[0].grade === 6 && at[0].vacation, `${ev} 要在國小六年級的暑假`); continue; }
     const olds = oldTl.filter((t) => t.fixed.includes(ev));
     assert.ok(olds.length, `${ev} 在舊日曆裡有`);
     for (const t of newTl.filter((x) => x.fixed.includes(ev))) {

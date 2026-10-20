@@ -311,9 +311,9 @@
   },
   {
    "grade": [
-    7
+    6
    ],
-   "seg": "開學之後",
+   "seg": "期末與暑假",
    "event": "fx_choose_jh"
   },
   {
@@ -357,6 +357,13 @@
    "grade": [
     10
    ],
+   "seg": "上學期",
+   "event": "fx_sh_start_out"
+  },
+  {
+   "grade": [
+    10
+   ],
    "seg": "下學期",
    "event": "fx_sh_track"
   },
@@ -373,6 +380,13 @@
    ],
    "seg": "下學期",
    "event": "fx_sh_grad"
+  },
+  {
+   "grade": [
+    12
+   ],
+   "seg": "下學期",
+   "event": "fx_sh_grad_out"
   }
  ],
  "flavor": {

@@ -199,7 +199,7 @@ test('保證出現：國中一年級第 2 回合一定有 jh_habit_change（日�
     assert.ok(st.hist.some((h) => h.card === 'jh_habit_change' && h.turn === JH0 + 1), `seed ${seed}`);
   }
   const fixedJH = data.timeline.filter((t) => t.stage === '國中' && t.fixed.length).length;
-  assert.equal(fixedJH, 6); assert.ok(fixedJH / 13 <= 0.5);
+  assert.equal(fixedJH, 5); assert.ok(fixedJH / 13 <= 0.5); // B4 之前是 6：fx_choose_jh（國中開學前一週）搬到國小六年級的暑假之後，國中第一回合不再是固定事件
 });
 
 test('lineIf 只換孩子的回應：高低兩版以同一段「家長做的事」開頭、字數相近', () => {
