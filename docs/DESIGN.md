@@ -1414,6 +1414,11 @@
 - 孩子的氣質也有差：堅持度高的孩子比較能自己做到，敏感的孩子對牙套、背架的外表更在意。
 - 卡片文字會寫出這些處境，例如：「晚上十點你剛下班，他已經睡了，桌上那瓶散瞳劑還是滿的。」
 
+### 實作（2026-10-20）
+- 卡片在 `data/events/health.json`（11 張）：`hl_vision_notice`→`hl_myopia_plan`→`hl_myopia_daily`（近視）、`hl_spine_notice`→`hl_spine_follow`（脊椎側彎）、`hl_braces_start`→`hl_braces_upkeep`→`hl_braces_off`（牙齒矯正）、`hl_flatfoot`、`hl_allergy`、`hl_fracture`。誰會遇到哪件事由命運骰決定（視力骰、脊椎骰、牙齒骰、腳骰、過敏骰、摔傷骰，`events.js` buildCtx；只由種子與回合決定）。錢與時間的數字多為設計估計（research/health.md）。
+- 場景旗標：`戴眼鏡`、`角膜塑形`、`戴牙套`、`打石膏`（`scene.js` BODY_FLAGS）。有期限的旗標：選項寫 `flagMonths: {旗標: 月數 或 [最少, 最多]}`，`st.flagExpiry` 記到期月齡，回合開始時 `turn.js` 的 `expireFlags` 清掉（打石膏約兩個月、戴牙套一到兩年多）。拆牙套的卡用另一個不會到期的旗標 `牙齒矯正過`。
+- 每天的提醒（`hl_myopia_daily`、`hl_braces_upkeep`）是會自己排下一次的卡，效果由選項的標籤累積；§4.37 的『持續做到的比例』還沒有像用藥（§5.0）那樣的專用連續計數，之後可沿用 `adherence` 的做法。
+
 ### 結局
 - 健康也進入決定鏈：「他二年級視力檢查沒過。你們試了塑形片，前兩年每天晚上你幫他洗；四年級開始他自己洗。到國中，他的度數只加深了一點點。」
 - 或：「那副牙套戴了三年。他說他最記得的，是每個月回診完你們去吃的那碗冰。」

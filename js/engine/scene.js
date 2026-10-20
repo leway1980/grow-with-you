@@ -12,7 +12,7 @@ import { mulberry32 } from './rng.js';
 export const SCENE_W = 96, SCENE_H = 44, FLOOR = 38;
 
 /* ───────────── 看得見的狀態 → 規格（純資料） ───────────── */
-/** 身體照顧的旗標名稱（引擎之後要讓孩子「戴眼鏡」之類，就設這幾個旗標；目前資料裡還沒有任何卡設這些旗標） */
+/** 身體照顧的旗標名稱（data/events/health.json 的卡設這幾個旗標；打石膏、戴牙套有期限，到期由 turn.js 的 expireFlags 清掉） */
 export const BODY_FLAGS = { glasses: '戴眼鏡', orthok: '角膜塑形', braces: '戴牙套', cast: '打石膏' };
 /** 這些卡的內容就是孩子生病或受傷（卡片標題就寫在畫面上） */
 const SICK_CARDS = new Set(['inf_sick', 'inf_sick_young', 'kid_quarantine', 'cm_hospital']);

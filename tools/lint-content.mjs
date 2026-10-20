@@ -136,7 +136,7 @@ export function lintContent(raw, data, cards, ctxKeys, st0) {
       const rq = c.requires || {};
       const need = [...(rq.flags || []), ...[...(rq.expr || '').matchAll(/#([^\s()=!<>&|]+)/g)].map((m) => m[1])];
       if (!need.length) { errors.push(`卡片 ${c.id}：規則 14：後續池「${c.pool}」的卡要用 requires 寫明是哪個旗標觸發的（現在誰都能抽到它）`); continue; }
-      const ok = need.some((f) => (setters.get(f) || []).some((s) => s.opens.has(c.pool) || s.follow.has(c.id)));
+      const ok = need.some((f) => (setters.get(f) || []).some((s) => s.opens.has(c.pool) || s.follow.has(c._variantOf ?? c.id)));
       if (!ok) warns.push(`卡片 ${c.id}：規則 14：requires 的旗標（${need.join('、')}）沒有任何一個選項在「打開池 ${c.pool}」或「排後續卡 ${c.id}」的同時設定它`);
     }
     const words = R.timeWords || [];

@@ -155,6 +155,12 @@ function quietLine(st, data, tl, ctx) {
   return fill(s, st, ctx, {});
 }
 
+/** 有期限的旗標（打石膏、戴牙套；選項的 flagMonths 設定）：月齡到了就清掉旗標與期限。回合開始時呼叫。 */
+export function expireFlags(st, ageMonths) {
+  if (!st.flagExpiry) return;
+  for (const [f, until] of Object.entries(st.flagExpiry)) if (ageMonths >= until) { delete st.flags[f]; delete st.flagExpiry[f]; }
+}
+
 /**
  * 開始一個回合：固定事件 → 到期的後續卡 → 抽卡。沒有卡時回傳一句平靜日子的描述。
  * 有固定事件的回合有第二張卡（日常或後續卡）：選完第一張後呼叫 nextCard；劑量表在第二張之後合計。
@@ -162,6 +168,7 @@ function quietLine(st, data, tl, ctx) {
 export function startTurn(st, data) {
   if (st.turn >= endOf(st, data)) { st.ended = true; st.endReason = '待續'; return { ended: true, tl: timelineOf(st, data) }; }
   const tl = data.timeline[st.turn];
+  expireFlags(st, tl.ageMonths);
   syncClassroom(st, data, tl); // 換老師的年級（小一、小三、小五、國一、高一）重抽班級（§4.38）
   for (const [k, v] of Object.entries(st.openPools)) if (v.until < tl.ageMonths) delete st.openPools[k]; // until＝最後一個還開著的月齡
   const ctx = buildCtx(st, tl);

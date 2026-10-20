@@ -162,6 +162,9 @@ export function buildCtx(st, tl, extra = {}) {
     班級骰: rngAt(st.seed, st.turn, 'cl_dice'), // 命運骰：老師真的體罰或羞辱的事件只在骰子夠小時才可能出現（§4.38 查證後正式反映）
     對方在意: rngAt(st.seed, st.turn, 'cl_care') < (st.flags.關心過對方家長 ? CARE_P_CONCERNED : CARE_P), // 命運骰：被提醒的那一家在不在意（設計估計 0.3；有人私下關心過是 0.5）
     ...classroomCtx(st), 對象: extra.toward || '', // 班級共享狀態（§4.38）：老師投入度、班上常投訴的家長人數；對象＝這個選項的做法是對著誰（'老師'＝老師或學校）
+    // 身體照顧（§4.37）的命運骰：同一個種子、同一個回合結果相同，和玩家的選擇無關；卡片寫『視力骰 < 0.3』這類門檻，不因為『池裡剩下它』就被抽到
+    視力骰: rngAt(st.seed, st.turn, 'hl_vision'), 脊椎骰: rngAt(st.seed, st.turn, 'hl_spine'), 牙齒骰: rngAt(st.seed, st.turn, 'hl_teeth'),
+    腳骰: rngAt(st.seed, st.turn, 'hl_foot'), 過敏骰: rngAt(st.seed, st.turn, 'hl_allergy'), 摔傷骰: rngAt(st.seed, st.turn, 'hl_fall'),
     疲勞: Math.round(((st.costEMA && st.costEMA.體力) || 0) + ((st.costEMA && st.costEMA.耐心) || 0)), // 最近幾回合體力與耐心花費的累積（「父母自己」池的權重用）
   };
   for (const [k, m] of Object.entries(GATES)) for (const [n, thr] of Object.entries(m)) ctx[k + n] = st.hidden[k] >= thr;
@@ -348,7 +351,9 @@ export function describeCard(card, st, data, tl) {
 function applyBranch(st, b, turnNo, r, ctx, acc, scope, tl, k = 1) {
   applyEffects(st, scaleEffects(b.effects, k), acc); // k＝這張卡這個回合的劑量倍率（timescale.js doseScale）
   for (const f of b.setFlags || []) st.flags[f] = true;
-  for (const f of b.clearFlags || []) delete st.flags[f];
+  for (const f of b.clearFlags || []) { delete st.flags[f]; if (st.flagExpiry) delete st.flagExpiry[f]; }
+  // 有期限的旗標（打石膏、戴牙套）：flagMonths＝{旗標: 月數 或 [最少, 最多]}，到期由 turn.js 的 expireFlags 在回合開始時清掉
+  for (const [f, m] of Object.entries(b.flagMonths || {})) (st.flagExpiry ||= {})[f] = tl.ageMonths + (Array.isArray(m) ? m[0] + Math.floor(r() * (m[1] - m[0] + 1)) : m);
   // setVars 的值可以含槽（例如 '{寵物}'），用這張卡抽到的槽值：之後的卡讀同一個值，不重抽（規則 14）
   const persisted = persistedSlots();
   for (const [k, v] of Object.entries(b.setVars || {})) {

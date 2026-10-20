@@ -100,7 +100,7 @@ test('孩子的階段、寒暑假戶外、身體照顧旗標、生病與工作�
   const vac = data.timeline.findIndex((t) => t.vacation);
   st.turn = vac; assert.equal(sceneSpec(st, data, tlAt(vac)).vacation, true);
   st.turn = 0; assert.equal(sceneSpec(st, data, tlAt(0)).vacation, false);
-  // 旗標（目前資料還沒有任何卡設這些旗標，介面先備好）
+  // 旗標（data/events/health.json 的卡會設這些旗標，見 tests/health.test.mjs）
   const t = data.timeline.findIndex((x) => x.grade === 3 && !x.vacation); st.turn = t;
   const plain = svgOf(st, t);
   for (const flag of Object.values(BODY_FLAGS)) { st.flags[flag] = true; assert.notEqual(svgOf(st, t), plain, flag); delete st.flags[flag]; }
