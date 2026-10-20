@@ -19,16 +19,26 @@
 - 2026-10-20 · sig:d1de2c3d · route：高壓做主 → 放任 · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## opposing-partner-commonreaction
+- 2026-10-20 · sig:e49fc594 · route：高壓做主 → 放任 · 原因：第 3 項（跨卡沿用的值、手足）：單親（離異、喪親）的家庭不再排弟弟妹妹、lo_sibling／hi_sibling 只給有哥哥姊姊的家庭、才藝已報名的孩子不再出現想學才藝、kid_newborn 改成弟弟妹妹出生前一兩個回合才出現，抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 與影響報告的整體分布未變）
 - 2026-10-20 · sig:a82ea249 · route：放任 → 高壓做主 · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## elders-live-in-research
+- 2026-10-20 · sig:d1c92e54 · axes：mid/mid/mid → hi/mid/mid；route：高壓做主 → 溺愛 · 原因：第 3 項（跨卡沿用的值、手足）：單親（離異、喪親）的家庭不再排弟弟妹妹、lo_sibling／hi_sibling 只給有哥哥姊姊的家庭、才藝已報名的孩子不再出現想學才藝、kid_newborn 改成弟弟妹妹出生前一兩個回合才出現，抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 與影響報告的整體分布未變）
 - 2026-10-20 · sig:61d8b84a · wellbeingParts：mid/mid/mid → mid/mid/hi · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## traveling-single-commonreaction
+- 2026-10-20 · sig:d43b0901 · axes：lo/lo/mid → lo/lo/lo；combo：其他 → 三邊都垮 · 原因：第 3 項（跨卡沿用的值、手足）：單親（離異、喪親）的家庭不再排弟弟妹妹、lo_sibling／hi_sibling 只給有哥哥姊姊的家庭、才藝已報名的孩子不再出現想學才藝、kid_newborn 改成弟弟妹妹出生前一兩個回合才出現，抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 與影響報告的整體分布未變）
 - 2026-10-20 · sig:4db350a4 · axes：lo/mid/mid → lo/lo/mid；achievement：課業大致跟得上 → 課業有些吃力 · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## absent-partner-rich-permissive
+- 2026-10-20 · sig:01d7e075 · wellbeingParts：mid/mid/lo → mid/mid/mid · 原因：第 3 項（跨卡沿用的值、手足）：單親（離異、喪親）的家庭不再排弟弟妹妹、lo_sibling／hi_sibling 只給有哥哥姊姊的家庭、才藝已報名的孩子不再出現想學才藝、kid_newborn 改成弟弟妹妹出生前一兩個回合才出現，抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 與影響報告的整體分布未變）
 - 2026-10-20 · sig:37a3ca1c · wellbeingParts：mid/mid/mid → mid/mid/lo · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
 
 ## special-needs-warmfirmrest
 - 2026-10-20 · sig:506e5c5c · axes：hi/hi/hi → hi/hi/mid；combo：三邊都顧到 → 關係好、人際好，成績普通 · 原因：第 1 項（孩子月齡進條件環境）：好幾張嬰幼兒卡加了月齡限制、inf_sick 依月齡拆成兩張，抽卡的順序與亂數流跟著位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 的方向檢查與影響報告的整體分布未變）
+
+## tight-single-dad-permissive
+- 2026-10-20 · sig:01d7e075 · wellbeingParts：mid/mid/lo → mid/mid/mid · 原因：第 3 項（跨卡沿用的值、手足）：單親（離異、喪親）的家庭不再排弟弟妹妹、lo_sibling／hi_sibling 只給有哥哥姊姊的家庭、才藝已報名的孩子不再出現想學才藝、kid_newborn 改成弟弟妹妹出生前一兩個回合才出現，抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 與影響報告的整體分布未變）
+
+## rural-boss-tiredlazy
+- 2026-10-20 · sig:a1c0f071 · route：放任 → 溺愛 · 原因：第 3 項（跨卡沿用的值、手足）：單親（離異、喪親）的家庭不再排弟弟妹妹、lo_sibling／hi_sibling 只給有哥哥姊姊的家庭、才藝已報名的孩子不再出現想學才藝、kid_newborn 改成弟弟妹妹出生前一兩個回合才出現，抽卡序列位移，同一個家庭走上不同的人生；類別改變來自抽卡序列，不是機制方向改變（check-design 與影響報告的整體分布未變）

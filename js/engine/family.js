@@ -152,11 +152,12 @@ export function generateFamily(seed, idn) {
   if (tight) cw = mulArr(cw, S.ruralMult);
   if (urban === '都會核心') cw = mulArr(cw, S.coreMult);
   const nSib = wpick(rsb, [0, 1, 2, 3], cw);
+  const single = struct.id === '離異' || struct.id === '喪親';
   const siblings = [];
   for (let i = 0; i < 3; i++) {
     const u1 = rsb(), u2 = rsb(), u3 = rsb(), u4 = rsb();
     if (i >= nSib) continue;
-    const older = u1 < S.olderP, male = u3 < 0.5;
+    const older = single || u1 < S.olderP, male = u3 < 0.5; // 單親（離異、喪親）不排弟弟妹妹：新生兒的卡（kid_newborn）只給有另一半一起迎接的家庭
     const gap = S.olderGap[0] + Math.floor(u2 * (S.olderGap[1] - S.olderGap[0] + 1));
     siblings.push(older ? { rel: male ? '哥哥' : '姐姐', older: true, ageGap: gap, arriveTurn: null }
       : { rel: male ? '弟弟' : '妹妹', older: false, ageGap: 0, arriveTurn: S.youngerTurn[0] + Math.floor(u4 * (S.youngerTurn[1] - S.youngerTurn[0] + 1)) });
@@ -222,10 +223,17 @@ const monthsAtTurn = (t) => (t < 8 ? t * 3 : t < 20 ? 24 + (t - 8) * 4 : 72 + (t
 export function siblingRelations(fam, turn) {
   const gap = (s) => (s.older ? s.ageGap : monthsAtTurn(s.arriveTurn ?? 0) / 12);
   const live = fam.siblings.filter((s) => s.older || turn == null || (s.arriveTurn ?? 0) <= turn);
-  const nearest = [...live].sort((a, b) => gap(a) - gap(b))[0];
-  const elder = fam.siblings.filter((s) => s.older).sort((a, b) => a.ageGap - b.ageGap)[0];
+  const byGap = (a, b) => gap(a) - gap(b);
+  const nearest = [...live].sort(byGap)[0];
+  const elders = fam.siblings.filter((s) => s.older).sort(byGap);
+  const youngers = live.filter((s) => !s.older).sort(byGap);
   const lab = (s) => (s ? SIB_LABEL[s.rel] || s.rel : '');
-  return { 手足關係: lab(nearest), 年長手足: lab(elder) };
+  // 下一胎：還沒出生的弟弟妹妹，再過幾個回合出生（沒有就是 99）。kid_newborn 只在 1–2 個回合之前出現（家裡知道要多一個人了）
+  const due = fam.siblings.filter((s) => !s.older && turn != null && (s.arriveTurn ?? 0) > turn).map((s) => s.arriveTurn - turn);
+  return {
+    手足關係: lab(nearest), 年長手足: lab(elders[0]), 年幼手足: lab(youngers[0]),
+    手足數: live.length, 年長手足數: elders.length, 年幼手足數: youngers.length, 下一胎回合差: due.length ? Math.min(...due) : 99,
+  };
 }
 
 /** 條件環境裡跟家庭有關的部分（用在 startAdjust 與卡片條件）。turn 給了就把還沒出生的弟弟妹妹排除。 */
@@ -237,7 +245,7 @@ export function familyCtx(fam, role, turn) {
     職位: fam.rank || '基層', 交通工具: fam.transport || '機車', 通勤距離: fam.commute || '中', // 舊存檔沒有時由 migrate 補上，這裡只是保險
     學校有交通車: schoolBusOf(fam.seed, fam.urban),
     另一半: fam.partner.attitude || '', 有另一半: !!fam.partner.present, 長輩: fam.elders.status, 住屋: fam.housing, 孩子空間: fam.space,
-    升學資源: fam.support, 被帶大: fam.upbringing, 手足數: fam.siblings.filter((s) => s.older).length, ...siblingRelations(fam, turn),
+    升學資源: fam.support, 被帶大: fam.upbringing, ...siblingRelations(fam, turn),
     有寵物: !!fam.pet, 寵物種類: fam.pet ? fam.pet.type : '',
     孩子性別: fam.child.sex, 孩子活動量: fam.child.temperament.活動量, 孩子敏感度: fam.child.temperament.敏感度, 孩子堅持度: fam.child.temperament.堅持度,
     // 特殊需求：各類各一個旗標（卡片的訊號與修正用精確的這幾個）；有特殊需求ADHD 沿用舊名

@@ -345,7 +345,7 @@ export function lintData(raw = loadRaw()) {
   // 因果模型與防呆（DESIGN §3.7）：方向一致、層次、上限、結局句子
   const lm = lintModel(raw, data, cards);
   errors.push(...lm.errors); warns.push(...lm.warns);
-  const lc = lintContent(raw, data, cards, ctxKeys);
+  const lc = lintContent(raw, data, cards, ctxKeys, st);
   errors.push(...lc.errors); warns.push(...lc.warns);
   return { errors, warns, stats: { cards: cards.length, choices: nChoices, exposure, ...stats0, model: lm.stats } };
 }

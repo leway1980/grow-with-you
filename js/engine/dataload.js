@@ -14,10 +14,11 @@ export function mergeData(manifest, files) {
       cards.push(c);
     }
   }
-  const slots = {}, defined = new Map();
+  const slots = {}, defined = new Map(), persist = {};
   for (const f of manifest.slots || []) {
     const j = files[f];
     if (!j || !j.slots || typeof j.slots !== 'object') { problems.push(`槽檔 ${f}：缺少 slots`); continue; }
+    for (const [slot, varName] of Object.entries(j.persist || {})) persist[slot] = varName; // 槽 → st.vars 的鍵：已經選定的值，之後同一個槽一律用它（DESIGN §11 規則 14）
     for (const [name, v] of Object.entries(j.slots)) {
       const ext = v && !Array.isArray(v) && v.extends === true;
       const vals = ext ? v.values : v;
@@ -31,6 +32,6 @@ export function mergeData(manifest, files) {
       } else { slots[name] = [...vals]; defined.set(name, f); }
     }
   }
-  return { events: { cards }, slots: { slots }, problems };
+  return { events: { cards }, slots: { slots, persist }, problems };
 }
 export const manifestFiles = (m) => [...(m.events || []), ...(m.slots || [])];

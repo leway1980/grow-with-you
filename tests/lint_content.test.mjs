@@ -81,3 +81,9 @@ test('規則 15：卡片文字不能寫死稱謂；{另一半} 不能出現在�
   // 引號外的 {另一半} 是敘述，可以
   assert.doesNotMatch(run((r) => { card(r, 'fu_fight_after').choices[2].label = '請{另一半}去跟{他}說'; }).e, /fu_fight_after/);
 });
+
+test('規則 14：persist 的槽與 vars 要存在；存選定值的 setVars 要寫槽標記', () => {
+  assert.match(run((r) => { r.slots.persist.不存在的槽 = '想要的球類'; }).e, /persist：槽「不存在的槽」不存在/);
+  assert.match(run((r) => { r.slots.persist.球類 = '沒有這個變數'; }).e, /vars「沒有這個變數」不在 state/);
+  assert.match(run((r) => { card(r, 'lo_club').choices[0].setVars = { 想要的球類: '籃球' }; }).e, /setVars「想要的球類」存的是槽「球類」選定的值/);
+});

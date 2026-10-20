@@ -39,7 +39,7 @@ export function newState(seed, data, opts = {}) {
     interest: { ...fam.child.interests },      // 興趣向量（隱藏）：之後會依接觸經驗改變
     dirCount: {},                              // 父母傳遞的方向計數（§3.3）
     tagCounts: {},                             // 各行為標籤累計次數
-    vars: { 托育方式: '', 幼兒園類型: '', 照顧者: '', 換照顧者次數: 0, 孩子主動開口: 0, 孩子不再開口: 0, 上學方式: '', 孩子來找_連續錯過: 0, 孩子來找_回來連續: 0, 不太來找你: 0, 不太來找你_曾: 0 },
+    vars: { 托育方式: '', 幼兒園類型: '', 照顧者: '', 換照顧者次數: 0, 孩子主動開口: 0, 孩子不再開口: 0, 上學方式: '', 孩子來找_連續錯過: 0, 孩子來找_回來連續: 0, 不太來找你: 0, 不太來找你_曾: 0, 養的寵物: '', 養的寵物名: '', 想要的球類: '', 選的才藝: '', 校隊項目: '', 校隊比賽層級: '' },
     costEMA: { 體力: 0, 耐心: 0 },             // 最近幾回合體力、耐心的花費（指數移動平均），父母的回復目標會被它拉低
     startHidden: null,                         // 開局時的隱藏數值（自然漂移與結局的『相對於開局』用）
     flags: {}, cooldowns: {}, used: {}, openPools: {}, delayed: [], slotLast: {}, cardScope: null,
@@ -76,7 +76,7 @@ export function migrate(st, data) {
   const T = data.tags;
   st.hidden ||= {};
   for (const k of Object.keys(T.hidden)) if (typeof st.hidden[k] !== 'number' || Number.isNaN(st.hidden[k])) st.hidden[k] = T.hidden[k];
-  st.vars = { 托育方式: '', 幼兒園類型: '', 照顧者: '', 換照顧者次數: 0, 孩子主動開口: 0, 孩子不再開口: 0, 上學方式: '', 孩子來找_連續錯過: 0, 孩子來找_回來連續: 0, 不太來找你: 0, 不太來找你_曾: 0, ...(st.vars || {}) };
+  st.vars = { 托育方式: '', 幼兒園類型: '', 照顧者: '', 換照顧者次數: 0, 孩子主動開口: 0, 孩子不再開口: 0, 上學方式: '', 孩子來找_連續錯過: 0, 孩子來找_回來連續: 0, 不太來找你: 0, 不太來找你_曾: 0, 養的寵物: '', 養的寵物名: '', 想要的球類: '', 選的才藝: '', 校隊項目: '', 校隊比賽層級: '', ...(st.vars || {}) };
   st.costEMA = { 體力: 0, 耐心: 0, ...(st.costEMA || {}) };
   for (const k of ['dirCount', 'tagCounts', 'flags', 'cooldowns', 'used', 'openPools', 'slotLast', 'done']) st[k] ||= {};
   for (const k of ['delayed', 'hist', 'curves', 'vcurves', 'parentGrowth']) st[k] ||= [];

@@ -1,7 +1,7 @@
 // 沿用《高中，只有一次》(leway1980/Game 47wan @ ce1d972) events.js：條件求值器（逐字複製）與兩段式抽卡、grayIf、textIf、後續卡的做法；
 // 改動：移除高中專屬的態度／交往／詐騙邏輯，條件環境改為親子遊戲，新增『池開啟／加重』、選項層級條件（showIf）與機率分支。純函式，無 DOM。
 import { pickWeighted, clamp, rngAt, shuffleOrder } from './rng.js';
-import { fillSlots } from './slots.js';
+import { fillSlots, persistedSlots } from './slots.js';
 import { familyCtx } from './family.js';
 import { applyTags, isGrowthChoice } from './tags.js';
 
@@ -148,6 +148,9 @@ export function buildCtx(st, tl, extra = {}) {
     孩子不再開口: st.vars.孩子不再開口 || 0, 孩子主動開口: st.vars.孩子主動開口 || 0, 起點: st.startMode,
     上學方式: st.vars.上學方式 || '', 孩子來找_連續錯過: st.vars.孩子來找_連續錯過 || 0, 不太來找你: !!st.vars.不太來找你,
     來問重要: rngAt(st.seed, st.turn, PING_BIG_ID) < PING_BIG_P, // 命運骰：孩子這次來問的事其實重不重要（§4.28）；和選項的 chance（id＝ping_big、p＝0.3）用同一顆骰子，文字與結果才會一致
+    // 已經選定的事（hi_pet 養的寵物、lo_club 想要的球類……）：之後的卡讀同一個值；養了寵物之後 有寵物／寵物種類 也跟著變
+    有寵物: !!f.pet || !!st.vars.養的寵物, 寵物種類: f.pet ? f.pet.type : st.vars.養的寵物 || '',
+    養的寵物: st.vars.養的寵物 || '', 想要的球類: st.vars.想要的球類 || '', 選的才藝: st.vars.選的才藝 || '', 校隊項目: st.vars.校隊項目 || '',
     意願強度: willOf(st, extra.topic),
     疲勞: Math.round(((st.costEMA && st.costEMA.體力) || 0) + ((st.costEMA && st.costEMA.耐心) || 0)), // 最近幾回合體力與耐心花費的累積（「父母自己」池的權重用）
   };
@@ -277,7 +280,7 @@ export function fill(text, st, ctx, scope) {
   if (ctx && text.includes('{')) text = fillSlots(text, st, ctx, null, scope || {});
   const f = st.family;
   text = text.replace(/\{孩子\}/g, f.child.given).replace(/\{他\}/g, f.child.pronoun).replace(/\{另一半\}/g, f.partner.present ? '另一半' : '對方')
-    .replace(/\{寵物名\}/g, f.pet ? f.pet.name : '').replace(/\{學校\}/g, f.school.name).replace(/\{長輩\}/g, f.elders.who || '長輩');
+    .replace(/\{寵物名\}/g, f.pet ? f.pet.name : (st.vars && st.vars.養的寵物名) || '').replace(/\{學校\}/g, f.school.name).replace(/\{長輩\}/g, f.elders.who || '長輩');
   if (text.includes('{')) { const rw = roleWords(st); text = text.replace(/\{([^{}]+)\}/g, (m, n) => (n in rw ? rw[n] : m)); }
   return text;
 }
@@ -319,11 +322,16 @@ export function describeCard(card, st, data, tl) {
 }
 
 /* ───────────── 套用選擇 ───────────── */
-function applyBranch(st, b, turnNo, r, ctx, acc) {
+function applyBranch(st, b, turnNo, r, ctx, acc, scope) {
   applyEffects(st, b.effects, acc);
   for (const f of b.setFlags || []) st.flags[f] = true;
   for (const f of b.clearFlags || []) delete st.flags[f];
-  for (const [k, v] of Object.entries(b.setVars || {})) st.vars[k] = fill(v, st);
+  // setVars 的值可以含槽（例如 '{寵物}'），用這張卡抽到的槽值：之後的卡讀同一個值，不重抽（規則 14）
+  const persisted = persistedSlots();
+  for (const [k, v] of Object.entries(b.setVars || {})) {
+    st.vars[k] = fill(v, st, ctx, scope);
+    if (scope) for (const [slot, varName] of Object.entries(persisted)) if (varName === k && st.vars[k]) scope[slot] = st.vars[k]; // 這張卡之後的「父母的收穫」也記同一個值
+  }
   for (const [k, d] of Object.entries(b.incVars || {})) st.vars[k] = (st.vars[k] || 0) + d;
   for (const [pool, o] of Object.entries(b.opens || {})) {
     const cur = st.openPools[pool];
@@ -388,13 +396,13 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
   let branchTags = [];
   // 陪伴時段不在：用體力硬換或請假，代價照實顯示在劑量表上，選項不會消失
   for (const need of ch.needs || []) if (!slotAvailable(st, data, need)) applyEffects(st, data.tags.slotCost[need], acc);
-  applyBranch(st, { ...ch, effects: scaleCosts(data.tags.costMods, ch, ctx) }, st.turn, r, ctx, acc);
+  applyBranch(st, { ...ch, effects: scaleCosts(data.tags.costMods, ch, ctx) }, st.turn, r, ctx, acc, scope);
   if (ch.chance) {
     const c = ch.chance;
     const p = clamp(c.p * mulMods(c.mods, ctx), 0, 0.97);
     const win = rngAt(st.seed, st.turn, c.id) < p; // 命運骰：和玩家的選擇無關，同一個人生結果相同
     const b = win ? c.win : c.lose;
-    applyBranch(st, b, st.turn, r, ctx, acc);
+    applyBranch(st, b, st.turn, r, ctx, acc, scope);
     parts.push(fill(b.result, st, ctx, scope));
     st.flags[`${c.id}_${win ? '中' : '落'}`] = true;
     branchTags = b.tags || []; // 分支也可以帶行為標籤（隱藏數值仍然只經由標籤換算）

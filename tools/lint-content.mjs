@@ -70,11 +70,25 @@ export function eligibleTurns(card, timeline, stageNames) {
 }
 const TOL = 3;
 
-export function lintContent(raw, data, cards, ctxKeys) {
+export function lintContent(raw, data, cards, ctxKeys, st0) {
   const errors = [], warns = [];
   const T = raw.tags, R = T.cardRules;
   const stageNames = ['嬰幼兒', '幼兒園', '國小低', '國小中高'];
   const playable = data.timeline.slice(0, raw.calendar.playableTurns);
+
+  // ── 規則 14（跨卡沿用的值）：persist 的槽與 st.vars 的鍵要存在；setVars 寫入的鍵若是 persist 的鍵，值只能是該槽的槽標記 ──
+  {
+    const persist = raw.slots.persist || {}, slotsT = raw.slots.slots;
+    for (const [slot, varName] of Object.entries(persist)) {
+      if (!slotsT[slot]) errors.push(`persist：槽「${slot}」不存在`);
+      if (st0 && !(varName in st0.vars)) errors.push(`persist：槽「${slot}」對應的 vars「${varName}」不在 state 的初始值裡`);
+      if (raw.model && !(raw.model.nodes[varName] && raw.model.nodes[varName].writers.includes('card'))) errors.push(`persist：vars「${varName}」要在因果圖當第 2 層的節點（writers 有 card）`);
+    }
+    for (const c of cards) for (const ch of c.choices) for (const b of [ch, ...(ch.chance ? [ch.chance.win, ch.chance.lose] : [])]) for (const [k, v] of Object.entries(b.setVars || {})) {
+      const slot = Object.keys(persist).find((n) => persist[n] === k);
+      if (slot && v !== `{${slot}}` && !/^\{[^{}]+\}$/.test(v)) errors.push(`卡片 ${c.id}：setVars「${k}」存的是槽「${slot}」選定的值，要寫成槽標記（例如 {${slot}}），不是固定字串`);
+    }
+  }
 
   // ── 規則 8：年齡要對 ──
   for (const c of cards) {

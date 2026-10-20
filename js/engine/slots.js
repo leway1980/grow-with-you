@@ -11,9 +11,12 @@ export const ROLE_TOKENS = ['你爸媽', '另一半稱呼', '另一半稱呼_大
 export const FIXED_TOKENS = ['孩子', '他', '另一半', '寵物名', '學校', '長輩', ...ROLE_TOKENS];
 const RE = /\{([^{}]+)\}/g;
 let TABLE = {};
+let PERSIST = {};
 const warned = new Set();
 
-export function setSlotData(slots) { TABLE = (slots && slots.slots) || {}; }
+export function setSlotData(slots) { TABLE = (slots && slots.slots) || {}; PERSIST = (slots && slots.persist) || {}; }
+/** 槽 → st.vars 的鍵（已選定的值，之後同一個槽一律沿用；set 的槽名在 data/slots/core.json 的 persist） */
+export const persistedSlots = () => ({ ...PERSIST });
 export const slotNames = () => Object.keys(TABLE);
 
 /** 回傳這段文字用到的槽名（不含固定代稱） */
@@ -32,6 +35,14 @@ export function slotRng(st) {
 // 抽一個槽的值；pinned 已有就沿用。避免連續用到同一個值（權重 < 1 的後備值不算替代選項）
 function resolve(name, st, ctx, r, pinned) {
   if (name in pinned) return pinned[name];
+  // 已經選定的值（社團的球類、學的才藝、校隊的項目……）：不再重抽，前後的卡才說的是同一件事
+  const pv = PERSIST[name];
+  if (pv && st.vars && st.vars[pv]) {
+    const chosen = st.vars[pv], hit = (TABLE[name] || []).find((v) => v.t === chosen);
+    pinned[name] = chosen;
+    if (hit && hit.dir) pinned['#dir:' + name] = hit.dir;
+    return chosen;
+  }
   const vals = TABLE[name];
   if (!vals) {
     if (!warned.has(name)) { warned.add(name); console.warn(`slots: 未知的槽 {${name}}`); }
