@@ -46,3 +46,29 @@ export function doseScore(ch) {
 }
 /** 體力＋耐心的花費（越大越累）。父母自己休息會是負的。 */
 export const costOf = (ch) => -((ch.effects?.體力 || 0) + (ch.effects?.耐心 || 0));
+
+/** 名次（平手取平均名次） */
+const ranks = (a) => {
+  const o = a.map((v, i) => [v, i]).sort((x, y) => x[0] - y[0]);
+  const r = Array(a.length);
+  for (let i = 0; i < o.length;) { let j = i; while (j + 1 < o.length && o[j + 1][0] === o[i][0]) j++; for (let k = i; k <= j; k++) r[o[k][1]] = (i + j) / 2; i = j + 1; }
+  return r;
+};
+/** Spearman 等級相關（名次的 Pearson）。沒有變化量時回傳 0 */
+export function spearman(x, y) {
+  const a = ranks(x), b = ranks(y), n = a.length;
+  const ma = a.reduce((s, v) => s + v, 0) / n, mb = b.reduce((s, v) => s + v, 0) / n;
+  let sab = 0, sa = 0, sb = 0;
+  for (let i = 0; i < n; i++) { sab += (a[i] - ma) * (b[i] - mb); sa += (a[i] - ma) ** 2; sb += (b[i] - mb) ** 2; }
+  return sa && sb ? sab / Math.sqrt(sa * sb) : 0;
+}
+/** 一張卡裡「劑量表分數」和「隱藏分數」的 Spearman 相關：越接近 0，看得到的方向越不能預測長期的好壞（DESIGN §3.6 第二輪修訂） */
+export function cardCorrelation(T, card) {
+  const stg = card.stages || PLAYED_STAGES;
+  return spearman(card.choices.map(doseScore), card.choices.map((ch) => hiddenScore(T, ch, stg)));
+}
+/** 全部卡片的平均相關（lint 的全域檢查） */
+export const CORRELATION_BOUND = 0.3;
+export function meanCorrelation(T, cards) {
+  return cards.reduce((s, c) => s + cardCorrelation(T, c), 0) / cards.length;
+}

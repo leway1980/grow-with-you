@@ -9,7 +9,7 @@ import { FIXED_TOKENS } from '../js/engine/slots.js';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadRaw, loadData, ROOT } from './data-node.mjs';
-import { VISIBLE_KEYS, BAD_WHEN_UP, PLAYED_STAGES, tagVec, hiddenScore, doseScore, costOf } from './metrics.mjs';
+import { VISIBLE_KEYS, BAD_WHEN_UP, PLAYED_STAGES, CORRELATION_BOUND, tagVec, hiddenScore, doseScore, costOf, cardCorrelation, meanCorrelation } from './metrics.mjs';
 
 const STYLE_PHRASES = [/開明/, /民主式/, /權威式/, /威權/, /放任式/, /我是.{0,6}的(父母|爸爸|媽媽)/, /尊重孩子的教養/, /當個.{0,4}的父母/, /採(用)?.{0,3}(式|型)(教養|溝通)/];
 const VISIBLE = VISIBLE_KEYS;
@@ -18,7 +18,7 @@ const NEEDS = ['晚餐', '睡前', '早晨', '週末'];
 export const V4B_BOUND = 0.5;
 
 export function lintData(raw = loadRaw()) {
-  const errors = [], warns = [];
+  const errors = [], warns = [], stats0 = {};
   const data = loadData(raw);
   const T = raw.tags;
   const st = newState(1, data, {});
@@ -66,6 +66,7 @@ export function lintData(raw = loadRaw()) {
   T.modifiers.forEach((m, i) => { checkExpr(m.if, `標籤 modifier #${i}`); for (const t of m.tags) if (!T.tags[t]) errors.push(`標籤 modifier #${i}：標籤「${t}」不存在`); });
   T.startAdjust.forEach((r, i) => { checkExpr(r.if, `startAdjust #${i}`); for (const k of Object.keys(r.d)) if (!hiddenKeys.includes(k)) errors.push(`startAdjust #${i}：「${k}」不存在`); });
 
+  (T.costMods || []).forEach((m, i) => { if (m.if) checkExpr(m.if, `costMods #${i}`); for (const t of m.tags || []) if (!T.tags[t]) errors.push(`costMods #${i}：標籤「${t}」不存在`); for (const k of m.keys || []) if (!VISIBLE.includes(k)) errors.push(`costMods #${i}：「${k}」不是可見數值`); if (!(m.x > 0)) errors.push(`costMods #${i}：x 要大於 0`); });
   // ── 變數槽 ──
   const slots = raw.slots.slots;
   const slotTokens = (t) => [...String(t || '').matchAll(/\{([^{}]+)\}/g)].map((m) => m[1]);
@@ -100,6 +101,7 @@ export function lintData(raw = loadRaw()) {
     if (L.if) checkExpr(L.if, `loads ${L.id}`);
     for (const k of Object.keys(L.effects || {})) if (!VISIBLE.includes(k)) errors.push(`loads ${L.id}：可見數值「${k}」不存在`);
     if (!(L.p > 0 && L.p < 1)) errors.push(`loads ${L.id}：p 要在 0–1 之間`);
+    for (const t of L.tags || []) if (!T.tags[t]) errors.push(`loads ${L.id}：標籤「${t}」不在詞彙表`);
   }
   if (new Set((raw.pools.loads || []).map((l) => l.id)).size !== (raw.pools.loads || []).length) errors.push('loads 的 id 重複');
   // ── 池 ──
@@ -253,6 +255,14 @@ export function lintData(raw = loadRaw()) {
       }
     }
   }
+  // 看得到的方向不能預測長期好壞（正反都不行）：每張卡的 Spearman（劑量分數 vs 隱藏分數）平均要在 ±0.3 內
+  {
+    const rows = cards.filter((c) => c.choices.every((ch) => (ch.tags || []).every((t) => T.tags[t]))).map((c) => [c.id, cardCorrelation(T, c)]);
+    const mc = meanCorrelation(T, cards.filter((c) => rows.some(([id]) => id === c.id)));
+    if (Math.abs(mc) > CORRELATION_BOUND) errors.push(`劑量表分數與隱藏分數的平均 Spearman 相關是 ${mc.toFixed(2)}，要在 ±${CORRELATION_BOUND} 內（最偏的卡：${[...rows].sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 5).map(([id, r]) => `${id} ${r.toFixed(2)}`).join('、')}）`);
+    for (const [id, r] of rows) if (Math.abs(r) >= 0.8) warns.push(`卡片 ${id}：劑量表分數與隱藏分數的相關 ${r.toFixed(2)}，看得到的方向幾乎能預測好壞`);
+    stats0.meanCorrelation = mc;
+  }
   if (restCards * 5 < cards.length) errors.push(`V4a 有「父母自己休息」選項的卡只有 ${restCards}/${cards.length} 張，至少要每 5 張有 1 張`);
   for (const [f, w] of flagSet) if (!flagRead.has(f) && !/_(中|落)$/.test(f)) warns.push(`旗標「${f}」有設定（${w[0]}）但沒有任何地方讀取`);
   for (const [f, w] of flagRead) if (!flagSet.has(f)) warns.push(`旗標「${f}」被讀取（${w[0]}）但從來沒有被設定`);
@@ -269,7 +279,7 @@ export function lintData(raw = loadRaw()) {
     if (share > 0.5) warns.push(`隱藏數值「${k}」被 ${(share * 100).toFixed(0)}% 的選項推動（超過一半），會主導結局`);
     if (exposure[k] === 0) warns.push(`隱藏數值「${k}」沒有任何選項推動，在結局等於擺設`);
   }
-  return { errors, warns, stats: { cards: cards.length, choices: nChoices, exposure } };
+  return { errors, warns, stats: { cards: cards.length, choices: nChoices, exposure, ...stats0 } };
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {

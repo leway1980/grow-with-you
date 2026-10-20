@@ -1,5 +1,7 @@
 // 校準目標（DESIGN §3.4 修訂版）。tests/calibration.test.mjs 與 tools/simulate.mjs 共用這一份：現況對目標，一個地方定義。
-import { avg, median, share } from './stats.mjs';
+import { avg, median, share, pct } from './stats.mjs';
+import { loadData } from './data-node.mjs';
+import { meanCorrelation, CORRELATION_BOUND } from './metrics.mjs';
 import { COMBOS } from '../js/engine/ending.js';
 
 export const groupBy = (arr, f) => { const m = {}; for (const x of arr) (m[f(x)] ||= []).push(x); return m; };
@@ -12,14 +14,14 @@ const hid = (g, k) => avg(g.map((x) => x.hid[k]));
 export function evaluateCalibration(games) {
   const out = [];
   const add = (id, desc, value, target, ok) => out.push({ id, desc, value: typeof value === 'number' ? f1(value) : value, target, ok });
-  const { random: R, permissive: P, doseGreedy: D, warmFirm: W, warmFirmRest: WR } = games;
+  const { random: R, permissive: P, doseGreedy: D, warmFirm: W, warmFirmRest: WR, antiDose: A, controlling: C } = games;
 
   add('dose-vs-random', 'doseGreedy 親子 − random 親子', ax(D, 0) - ax(R, 0), '≤ 3', ax(D, 0) - ax(R, 0) <= 3);
   add('wf-vs-dose', 'warmFirm 親子 − doseGreedy 親子', ax(W, 0) - ax(D, 0), '≥ 15', ax(W, 0) - ax(D, 0) >= 15);
   const worse = { 主見: hid(R, '主見') - hid(D, '主見'), 自我效能: hid(R, '自我效能') - hid(D, '自我效能'), 試探度: hid(D, '試探度') - hid(R, '試探度') };
   add('dose-worse-hidden', 'doseGreedy 比 random 差的幅度（主見／自我效能／試探度，取最大）', Math.max(...Object.values(worse)), '> 0（至少一項）', Math.max(...Object.values(worse)) > 0);
   const others = Math.min(wb(R, 1), wb(P, 1), wb(D, 1));
-  add('wf-parent', 'warmFirm 父母幸福 − min(random, permissive, doseGreedy)', wb(W, 1) - others, '≤ −5', wb(W, 1) - others <= -5);
+  add('wf-parent', 'warmFirm 父母幸福 − min(random, permissive, doseGreedy)（要在 −15 到 −5 之間：辛苦但可持續）', wb(W, 1) - others, '−15 … −5', wb(W, 1) - others <= -5 && wb(W, 1) - others >= -15);
   const keys = Object.keys(W[0].hid).filter((k) => k !== '承受度');
   const sat = share(W, (g) => keys.some((k) => g.hid[k] >= 98));
   add('wf-saturation', 'warmFirm 有任何隱藏數值 ≥ 98 的局數比例', `${(sat * 100).toFixed(0)}%`, '≤ 10%', sat <= 0.10);
@@ -51,8 +53,24 @@ export function evaluateCalibration(games) {
   }
   add('opening-gap', 'warmFirm 親子在各開局條件之間的最大差距（家境、工時、升學資源；組內 ≥ 8 局）', `${f1(worst)}（${worstVar}）`, '≤ 5', worst <= 5);
   // 休息
-  add('rest-parent', 'warmFirmRest 父母幸福 − warmFirm', wb(WR, 1) - wb(W, 1), '≥ 5', wb(WR, 1) - wb(W, 1) >= 5);
+  add('rest-parent', 'warmFirmRest 父母幸福 − warmFirm', wb(WR, 1) - wb(W, 1), '≥ 8', wb(WR, 1) - wb(W, 1) >= 8);
   add('rest-loss', 'warmFirm 親子 − warmFirmRest 親子', ax(W, 0) - ax(WR, 0), '≤ 5', ax(W, 0) - ax(WR, 0) <= 5);
+  // 第二輪（紅隊審查）：反向洩漏、結果的不確定性、父母的代價
+  add('anti-vs-random', 'antiDose（每次選看得到的變化最差的）親子 − random 親子', ax(A, 0) - ax(R, 0), '≤ 10', ax(A, 0) - ax(R, 0) <= 10);
+  add('anti-vs-wf', 'antiDose 親子 − warmFirm 親子', ax(A, 0) - ax(W, 0), '≤ −15', ax(A, 0) - ax(W, 0) <= -15);
+  const mc = meanCorrelation(loadData().tags, loadData().events.cards);
+  add('dose-hidden-corr', '各卡「劑量表分數 vs 隱藏分數」Spearman 相關的平均', mc, `±${CORRELATION_BOUND}`, Math.abs(mc) <= CORRELATION_BOUND);
+  const wfAx = W.map((g) => g.ax[0]);
+  const width = pct(wfAx, 0.9) - pct(wfAx, 0.1);
+  add('wf-width', 'warmFirm 親子 P10–P90 的寬度（教養是機率，不是必然）', width, '≥ 12', width >= 12);
+  const outside = share(W, (g) => g.combo !== '三邊都顧到' && g.combo !== '關係好、人際好，成績普通');
+  add('wf-outside-good', 'warmFirm 的局落在兩個好組合之外的比例', `${(outside * 100).toFixed(0)}%`, '≥ 10%', outside >= 0.10);
+  const cl = pct(C.map((g) => g.ax[2]), 0.9), wl = pct(W.map((g) => g.ax[2]), 0.5);
+  add('controlling-learn', 'controlling 學習 P90 − warmFirm 學習 P50（壓力有時真的把成績撐住）', cl - wl, '≥ 0', cl >= wl);
+  const pg = groupBy(W, (x) => x.partner);
+  const together = pg['一起陪'] || [], absent = [...(pg['只出錢'] || []), ...(pg['幾乎不在家'] || [])];
+  const pgap = wb(together, 1) - wb(absent, 1);
+  add('partner-gap', 'warmFirm 父母幸福：另一半一起陪 − 只出錢／幾乎不在家', `${f1(pgap)}（${together.length} 局 vs ${absent.length} 局）`, '≥ 5', pgap >= 5);
   // 節奏
   const ns = avg(W.map((g) => g.elemNonFixed / g.nTurnsElem)), nsMin = Math.min(...W.map((g) => g.elemNonFixed / g.nTurnsElem));
   add('nonfixed-share', '非固定事件的卡 ÷ 國小回合數（warmFirm 平均／最低）', `${f1(ns * 100)}% / ${f1(nsMin * 100)}%`, '平均 ≥ 60%', ns >= 0.60);

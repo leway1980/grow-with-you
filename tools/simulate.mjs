@@ -29,6 +29,7 @@ export const BOTS = {
   } },
   warmFirm: { desc: '溫暖＋堅定', score: (T, ch) => sum(tagVec(T, ch), { 溫暖陪伴: 1, 規範監督: 1, 親子信任: 0.5, 了解度: 0.5, 主見: 0.5, 替他做主: -1, 期待壓力: -0.5, 試探度: -0.5, 規則一致性: 0.3 }) },
   doseGreedy: { desc: '只看劑量表（每次選看得到的變化最好的）', score: (T, ch) => doseScore(ch) },
+  antiDose: { desc: '反過來只看劑量表（每次選看得到的變化最差的）', score: (T, ch) => -doseScore(ch) },
   warmFirmRest: { desc: '溫暖＋堅定，耐心見底時先休息', score: (T, ch) => BOTS.warmFirm.score(T, ch) },
 };
 
@@ -60,14 +61,14 @@ const SALT = 0x9e3779b1;
 export function playGame(data, bot, seed, opts = {}) {
   const st = newState(seed, data, { role: seed % 2 ? '媽媽' : '爸爸', startMode: opts.startMode || 'birth' });
   playToEnd(st, data, botPolicy(bot, SALT));
-  const ax = outcomeAxes(st), w = wellbeing(st), rp = routePosition(st);
+  const ax = outcomeAxes(st), w = wellbeing(st, data.identities.parentModel), rp = routePosition(st);
   const f = st.family;
   const e = (st.startMode === 'birth' ? 20 : 0);
   const elemTurns = st.hist.filter((h) => h.turn >= e).length;
   const elemNonFixed = st.hist.filter((h) => h.turn >= e && !data.cardIndex[h.card].pool.startsWith('_')).length;
   const nTurnsElem = Math.max(1, st.curves.filter((c) => c.t >= e).length);
   const rec = {
-    bot, seed, econ: f.econ, pattern: f.pattern, support: f.support, struct: f.structure,
+    bot, seed, partner: f.partner.attitude || '無', econ: f.econ, pattern: f.pattern, support: f.support, struct: f.structure,
     ax: [ax.親子, ax.人際, ax.學習], w: [w.child, w.parent, w.between], route: rp.kind, combo: comboOf(ax),
     hid: { ...st.hidden }, money30: st.vcurves[30]?.錢 ?? null, lowBody: st.vcurves.filter((c) => c.體力 < 35).length / st.vcurves.length,
     elemTurns, elemNonFixed, nTurnsElem, fu: st.hist.filter((h) => h.fu != null).map((h) => h.fu), cards: st.hist.length,
