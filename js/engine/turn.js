@@ -4,7 +4,7 @@
 import { stateRng, rngAt } from './rng.js';
 import { setSlotData } from './slots.js';
 import { buildCtx, passes, pickFixed, pickDelayed, drawCard, describeCard, applyChoice, applyEffects, rollLoads, fill, cardById, setGates } from './events.js';
-import { driftHidden, applyTags } from './tags.js';
+import { driftHidden } from './tags.js';
 import { doseView } from './dose.js';
 import { setModel } from './model.js';
 import { setEnding } from './ending.js';
@@ -132,10 +132,7 @@ export function chooseCard(st, data, idx) {
   const card = cardById(data, cur.cardId);
   const r = stateRng(st, 'rngS');
   if (cur.slot === 0) {
-    for (const l of cur.loads || []) {
-      applyEffects(st, l.effects, cur.acc);
-      if (l.tags && l.tags.length) applyTags(st, l.tags, data.tags, { turn: st.turn, stage: tl.stage, ctx: buildCtx(st, tl) }); // 家庭變故也經由標籤改變隱藏數值（唯一的寫入口）
-    }
+    for (const l of cur.loads || []) applyEffects(st, l.effects, cur.acc); // 命運事件只改看得見的數值（規則 18）
   }
   const out = applyChoice(st, data, card, idx, tl, r, { fu: cur.fu });
   for (const [k, v] of Object.entries(out.acc)) cur.acc[k] = (cur.acc[k] || 0) + v;

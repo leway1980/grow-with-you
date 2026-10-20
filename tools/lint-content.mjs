@@ -76,6 +76,9 @@ export function lintContent(raw, data, cards, ctxKeys, st0) {
   const stageNames = ['嬰幼兒', '幼兒園', '國小低', '國小中高'];
   const playable = data.timeline.slice(0, raw.calendar.playableTurns);
 
+  // ── 規則 18：情境負荷（命運事件）不帶任何家長行為標籤 ──
+  for (const l of raw.pools.loads || []) if ('tags' in l) errors.push(`loads ${l.id}：規則 18：情境負荷與命運事件不能帶行為標籤（沒有玩家的選擇，就不能有隱藏的扣分）；只改看得見的數值`);
+
   // ── 規則 14（跨卡沿用的值）：persist 的槽與 st.vars 的鍵要存在；setVars 寫入的鍵若是 persist 的鍵，值只能是該槽的槽標記 ──
   {
     const persist = raw.slots.persist || {}, slotsT = raw.slots.slots;

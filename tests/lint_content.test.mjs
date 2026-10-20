@@ -123,3 +123,16 @@ test('規則 13：排在下一回合以後的卡不寫隔天、過幾天、兩�
   // 當回合的日常卡可以寫（不是後續卡）
   assert.doesNotMatch(run((r) => { card(r, 'lo_hw').text += '隔天'; }).w, /lo_hw：規則 13/);
 });
+
+/* ───── 規則 18：命運事件不帶家長行為標籤 ───── */
+test('規則 18：情境負荷不能有 tags；長輩住院只給長輩在身邊或在帶孩子的家庭', () => {
+  assert.equal(run(() => {}).e, '');
+  assert.match(run((r) => { r.pools.loads.find((l) => l.id === '夫妻失和').tags = ['夫妻當孩子面吵']; }).e, /loads 夫妻失和：規則 18/);
+  assert.match(run((r) => { r.pools.loads.find((l) => l.id === '長輩住院').tags = ['換照顧者_沒過渡']; }).e, /loads 長輩住院：規則 18/);
+  const raw = loadRaw();
+  for (const l of raw.pools.loads) assert.ok(!('tags' in l), l.id);
+  const old = raw.pools.loads.find((l) => l.id === '長輩住院');
+  assert.match(old.if, /長輩 == '同住'/); assert.match(old.if, /住附近會幫忙/); assert.match(old.if, /托育方式 == '長輩主要照顧'/);
+  assert.doesNotMatch(old.if, /!= '沒有'/);
+  assert.equal(raw.pools.loads.find((l) => l.id === '夫妻失和').if, '有同住的另一半');
+});

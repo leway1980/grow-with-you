@@ -340,15 +340,18 @@ test('孩子的氣質改變規則的效果：堅持度高 → 事前訂規則比
 import { modifierFactor as modifierFactorOf0 } from '../js/engine/tags.js';
 const modifierFactorOf = (tag, ctx) => modifierFactorOf0(data.tags, tag, ctx);
 
-test('家庭變故（loads 帶 tags）：隱藏數值也只經由標籤改變；同一個種子的變故和玩家的選擇無關', () => {
+test('家庭變故（規則 18）：命運事件只改看得見的數值，不帶行為標籤、不改隱藏數值；同一個種子的變故和玩家的選擇無關', () => {
   const d = loadData();
+  assert.ok(d.loads.every((l) => !('tags' in l)), '資料裡的情境負荷都沒有 tags');
+  // 就算有人硬塞 tags，引擎也不會用它改隱藏數值
   d.loads = [{ id: 't', text: '突發狀況。', p: 0.999, effects: { 耐心: -5 }, tags: ['夫妻當孩子面吵'] }];
   const st = newState(5, d, {}); st.turn = 3;
   const res = startTurn(st, d);
-  const s0 = st.hidden.安全感;
-  chooseCard(st, d, res.card.choices.find((c) => !c.disabled).i);
-  assert.ok(st.hidden.安全感 < s0, '夫妻當孩子面吵的標籤降低了安全感');
-  assert.ok(st.tagCounts.夫妻當孩子面吵 >= 1);
+  const cnt0 = st.tagCounts.夫妻當孩子面吵 || 0;
+  const opt = res.card.choices.find((c) => !c.disabled);
+  const tagsOfChoice = res.raw.choices[opt.i].tags;
+  chooseCard(st, d, opt.i);
+  assert.equal(st.tagCounts.夫妻當孩子面吵 || 0, cnt0 + (tagsOfChoice.includes('夫妻當孩子面吵') ? 1 : 0), '標籤只來自玩家的選項');
   // 變故出現與否只看 (種子, 回合)
   const a = newState(9, data, {}), b = newState(9, data, {});
   a.turn = b.turn = 12;

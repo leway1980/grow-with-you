@@ -254,7 +254,7 @@ export function rollLoads(st, data, ctx) {
   const out = [];
   for (const L of data.loads || []) {
     if (L.if && !evalCond(L.if, ctx)) continue;
-    if (rngAt(st.seed, st.turn, 'load:' + L.id) < L.p) out.push({ id: L.id, text: L.text, effects: L.effects, tags: L.tags || [] });
+    if (rngAt(st.seed, st.turn, 'load:' + L.id) < L.p) out.push({ id: L.id, text: L.text, effects: L.effects }); // 命運事件只改看得見的數值，不帶任何家長行為標籤（規則 18）
   }
   return out;
 }
