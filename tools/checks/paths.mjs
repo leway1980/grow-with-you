@@ -3,6 +3,7 @@
 // 大學的經濟差、孩子幸福在不同去向的差（只報告）。目標在 tools/targets/paths.json。
 // 單獨執行：node tools/checks/paths.mjs [局數] [起始種子]  → 印出所有數值；加 --json 印出摘要的 JSON
 import { fileURLToPath } from 'node:url';
+import { rateVerdict } from '../mech.mjs';
 
 const pct = (x) => (Number.isFinite(x) ? (x * 100).toFixed(1) + '%' : '—');
 const share = (xs, f) => (xs.length ? xs.filter(f).length / xs.length : NaN);
@@ -31,8 +32,9 @@ export async function measure({ runBots, data, T, N, s0 }) {
   // 中途離校
   const left = share(all, (r) => LEFT.includes(r.paths.drop)), chain = share(all, (r) => r.paths.chain), started = share(all, (r) => r.paths.drop !== '' && r.paths.drop != null);
   // 目標：沒有任何機器人的任何去向超過 destMax
+  // （每個機器人的局數相同，所以點估計最大的組合，Wilson 下界也最大；判定用這一組的 n）
   let top = { v: 0 };
-  for (const b of T.bots) for (const d of dests) if (destByBot[b][d] > top.v) top = { v: destByBot[b][d], b, d };
+  for (const b of T.bots) for (const d of dests) if (destByBot[b][d] > top.v) top = { v: destByBot[b][d], b, d, n: g[b].length };
   // 反污名
   const hands = all.filter((r) => r.paths.snap).map((r) => r.paths.snap.手 ?? 0), grades = all.filter((r) => r.paths.snap).map((r) => r.paths.snap.績);
   const mH = median(hands), mG = median(grades);
@@ -56,17 +58,19 @@ export function rows(v, T, data) {
   const P = data.paths;
   const ok = (x, R) => Number.isFinite(x) && (R.min == null || x >= R.min - 1e-9) && (R.max == null || x <= R.max + 1e-9);
   const row = (R, name, x, s, range, note = '') => ({ ok: ok(x, R), pending: !!T.pending, group: '路線', name, value: s, range, note: `${note}${R.note ? '　[' + R.note + ']' : ''}` });
+  // 比例用 Wilson 95% 區間（和機制發生率同一條規則，tools/mech.mjs rateVerdict）：整段區間都在範圍外才 ✗；n < 200 且區間有重疊只標 △
+  const rrow = (R, name, x, n, range, note = '') => { const vd = rateVerdict(x, n, R); return { ok: vd.ok, pending: !!T.pending || vd.pending, group: '路線', name, value: `${pct(x)}，95% 區間 ${pct(vd.lo)}～${pct(vd.hi)}`, range, note: `${vd.small ? `只有 ${n} 局（<200）。` : ''}${note}${R.note ? '　[' + R.note + ']' : ''}` }; };
   const types = Object.keys(P.schoolTypes);
   const fmtGap = (o) => Object.entries(o).map(([k, w]) => `${k} ${Number.isFinite(w.gap) ? (w.gap >= 0 ? '+' : '') + w.gap.toFixed(1) : '—'}（n=${w.n.join('/')}）`).join('、');
   return [
-    row({ max: T.shareTol.max, note: T.shareTol.note }, `學制比例與 base 的最大差（各 ${T.games} 局 × ${T.bots.length} 個機器人合計；最大：${v.maxDev[0]}）`, v.maxDev[1], pct(v.maxDev[1]), `≤ ${T.shareTol.max * 100}pp`, types.map((t) => `${t} ${pct(v.typeShare[t])}（base ${pct(P.schoolTypes[t].base)}）`).join('、')),
+    rrow({ min: P.schoolTypes[v.maxDev[0]].base - T.shareTol.max, max: P.schoolTypes[v.maxDev[0]].base + T.shareTol.max, note: T.shareTol.note }, `學制比例與 base 的最大差（各 ${T.games} 局 × ${T.bots.length} 個機器人合計；最大：${v.maxDev[0]}；差 ${pct(v.maxDev[1])}）`, v.typeShare[v.maxDev[0]], v.all, `base ${pct(P.schoolTypes[v.maxDev[0]].base)} ± ${T.shareTol.max * 100}pp`, types.map((t) => `${t} ${pct(v.typeShare[t])}（base ${pct(P.schoolTypes[t].base)}）`).join('、')),
     { ok: true, pending: false, group: '路線', name: `報告：各機器人學制比例離 base 最遠的一個（最遠：${v.botDev[0]}，${v.botDev[1][0]}）`, value: pct(v.botDev[1][1]), range: '（只報告）', note: Object.entries(v.typeByBot).map(([b, o]) => `${b} ${types.map((t) => pct(o[t])).join('／')}`).join('；') + `　[欄位：${types.join('／')}]` },
-    row(T.dropout, `中途離校：孩子真的離開學校（在家、工作、職訓、實驗教育）的局占 ${v.all} 局`, v.left, pct(v.left), `${T.dropout.min * 100}–${T.dropout.max * 100}%`, `前兆出現 ${pct(v.chain)}、走完『我不想讀了』${pct(v.started)}`),
-    ...(T.upRate ? Object.entries(T.upRate.official).map(([t, o]) => row({ min: o.v - T.upRate.tol, max: o.v + T.upRate.tol, note: T.upRate.note }, `升學率與官方的差：${t}（${v.upByType[t].n} 局；官方 ${o.v * 100}%，${o.src}）`, v.upByType[t].v, pct(v.upByType[t].v), `${((o.v - T.upRate.tol) * 100).toFixed(1)}–${Math.min(100, (o.v + T.upRate.tol) * 100).toFixed(1)}%`, '去向：' + Object.entries(v.destByType[t]).filter(([, x]) => x > 0.0005).map(([d, x]) => `${d} ${pct(x)}`).join('、'))) : []),
-    ...(T.juniorOut ? [row(T.juniorOut, `國中畢業『未升學』（學制＝未升學）占 ${v.all} 局`, v.typeShare['未升學'], pct(v.typeShare['未升學']), `≤ ${T.juniorOut.max * 100}%`)] : []),
-    row(T.destMax, `任何機器人的任何去向占比的最大值（${v.top.b}：${v.top.d}）`, v.top.v, pct(v.top.v), `≤ ${T.destMax.max * 100}%`, '去向合計：' + Object.entries(v.destAll).map(([d, x]) => `${d} ${pct(x)}`).join('、')),
-    row(T.stigmaHand, `反污名：技高入學者（${v.nTech} 局）中，動手做興趣高於全體中位數（${v.mH.toFixed(2)}）的比例`, v.techHand, pct(v.techHand), `≥ ${T.stigmaHand.min * 100}%`),
-    row(T.stigmaGrade, `反污名：技高入學者中，成績高於全體中位數（z＝${v.mG.toFixed(2)}）的比例`, v.techGrade, pct(v.techGrade), `≥ ${T.stigmaGrade.min * 100}%`),
+    rrow(T.dropout, `中途離校：孩子真的離開學校（在家、工作、職訓、實驗教育）的局占 ${v.all} 局`, v.left, v.all, `${T.dropout.min * 100}–${T.dropout.max * 100}%`, `前兆出現 ${pct(v.chain)}、走完『我不想讀了』${pct(v.started)}`),
+    ...(T.upRate ? Object.entries(T.upRate.official).map(([t, o]) => rrow({ min: o.v - T.upRate.tol, max: o.v + T.upRate.tol, note: T.upRate.note }, `升學率與官方的差：${t}（${v.upByType[t].n} 局；官方 ${o.v * 100}%，${o.src}）`, v.upByType[t].v, v.upByType[t].n, `${((o.v - T.upRate.tol) * 100).toFixed(1)}–${Math.min(100, (o.v + T.upRate.tol) * 100).toFixed(1)}%`, '去向：' + Object.entries(v.destByType[t]).filter(([, x]) => x > 0.0005).map(([d, x]) => `${d} ${pct(x)}`).join('、'))) : []),
+    ...(T.juniorOut ? [rrow(T.juniorOut, `國中畢業『未升學』（學制＝未升學）占 ${v.all} 局`, v.typeShare['未升學'], v.all, `≤ ${T.juniorOut.max * 100}%`)] : []),
+    rrow(T.destMax, `任何機器人的任何去向占比的最大值（${v.top.b}：${v.top.d}，各機器人 ${v.top.n} 局）`, v.top.v, v.top.n, `≤ ${T.destMax.max * 100}%`, '去向合計：' + Object.entries(v.destAll).map(([d, x]) => `${d} ${pct(x)}`).join('、')),
+    rrow(T.stigmaHand, `反污名：技高入學者（${v.nTech} 局）中，動手做興趣高於全體中位數（${v.mH.toFixed(2)}）的比例`, v.techHand, v.nTech, `≥ ${T.stigmaHand.min * 100}%`),
+    rrow(T.stigmaGrade, `反污名：技高入學者中，成績高於全體中位數（z＝${v.mG.toFixed(2)}）的比例`, v.techGrade, v.nTech, `≥ ${T.stigmaGrade.min * 100}%`),
     row(T.econGap, `P(大學|寬裕) − P(大學|吃緊)（寬裕 ${pct(v.pU.寬裕)}、小康 ${pct(v.pU.小康)}、吃緊 ${pct(v.pU.吃緊)}）`, v.econGap, (v.econGap * 100).toFixed(1) + 'pp', `${T.econGap.min * 100}–${T.econGap.max * 100}pp`),
     row(T.noGirlEnlist, '女生的入伍局數', v.girlsEnlist, String(v.girlsEnlist), '＝ 0', `每一局都有去向：沒有去向的局 ${v.noDest}`),
     { ok: true, pending: false, group: '路線', name: '報告：去向占比（依機器人）', value: Object.entries(v.destByBot).map(([b, o]) => `${b} ${Object.entries(o).map(([d, x]) => `${d}${(x * 100).toFixed(0)}`).join('/')}`).join('；'), range: '（只報告）', note: '' },

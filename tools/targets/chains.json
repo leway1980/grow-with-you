@@ -2,7 +2,7 @@
   "chains": {
     "_why": "M3 B5 決定鏈的目標（計畫 §2.5、§8；規劃者決定 2026-10-20）。國中以後已有習慣與路線，所以直接強制（pending:false）。局數＝每個機器人各玩幾局（完整 72 回合）；『每個主題都對到研究卡』是 lint（tools/lint/chains.mjs），不在這裡。",
     "pending": false,
-    "games": 120,
+    "games": 250,
     "bots": ["random", "warmFirm", "commonReaction", "occasionalResearch", "lateStarter", "permissive", "controlling", "antiDose", "tiredLazy", "doseGreedy"],
     "atLeast3": { "min": 0.95, "note": "所有機器人合計：至少挑到 3 條決定鏈的局占 ≥ 95%（窗口 36 個月；24 個月只有 82%，見 data/chains.json 的 settings）" },
     "warmFirmPositive": { "min": 0.6, "note": "warmFirm 的局至少有一條往好的方向轉的鏈 ≥ 60%（計畫 §2.5）" },

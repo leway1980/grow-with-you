@@ -1,8 +1,8 @@
 {
   "paths": {
-    "_why": "M3 B4 路線的目標（計畫 §2.4、§8 第 8 項；規劃者決定 2026-10-20）。國中以後已有路線（paths.js），所以這組目標直接強制（pending:false）。局數＝每個機器人各玩幾局（完整 72 回合）。學制的 base 比例是設計估計，只有普通科約五成、專業群科近四成有教育部統計可查（docs/research/teen.md §5.1）。",
+    "_why": "M3 B4 路線的目標（計畫 §2.4、§8 第 8 項；規劃者決定 2026-10-20）。國中以後已有路線（paths.js），所以這組目標直接強制（pending:false）。局數＝每個機器人各玩幾局（完整 72 回合；2026-10-21 起 1000：destMax 是每個機器人每個去向的比例，要 n ≥ 1000 才有 ±3pp 的區間；比例一律用 Wilson 95% 區間判定）。學制的 base 比例是設計估計，只有普通科約五成、專業群科近四成有教育部統計可查（docs/research/teen.md §5.1）。",
     "pending": false,
-    "games": 250,
+    "games": 1000,
     "bots": ["random", "permissive", "controlling", "warmFirm", "doseGreedy", "antiDose", "warmFirmRest", "tiredLazy", "commonReaction", "occasionalResearch", "lateStarter", "veryLateStarter"],
     "shareTol": { "max": 0.10, "note": "每個學制的比例（全部機器人合計）與 base 的差，絕對值 ≤ 10 個百分點；各機器人的偏離另外報告" },
     "dropout": { "min": 0.04, "max": 0.08, "note": "預覽局中，孩子真的離開學校（在家、工作、職訓、實驗教育）的比例；前兆出現的比例另外報告" },

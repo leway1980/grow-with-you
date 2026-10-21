@@ -19,3 +19,16 @@ test('matchedAge：沒有差別時，單邊 95% 上界不會小於 0 很多；�
   const late = [...mk(2).filter((g) => !g.episodes.length), ...Array.from({ length: 30 }, (_, i) => game('a', i, 30, 2))]; // 30 + 12 > 36：量不到
   assert.equal(matchedAge(late, { lag: 12 }).n, 0);
 });
+
+import { rateVerdict, wilson } from '../tools/mech.mjs';
+test('rateVerdict：整段 Wilson 區間都在範圍外才 ✗；有重疊時 n ≥ 200 算過、n < 200 只是 pending', () => {
+  assert.deepEqual(rateVerdict(0.5, 1000, { max: 0.6 }).ok, true);
+  assert.equal(rateVerdict(0.7, 1000, { max: 0.6 }).ok, false); // 區間 0.67–0.73 全在範圍外
+  assert.equal(rateVerdict(0.7, 1000, { max: 0.6 }).pending, false);
+  const near = rateVerdict(0.61, 1000, { max: 0.6 }); // 點估計超過，但區間 0.58–0.64 與範圍重疊
+  assert.equal(near.ok, true);
+  const small = rateVerdict(0.65, 100, { max: 0.6 });
+  assert.equal(small.ok, false); assert.equal(small.pending, true);
+  assert.deepEqual(rateVerdict(0.3, 500, { min: 0.2, max: 0.4 }).lo, wilson(150, 500)[0]);
+  assert.equal(rateVerdict(0.1, 1000, { min: 0.2 }).ok, false);
+});

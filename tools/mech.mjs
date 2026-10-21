@@ -106,6 +106,18 @@ export function matchedAge(recs, d) {
   const se = sd / Math.sqrt(n);
   return { n, nCtl, mean, se, upper: mean + z * se, lower: mean - z * se };
 }
+/**
+ * 比例的判定（機制發生率、路線、決定鏈共用）：用 Wilson 95% 信賴區間，整段區間都在範圍外才算 ✗；
+ * 點估計在範圍外但區間有重疊時，樣本 ≥ 200 局算過、不到 200 局只標 △（pending，不擋 CI）。x＝比例，n＝分母，R＝{min,max}。
+ */
+export function rateVerdict(x, n, R) {
+  const [lo, hi] = wilson(Math.round(x * n), n);
+  const eps = 1e-9, inR = (R.min == null || x >= R.min - eps) && (R.max == null || x <= R.max + eps);
+  if (inR) return { ok: true, pending: false, lo, hi, small: false };
+  const overlap = (R.min == null || hi >= R.min - eps) && (R.max == null || lo <= R.max + eps);
+  if (!overlap) return { ok: false, pending: false, lo, hi, small: false };
+  return n < 200 ? { ok: false, pending: true, lo, hi, small: true } : { ok: true, pending: false, lo, hi, small: false };
+}
 const f2 = (x) => (Number.isFinite(x) ? x.toFixed(2) : 'NaN');
 const pc = (x) => (x * 100).toFixed(1) + '%';
 
@@ -127,11 +139,11 @@ export function evaluateMechanisms(recs, targets) {
     const inR = (x) => (m.min == null || x >= m.min) && (m.max == null || x <= m.max);
     let ok = inR(v), pending = false, ci = '';
     if (m.kind !== 'mean' && m.kind !== 'ratio') {
-      // 比例用 Wilson 95% 信賴區間判斷：整段區間都在範圍外才算 ✗；子群體不到 200 局而點估計在範圍外（區間有重疊）時只標 △、不擋 CI
-      const [lo, hi] = wilson(Math.round(v * pool.length), pool.length);
-      ci = `，95% 區間 ${pc(lo)}～${pc(hi)}`;
-      const overlap = (m.min == null || hi >= m.min) && (m.max == null || lo <= m.max);
-      if (!ok) { if (!overlap) ok = false; else if (pool.length < 200) { pending = true; ok = false; ci += `，只有 ${pool.length} 局（<200）`; } else ok = true; }
+      // 比例用 Wilson 95% 信賴區間判斷（rateVerdict）：整段區間都在範圍外才算 ✗；子群體不到 200 局而點估計在範圍外（區間有重疊）時只標 △、不擋 CI
+      const vd = rateVerdict(v, pool.length, m);
+      ci = `，95% 區間 ${pc(vd.lo)}～${pc(vd.hi)}`;
+      if (vd.small) ci += `，只有 ${pool.length} 局（<200）`;
+      ok = vd.ok; pending = vd.pending;
     }
     if (m.pending && !ok) pending = true; // 暫時：只報告、不擋 CI（顯示 △）
     if (m.reportOnly) { ok = true; pending = false; }

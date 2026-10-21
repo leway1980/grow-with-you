@@ -15,6 +15,7 @@
 
 **全體：測試的提法改變（2026-10-21，不是數值放寬）**
 - 『進入過不太來找你的局，了解度較低』（design-targets.json mechanisms.directions）改成配對月齡的比較（tools/mech.mjs matchedAge）：處理組量進入後 12 個月的了解度，對照是同機器人、同一個回合還沒進入過的局；判定改為單邊 95% 上界 < 0 且差 ≤ −minDiff。minDiff 0.5 → 0.9 來自量測（4 個種子區塊各 3000 局，平均差 −2.17／−2.17／−1.84／−1.98，取最小的約一半），推導寫在該目標的 why。
+- 路線（tools/checks/paths.mjs）與決定鏈（tools/checks/chains.mjs）的比例改用和機制發生率同一條 Wilson 95% 區間規則（tools/mech.mjs rateVerdict）：整段區間都在範圍外才 ✗，區間有重疊時 n ≥ 200 算過、n < 200 只標 △。目標的數值都沒動；每個機器人的局數：路線 250 → 1000（destMax 是每個機器人每個去向的比例，要 n ≥ 1000）、決定鏈 120 → 250（讓 warmFirm、lateStarter 的比例 n ≥ 200）。階段可塑性（plasticity.mjs）的 earlyHarshLate 是兩個平均的比值，不是比例，沒有改。
 
 **全體：E1 審查第二輪校準修補（2026-10-21）**
 - 父母的收穫改成每月劑量（tags.json growth.gainPerMonth 0.17 × 回合月數）：warmFirm 的收穫 56.7 → 約 41，wf-parent −2.7／−1.9 → −6.1／−5.3（目標 −15…−5 不動）。
