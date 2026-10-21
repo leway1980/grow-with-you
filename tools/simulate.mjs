@@ -97,7 +97,7 @@ export function playGame(data, bot, seed, opts = {}) {
     }
     const jobs = ['大學教授', '教師', '醫生', '藥師或醫檢師', '科技業工程師', '外商公司', '自由接案（設計、攝影）'];
     rec.dep = {
-      end: st.hidden[key], base: st.startHidden[key], dest: st.vars.去向 || '', trust: st.hidden.親子信任, know: st.hidden.了解度, trip: tripRec, curve: cv.map((c) => [c.m, c[key]]),
+      end: st.hidden[key], base: st.startHidden[key], dest: st.vars.去向 || '', hi50: st.vars['3C依賴高'] || 0, trust: st.hidden.親子信任, know: st.hidden.了解度, trip: tripRec, curve: cv.map((c) => [c.m, c[key]]),
       invites: st.hist.filter((h) => h.card === 'we_invite').length, accepted: st.vars.邀約接受 || 0, declined: st.vars.邀約婉拒 || 0,
       elig: f.rank === '主管' || f.rank === '自己當老闆' || jobs.includes(f.job.name) ? 1 : 0,
       money: avg(st.vcurves.map((c) => c.錢)), work: avg(st.vcurves.map((c) => c.工作表現)),

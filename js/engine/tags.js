@@ -304,6 +304,7 @@ export const driftHidden = writer((st, T, opts = {}) => {
     const rem = v[SC.trip.reboundVar] || 0;
     if (rem > 0) { const mv = rem * perSpan(SC.trip.reboundMonth, span); st.hidden[dep] = clamp(st.hidden[dep] + mv, 0, 100); v[SC.trip.reboundVar] = rem - mv < 0.05 ? 0 : rem - mv; }
     // 依賴度直接帶來的三件事（§4.39，遊戲設定）：和家人的互動變少（親子信任、了解度每月往下）、學習習慣往下（閱讀習慣）
+    v['3C依賴高'] = (st.hidden[dep] ?? 0) >= 50 ? 1 : 0; // 結局句子讀（第 2 層的紀錄，隱藏數值本身不進結局）
     const H = SC.harm, f = depFactor(st, T);
     if (H && f > 0) {
       st.hidden.親子信任 = clamp(st.hidden.親子信任 - H.trustPerMonth * f * span, 0, 100);

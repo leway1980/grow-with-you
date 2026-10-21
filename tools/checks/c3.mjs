@@ -42,7 +42,7 @@ export async function measure({ runBots, T, N, s0, data }) {
   };
   // 1. 排序：任務借用 ＜ 約定且在旁 ≤ 只限時間 ＜ 只沒收 ＜ 什麼都不管；持續陪伴 ＜ 只沒收；已經升高的依賴度能被陪伴拉下來
   ordering('c3Task', 'c3Agreed', '任務型借用 − 約定且在旁', T.order.taskAgreed, 'lt');
-  ordering('c3Agreed', 'c3Limit', '約定且在旁 − 只加時間管控', T.order.agreedLimit, 'le');
+  ordering('c3Agreed', 'c3Limit', '約定且在旁 − 只加時間管控', T.order.agreedLimit, 'lt');
   ordering('c3Limit', 'c3Confiscate', '只加時間管控 − 只強制收回', T.order.limitConfiscate, 'lt');
   ordering('c3Confiscate', 'c3Base', '只強制收回 − 給了就不管', T.order.confiscateBase, 'lt');
   ordering('c3Companion', 'c3Confiscate', '持續陪伴 − 只強制收回', T.companionVsConfiscate, 'lt');
@@ -91,8 +91,13 @@ export async function measure({ runBots, T, N, s0, data }) {
     if (B) {
       const top = prm.filter((r) => r.dep.dest === '大學' && r.ax[2] >= B.學習.good), share = top.length / prm.length;
       add(share <= R.topMax, `放任型 3C：上大學且學習軸好的比例（${prm.length} 局）`, `${(share * 100).toFixed(1)}%（${top.length} 局；對照 ${(ctrl.filter((r) => r.dep.dest === '大學' && r.ax[2] >= B.學習.good).length / ctrl.length * 100).toFixed(1)}%）`, `≤ ${R.topMax * 100}%`, R.noteTop);
-      const far = top.filter((r) => r.ax[0] < B.親子.bad).length;
-      add(top.length >= R.minTop && far / top.length >= R.farMin, `放任型 3C 且上大學、學習軸好的局：親子軸「差」的比例`, top.length ? `${(far / top.length * 100).toFixed(0)}%（${far}／${top.length} 局）` : '沒有這樣的局', `≥ ${R.farMin * 100}%（至少 ${R.minTop} 局）`, R.noteFar, R.farPending);
+      // 對照組會上大學且學習軸好的那些局（用對照組挑，不用放任組的結果挑，才沒有選擇偏誤）：同一個種子在放任組的親子軸
+      const idx = ctrl.map((r, i) => i).filter((i) => ctrl[i].dep.dest === '大學' && ctrl[i].ax[2] >= B.學習.good);
+      const s = meanSe(idx.map((i) => prm[i].ax[0] - ctrl[i].ax[0])), up = s.mean + z * s.se;
+      const still = idx.filter((i) => prm[i].dep.dest === '大學' && prm[i].ax[2] >= B.學習.good).length;
+      add(idx.length >= R.minTop && up < 0 && s.mean <= -R.topAx0MinDiff, `放任型 3C − 對照：對照組上大學且學習軸好的局（${idx.length} 局）的親子軸`, `${f1(s.mean)}（單邊 95% 上界 ${f1(up)}；其中 ${still} 局在放任組仍上大學且學習軸好）`, `≤ −${R.topAx0MinDiff} 且上界 < 0（至少 ${R.minTop} 局）`, R.noteFar);
+      const hi = top.filter((r) => r.dep.hi50).length;
+      add(true, '放任型 3C 且上大學、學習軸好的局：到終局依賴度仍 ≥ 50 的局數（結局會寫『成績很好。家裡很安靜…』，見 tests/c3.test.mjs）', `${hi}／${top.length} 局`, '僅報告', '');
     }
   }
   return { rows, g, gp };

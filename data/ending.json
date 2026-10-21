@@ -8,6 +8,7 @@
  "records": [
   {"name": "曾不太來找你", "kind": "var", "key": "不太來找你_曾", "atLeast": 1, "why": "進入過『不太來找你』的狀態（§4.28 連續才是關鍵）"},
   {"name": "現在不太來找你", "kind": "var", "key": "不太來找你", "atLeast": 1, "why": "到終局還在這個狀態"},
+  {"name": "三C依賴高", "kind": "var", "key": "3C依賴高", "atLeast": 1, "why": "到終局依賴度還在 50 以上（§4.39）；只讓結局寫出事實，不評論"},
   {"name": "三C連用", "kind": "streak", "tag": "3C當保母", "windowMonths": 12, "atLeast": 3, "why": "連續幾回合都用螢幕當保母（§4.33）"},
   {"name": "連續只問成績", "kind": "streak", "tag": "只問成績或學校怎樣", "windowMonths": 12, "atLeast": 3, "why": "每天第一句都是分數（§4.34）"},
   {"name": "連續替他決定", "kind": "streak", "tag": "替他決定", "windowMonths": 12, "atLeast": 4, "why": "同一個方向連續好幾次（§3.3、§11 決定鏈）"}
@@ -30,6 +31,7 @@
   {"id": "peer-hi", "facet": "人際", "slot": "band", "when": "人際帶 == '高'", "text": "{孩子}身邊有幾個真心的朋友，放學後常有人約。", "claims": {"朋友": "多"}, "fallback": true},
   {"id": "peer-mid", "facet": "人際", "slot": "band", "when": "人際帶 == '中'", "text": "{孩子}有談得來的朋友，也有還在摸索怎麼相處的人。", "claims": {"朋友": "一般"}, "fallback": true},
   {"id": "peer-lo", "facet": "人際", "slot": "band", "when": "人際帶 == '低'", "text": "{孩子}在同學之間常常是一個人，要交到朋友，需要有人從旁邊陪著。", "claims": {"朋友": "少"}, "fallback": true},
+  {"id": "learn-quiet", "facet": "學習", "slot": "record", "when": "三C依賴高 and 學習帶 == '高'", "text": "{孩子}的成績很好。家裡很安靜，{他}的房門大多關著，螢幕的光亮到很晚。", "claims": {"螢幕": "多"}},
   {"id": "learn-3c", "facet": "學習", "slot": "record", "when": "三C連用", "text": "有一陣子，螢幕成了{孩子}最常待的地方。", "claims": {"螢幕": "多"}},
   {"id": "learn-hi", "facet": "學習", "slot": "band", "when": "學習帶 == '高'", "text": "{孩子}學東西有自己的方法，卡住的時候知道去哪裡找答案。", "claims": {"自律": "高"}, "fallback": true},
   {"id": "learn-mid", "facet": "學習", "slot": "band", "when": "學習帶 == '中'", "text": "功課大致跟得上，有些地方要有人從旁邊提醒。", "claims": {"自律": "中"}, "fallback": true},

@@ -125,10 +125,10 @@ test('真的有體罰或羞辱：查證後依程序反映，老師投入度不�
   assert.equal(st2.classroom.unverified, 1);
 });
 
-test('沒查證就投訴，之後出現班級消極事件的機率變高（200 局，同一批種子）', () => {
+test('沒查證就投訴，之後出現班級消極事件的機率變高（600 局，同一批種子；真實的差約 2–4 個百分點，200 局的標準誤約 3 個百分點，檢定力不夠，抽卡序列一位移就翻轉，不是效果變了——1000 局：批次前 76.8% 對 72.8%、現在 72.3% 對 68.7%）', () => {
   const run = (policy) => {
     let withEp = 0, vSum = 0, n = 0;
-    for (let seed = 1; seed <= 200; seed++) {
+    for (let seed = 1; seed <= 600; seed++) {
       const st = fresh(seed);
       playToEnd(st, data, policy);
       const ep = st.hist.some((h) => DELAYED.includes(h.card));

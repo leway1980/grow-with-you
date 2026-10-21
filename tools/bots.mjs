@@ -114,11 +114,12 @@ export const PLASTICITY_BOTS = {
    配對：用了 prefer 的那一次不會呼叫 fallback，所以同一個種子下 c3Trip 與 c3NoTrip 的亂數流一致（只差在旅行卡的那一個選擇）。
    不放進 BOTS／HUMAN_BOTS：校準與影響上限的局數不應該多出這些策略。 */
 const AVOID_NANNY = ['3C當保母'];
+const LIMIT_TAGS = ['事前訂規則', '說到做到', '規定不談判', '3C限定場所']; // 只加時間管控；沒有更好的選項的卡，約定且在旁、任務借用兩組退到這個，讓各組在同樣的卡上只有『有沒有更好的做法』的差別
 export const C3_BOTS = {
   c3Base: { desc: '給了就不管（任何卡有螢幕當保母就選；螢幕卡上選沒人在旁、沒有後續的做法；其他卡照習慣反應）', everywhere: ['3C當保母'], prefer: ['3C當保母', '沒有下文', '吵了才讓步', '兩手一攤'], screenOnly: true, fallback: 'commonReaction' },
-  c3Agreed: { desc: '約定且大人在旁（螢幕卡）；不拿螢幕當保母', prefer: ['3C約定且在旁'], avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },
-  c3Task: { desc: '任務型借用、用完收回（沒有這個選項時退到約定且在旁）；不拿螢幕當保母', prefer: ['3C任務借用', '3C約定且在旁'], avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },
-  c3Limit: { desc: '只加時間管控（螢幕卡），沒有陪伴；不拿螢幕當保母', prefer: ['事前訂規則', '說到做到', '規定不談判', '3C限定場所'], avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },
+  c3Agreed: { desc: '約定且大人在旁（螢幕卡；這個選項不存在的卡，退到和 c3Limit 一樣的只加時間管控）；不拿螢幕當保母', prefer: ['3C約定且在旁', ...LIMIT_TAGS], avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },
+  c3Task: { desc: '任務型借用、用完收回（沒有這個選項時退到約定且在旁）；不拿螢幕當保母', prefer: ['3C任務借用', '3C約定且在旁', ...LIMIT_TAGS], avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },
+  c3Limit: { desc: '只加時間管控（螢幕卡），沒有陪伴；不拿螢幕當保母', prefer: LIMIT_TAGS, avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },
   c3Confiscate: { desc: '只強制收回（螢幕卡）；不拿螢幕當保母', prefer: ['沒收裝置'], avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },
   c3Companion: { desc: '持續的陪伴互動（螢幕卡）；不拿螢幕當保母', prefer: ['3C陪伴同行', '一起參與', '觀察與參與', '放下手機陪'], avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },
   c3Trip: { desc: '只有一次大活動：第一次遇到旅行卡就去，其餘和 c3NoTrip 一樣（不拿螢幕當保母）', prefer: ['3C一次大活動'], onlyCard: 'big_trip_c3', once: true, avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },

@@ -196,3 +196,16 @@ test('依賴度的直接後果（§4.39）：高依賴度讓親子信任、了�
   assert.ok(b.hidden.主見 - rb < a.hidden.主見 - ra, '高依賴度的孩子，嘗試新活動的好處打折');
 });
 import { discountHomework } from '../js/engine/tags.js';
+
+test('結局：依賴度仍高、學習軸好的局，寫出「成績很好。家裡很安靜…」（事實，不評論）；依賴度由 driftHidden 寫進紀錄', async () => {
+  const { chainRecords, endingContext, pickLines } = await import('../js/engine/ending.js');
+  const st = fresh(); st.hidden[DEP] = 70; driftHidden(st, T, { span: 2, months: 100, stage: '國中' });
+  assert.equal(st.vars['3C依賴高'], 1);
+  st.hidden[DEP] = 20; driftHidden(st, T, { span: 2, months: 102, stage: '國中' });
+  assert.equal(st.vars['3C依賴高'], 0);
+  const mk = (hi, band) => pickLines(endingContext({ axes: { 親子: 50, 人際: 50, 學習: band === 'hi' ? 70 : 40 }, wellbeing: { child: 55, parent: 55, between: 55 }, route: { kind: 'x' }, combo: '其他' }, { ...chainRecords(st), 三C依賴高: hi }, data.ending, data.model));
+  const quiet = mk(1, 'hi').find((l) => l.id === 'learn-quiet');
+  assert.ok(quiet && /成績很好/.test(quiet.text) && /家裡很安靜/.test(quiet.text));
+  assert.ok(!mk(0, 'hi').some((l) => l.id === 'learn-quiet') && !mk(1, 'lo').some((l) => l.id === 'learn-quiet'));
+  assert.ok(!/(應該|不好|可惜|問題)/.test(quiet.text), '陳述事實，不評論');
+});
