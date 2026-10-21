@@ -1,0 +1,367 @@
+// 開局抽籤：家庭與孩子（DESIGN §2.1 第 1–13 步，含 12b 寵物）。純函式、無 DOM。
+// 沿用《高中，只有一次》(leway1980/Game 47wan @ ce1d972) identity.js 的作法：每一步用「種子 XOR 常數」derive 出自己的亂數流，
+// 改某一張權重表只會改變那一步（以及依賴它的後續步驟），不會讓其他獨立的抽籤整批重洗。
+import { mulberry32, pickWeighted, gauss, rngAt } from './rng.js';
+
+export const STREAMS = {
+  county: 0x1a2b3c4d, job: 0x2b3c4d5e, econ: 0x3c4d5e6f, struct: 0x4d5e6f70, partner: 0x5e6f7081, elders: 0x6f708192,
+  housing: 0x708192a3, support: 0x8192a3b4, upbringing: 0x92a3b4c5, child: 0xa3b4c5d6, childNeeds: 0xb4c5d6e7, childInterest: 0xc5d6e7f8,
+  childName: 0xd6e7f809, background: 0x5a6b7c8d, rank: 0x3d4e5f60, transport: 0x4e5f6071, commute: 0x5f607182, childResp: 0xc3d4e5f6, siblings: 0xe7f8091a, space: 0xf8091a2b, pet: 0x091a2b3c, school: 0x1a2b3c5d, childcare: 0x2b3c4d6e, elderCare: 0x3c4d5e7f, hobby: 0x4d5e6f81,
+};
+const rs = (seed, name) => mulberry32(((seed >>> 0) ^ STREAMS[name]) >>> 0);
+const wpick = (r, opts, ws) => pickWeighted(r, opts.map((o, i) => ({ o, w: ws[i] })), (x) => x.w)?.o ?? opts[0];
+const mulArr = (a, b) => a.map((x, i) => x * (b?.[i] ?? 1));
+const clampI = (x, lo, hi) => Math.max(lo, Math.min(hi, Math.round(x))) || 0; // || 0：避免 -0
+const rangeInt = (r, [a, b]) => a + Math.floor(r() * (b - a + 1));
+
+export function urbanTypeOf(idn, county, district) {
+  const m = idn.urbanMap[county] || {};
+  return m[district] || m._default || '中小城鎮';
+}
+
+/**
+ * 孩子的名字（DESIGN §2.2）：姓氏依人口比例加權，名字由男／女各自的『第一個字』『第二個字』字庫組合；
+ * 單名機率另計；同一個字不重複；命中黑名單就重抽（有上限，之後退回確定的組合）。r 是名字專用的亂數流。
+ */
+export function rollName(r, idn, sex) {
+  const M = idn.nameModel, side = sex === '男' ? 'M' : 'F';
+  const surname = pickWeighted(r, idn.surnames.map((n, k) => ({ n, w: idn.surnameW[k] })), (x) => x.w).n;
+  const pool = (o) => Object.entries(o).map(([c, w]) => ({ c, w }));
+  const first = pool(M[side].first), second = pool(M[side].second);
+  const bad = (g) => (M.blockGiven || []).includes(g) || (M.blockFull || []).includes(surname + g);
+  const single = r() < M.singleP[side];
+  for (let i = 0; i < 40; i++) {
+    const a = pickWeighted(r, first, (x) => x.w).c, b = pickWeighted(r, second, (x) => x.w).c;
+    if (single) { if (!bad(b)) return { surname, given: b }; continue; }
+    if (a !== b && !bad(a + b)) return { surname, given: a + b };
+  }
+  const a = first[0].c;
+  return { surname, given: a + second.find((x) => x.c !== a && !bad(a + x.c)).c };
+}
+
+/**
+ * 5b 職位、8b 交通工具與通勤距離：各用自己的亂數流，所以新增或調整這幾張表不會讓其他抽籤改變。
+ * 舊存檔沒有這幾個欄位時，state.migrate 會用同一個種子補上。
+ */
+export function rollWork(seed, idn, job, econ, urban) {
+  const rk = idn.rankModel, rw = job.rank.map((w, i) => w * rk.byEcon[econ][i]);
+  const rank = wpick(rs(seed, 'rank'), rk.labels, rw);
+  const tr = idn.transport, tw = mulArr(tr.byEcon[econ], tr.byUrban[urban]);
+  const transport = wpick(rs(seed, 'transport'), tr.labels, tw);
+  const cm = idn.commute, cw = mulArr(cm.byUrban[urban], transport === '沒有車' ? cm.noCarX : [1, 1, 1]);
+  const commute = wpick(rs(seed, 'commute'), cm.labels, cw);
+  return { rank, transport, commute };
+}
+
+/**
+ * 家庭的族群與文化背景（DESIGN §2.5）：無特別／新住民家庭／原住民族／客家。設計估計，待確認（docs/DATA.md §3）。
+ * 用自己的亂數流（background），所以新增或調整這張表不會讓其他抽籤改變；舊存檔沒有時由 state.migrate 用同一個種子補上。
+ * 新住民不是職業：職業是職業，背景是另一條軸。
+ */
+export function rollBackground(seed, idn, county, urban) {
+  const B = idn.background;
+  const w = B.labels.map((l, i) => B.w[i] * (B.byUrban[l]?.[urban] ?? 1) * (B.countyMult[l]?.[county] ?? 1));
+  return wpick(rs(seed, 'background'), B.labels, w);
+}
+
+/**
+ * 父母的嗜好（DESIGN §4.41）：開局抽 1 或 2 個（依城鄉略調），每個再抽有沒有固定的夥伴。用自己的亂數流（hobby），
+ * 新增或調整這張表不會讓其他抽籤改變；舊存檔沒有時由 state.migrate 用同一個種子補上。表在 data/identities.json 的 hobbies（設計估計）。
+ * 回傳 [{ id, name, buddy: 夥伴稱呼 或 '', invite, kidMonths, kidLine }]（卡片用的句子一起存進家庭，roleWords 不必再讀資料表）。
+ */
+export function rollHobbies(seed, idn, urban) {
+  const H = idn.hobbies;
+  if (!H) return [];
+  const r = rs(seed, 'hobby');
+  const n = wpick(r, [1, 2], H.countW);
+  const pool = H.options.map((o) => ({ o, w: o.w * ((o.byUrban && o.byUrban[urban]) ?? 1) }));
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const cand = pool.filter((x) => !out.some((h) => h.id === x.o.id));
+    const o = pickWeighted(r, cand, (x) => x.w).o;
+    const buddy = r() < o.buddyP;
+    out.push({ id: o.id, name: o.name, buddy: buddy ? o.buddy : '', invite: o.invite, kidMonths: o.kidMonths ?? null, kidLine: o.kidLine || '' });
+  }
+  return out;
+}
+/** 有夥伴的第一個嗜好（會來約的那個）；沒有就是 null */
+export const hobbyPrimary = (fam) => (fam.hobbies || []).find((x) => x.buddy) || null;
+
+export function generateFamily(seed, idn) {
+  seed >>>= 0;
+  // 1–2 縣市、行政區、城鄉類型
+  const rc = rs(seed, 'county');
+  const county = pickWeighted(rc, idn.counties, (c) => c.w);
+  const district = county.districts[Math.floor(rc() * county.districts.length)];
+  const urban = urbanTypeOf(idn, county.name, district);
+  const tight = urban === '偏鄉' || urban === '離島';
+
+  // 3 主要照顧者（也就是玩家）的職業；5 工時型態由職業決定
+  const jobW = (j) => j.w * (j.urban?.[urban] ?? 1) * (j.countyMult?.[county.name] ?? 1);
+  const job = pickWeighted(rs(seed, 'job'), idn.jobs, jobW);
+  const pattern = job.pattern;
+
+  // 4 家境（先抽原始家境；家庭型態可能再往下一級）
+  const econW = job.econ.slice();
+  if (tight) econW[2] *= idn.econRuralTightX;
+  const econRaw = wpick(rs(seed, 'econ'), idn.econLabels, econW);
+
+  // 6 家庭型態（獨立亂數流）；單薪時家境往下一級
+  const r6 = rs(seed, 'struct');
+  const struct = pickWeighted(r6, idn.familyStructures, (x) => x.w);
+  const downRoll = r6();
+  let econ = econRaw;
+  if (struct.econDown && downRoll < struct.econDown) econ = idn.econLabels[Math.min(2, idn.econLabels.indexOf(econRaw) + 1)];
+
+  // 7 另一半：職業與工時 → 態度。喪親沒有另一半；離異是共親職的前配偶
+  const r7 = rs(seed, 'partner');
+  const pjob = pickWeighted(r7, idn.jobs, jobW);
+  const pa = idn.partner;
+  let aw = mulArr(pa.base, pa.patternMult[pjob.pattern]);
+  if (pa.structMult[struct.id]) aw = mulArr(aw, pa.structMult[struct.id]);
+  const attRoll = wpick(r7, pa.attitudes, aw);
+  const exAtt = wpick(r7, pa.attitudes, pa.exWeights);
+  const partner = struct.id === '喪親' ? { present: false, status: '已離世', job: null, pattern: null, attitude: null }
+    : struct.id === '離異' ? { present: false, status: '前配偶（共親職）', job: pjob.name, pattern: pjob.pattern, attitude: exAtt }
+      : struct.id === '隔代' ? { present: true, status: '在外地工作', job: pjob.name, pattern: pjob.pattern, attitude: '幾乎不在家' } // 隔代：孩子平常跟長輩住，你和另一半都在外地工作（週末與視訊才見到孩子）
+        : { present: true, status: '同住', job: pjob.name, pattern: pjob.pattern, attitude: attRoll };
+
+  // 8 長輩
+  const r8 = rs(seed, 'elders');
+  let ew = idn.elders.byUrban[urban].slice();
+  if (idn.elders.byStruct[struct.id]) ew = mulArr(ew, idn.elders.byStruct[struct.id]);
+  const eldersStatus = wpick(r8, idn.elders.options, ew);
+  const eldersWho = wpick(r8, idn.elders.who, idn.elders.whoW);
+  const elders = { status: eldersStatus, who: eldersStatus === '沒有' ? null : eldersWho, caution: eldersStatus === '沒有' ? null : wpick(rs(seed, 'elderCare'), idn.elders.caution.options, idn.elders.caution.w) }; // 長輩接送時的警覺：用長輩的謹慎，不是孩子的交通安全認知
+
+  // 9 住屋（家境 × 城鄉 × 長輩）
+  const H = idn.housing;
+  let hw = mulArr(mulArr(H.byEcon[econ], H.byUrban[urban]), H.eldersLive[eldersStatus]);
+  const housing = wpick(rs(seed, 'housing'), H.options, hw);
+
+  // 10 升學資源
+  const support = wpick(rs(seed, 'support'), ['自己就是資源', '花錢買資源', '自己找資源'], job.support);
+
+  // 11 自己被怎麼帶大
+  const upbringing = wpick(rs(seed, 'upbringing'), idn.upbringing.options, idn.upbringing.w);
+
+  // 12 孩子：基本、特殊需求、興趣、名字各一條流
+  const C = idn.child;
+  const rc2 = rs(seed, 'child');
+  const sex = rc2() < C.sexMaleW ? '男' : '女';
+  const birthMonth = 1 + wpick(rc2, [...Array(12).keys()], C.monthW);
+  const temperament = {};
+  for (const k of C.temperament.keys) temperament[k] = clampI(C.temperament.mean + gauss(rc2) * C.temperament.sd, C.temperament.min, C.temperament.max);
+  const talents = {};
+  for (const k of C.talents.keys) talents[k] = clampI(gauss(rc2) * C.talents.sd, C.talents.min, C.talents.max);
+  const rn = rs(seed, 'childNeeds');
+  const rsv = rs(seed, 'childNeedSev'); // 輕重（設計估計）：獨立的亂數流，每一類固定抽一次
+  const needs = [];
+  for (const [kind, def] of Object.entries(C.specialNeeds)) {
+    const u1 = rn(), u2 = rn(), u3 = rn(), u4 = rn(); // 固定消耗，別張表改了也不影響其他類別
+    const sev = wpick(rsv, C.needSeverity.options, C.needSeverity.w);
+    const p = def.rate * (sex === '男' ? def.male : def.female);
+    if (u1 < p) {
+      // 發作月齡：從 onsetMonths 清單均勻抽一個（清單是舊日曆的發作回合逐一換成月齡，分布與 A0 相同）；確診＝發作後再過 dxDelayMonths 個月
+      const onsetMonths = def.onsetMonths[Math.min(def.onsetMonths.length - 1, Math.floor(u3 * def.onsetMonths.length))];
+      const dx = u2 < def.dxRate; // 「有」和「被看見」分開：只有一部分會在遊戲中被診斷
+      needs.push({ kind, severity: sev, diagnosed: false, onsetMonths, dxMonths: dx ? onsetMonths + def.dxDelayMonths[0] + Math.floor(u4 * (def.dxDelayMonths[1] - def.dxDelayMonths[0] + 1)) : null });
+    }
+  }
+  const ri = rs(seed, 'childInterest');
+  const interests = {};
+  for (const k of C.interests.keys) {
+    const t = C.interests.fromTalent[k];
+    const v = C.interests.base + (t ? talents[t] * C.interests.talentGain : 0) + (ri() - 0.5) * 2 * C.interests.noise;
+    interests[k] = Math.round(Math.max(0, Math.min(1, v)) * 100) / 100;
+  }
+  const rnm = rs(seed, 'childName');
+  const { surname, given: gn } = rollName(rnm, idn, sex);
+  const given = gn.length === 1 ? surname + gn : gn; // 單名：文字裡叫全名，只叫一個字很怪
+  // 孩子對教養的「接受度」：同樣的做法，有的孩子反應大、有的小（個別差異；用自己的亂數流，不影響其他抽籤）
+  const RS = C.responsive, rr = rs(seed, 'childResp');
+  const responsive = Math.round(Math.max(RS.min, Math.min(RS.max, 1 + gauss(rr) * RS.sd)) * 100) / 100;
+  const child = { name: surname + given, given, sex, pronoun: sex === '男' ? '他' : '她', birthMonth, temperament, talents, interests, needs, responsive };
+
+  // 12 手足（受城鄉略微影響）；孩子出生時只有哥哥姐姐，弟弟妹妹排在之後的某個回合
+  const S = idn.siblings;
+  const rsb = rs(seed, 'siblings');
+  let cw = S.countW.slice();
+  if (tight) cw = mulArr(cw, S.ruralMult);
+  if (urban === '都會核心') cw = mulArr(cw, S.coreMult);
+  const nSib = wpick(rsb, [0, 1, 2, 3], cw);
+  const single = struct.id === '離異' || struct.id === '喪親';
+  const siblings = [];
+  for (let i = 0; i < 3; i++) {
+    const u1 = rsb(), u2 = rsb(), u3 = rsb(), u4 = rsb();
+    if (i >= nSib) continue;
+    const older = single || u1 < S.olderP, male = u3 < 0.5; // 單親（離異、喪親）不排弟弟妹妹：新生兒的卡（kid_newborn）只給有另一半一起迎接的家庭
+    const gap = S.olderGap[0] + Math.floor(u2 * (S.olderGap[1] - S.olderGap[0] + 1));
+    siblings.push(older ? { rel: male ? '哥哥' : '姐姐', older: true, ageGap: gap, arriveMonths: null }
+      : { rel: male ? '弟弟' : '妹妹', older: false, ageGap: 0, arriveMonths: S.youngerMonths[0] + Math.floor(u4 * (S.youngerMonths[1] - S.youngerMonths[0] + 1)) });
+  }
+  // 9b 孩子的空間：要等手足確定之後才算（獨立亂數流）
+  const nOlderNow = siblings.filter((s) => s.older).length;
+  let sw = mulArr(mulArr(H.spaceBase.slice(), H.spaceByEcon[econ]), H.spaceByUrban[urban]);
+  if (H.spaceByHousing[housing]) sw = mulArr(sw, H.spaceByHousing[housing]);
+  if (nOlderNow > 0) { sw[1] = 0.5 * H.spaceSiblings[1]; sw[0] *= H.spaceSiblings[0]; }
+  const space = wpick(rs(seed, 'space'), H.space, sw);
+
+  // 12b 寵物
+  const P = idn.pets;
+  const rp = rs(seed, 'pet');
+  let pw = mulArr(P.base, P.byHousing[housing]);
+  pw = mulArr(pw, P.byUrban[urban]);
+  if (P.byEcon[econ]) pw = mulArr(pw, P.byEcon[econ]);
+  const petKind = wpick(rp, P.options, pw);
+  const smallKind = wpick(rp, P.small, P.smallW);
+  const nameRoll = rp();
+  const names = petKind === '狗' ? P.dogNames : petKind === '貓' ? P.catNames : P.smallNames;
+  const pet = petKind === '沒有' ? null : { kind: petKind, type: petKind === '小動物' ? smallKind : petKind, name: names[Math.floor(nameRoll * names.length)] };
+
+  // 13 學區國小（目前只有占位名；真實名冊之後再補）
+  const rsc = rs(seed, 'school');
+  const [lo, hi] = idn.school.classSize[urban];
+  const school = { name: idn.school.pattern.replace('{district}', district), classSize: lo + Math.floor(rsc() * (hi - lo + 1)) };
+
+  // 學前托育（「從國小開始」時用；DATA §4）
+  const rcc = rs(seed, 'childcare');
+  const cc = idn.childcare;
+  const eldersOk = eldersStatus === '同住' || eldersStatus === '住附近會幫忙';
+  const mode = wpick(rcc, cc.modes, [cc.w[0], eldersOk ? cc.w[1] : 0, cc.w[2]]);
+  const daycare = wpick(rcc, cc.daycare, cc.daycareW);
+  const kindergarten = wpick(rcc, cc.kindergarten, cc.kindergartenW.map((w, i) => (i === 4 && !eldersOk ? 0 : w)));
+  const childcare = { mode, daycare: mode === '送托' ? daycare : null, kindergarten };
+
+  return {
+    seed, county: county.name, district, urban,
+    job: { name: job.name, line: job.line }, pattern, econ, econRaw, ...rollWork(seed, idn, job, econ, urban),
+    structure: struct.id, background: rollBackground(seed, idn, county.name, urban), partner, elders, housing, space, support, upbringing,
+    child, siblings, pet, school, childcare, hobbies: rollHobbies(seed, idn, urban),
+  };
+}
+
+/**
+ * 棒球、壘球風氣較盛的縣市（花東、原鄉、嘉南一帶）。設計估計，待確認（docs/DATA.md §5）：
+ * 目前只列整個縣市，沒有細到鄉鎮；原鄉在花蓮、臺東、屏東、嘉義的山區，這裡用縣市近似。
+ */
+export const BASEBALL_COUNTIES = ['花蓮縣', '臺東縣', '嘉義縣', '嘉義市', '臺南市', '屏東縣'];
+
+/** 學校有沒有交通車（上下學，§4.29）。設計估計，待確認：都會較多、偏鄉反而常常沒有。由種子決定（命運骰），不存進存檔。 */
+export const SCHOOL_BUS_P = { 都會核心: 0.5, 都會外圍: 0.55, 中小城鎮: 0.5, 偏鄉: 0.3, 離島: 0.45 };
+export const schoolBusOf = (seed, urban) => rngAt(seed >>> 0, 0, 'schoolbus') < (SCHOOL_BUS_P[urban] ?? 0.5);
+
+const SIB_LABEL = { 姐姐: '姊姊', 姊姊: '姊姊', 哥哥: '哥哥', 弟弟: '弟弟', 妹妹: '妹妹' };
+/**
+ * 手足關係：和孩子年齡最近的那一位（哥哥／姊姊／弟弟／妹妹）；沒有手足是 ''。
+ * 弟弟妹妹要到出生的月齡（arriveMonths，孩子幾個月大時出生）才算；ageMonths 沒給時（開局抽籤）全部都算。年長手足：最近的哥哥／姊姊。
+ */
+export function siblingRelations(fam, ageMonths, turnsUntil = null) {
+  const gap = (s) => (s.older ? s.ageGap : (s.arriveMonths ?? 0) / 12);
+  const live = fam.siblings.filter((s) => s.older || ageMonths == null || (s.arriveMonths ?? 0) <= ageMonths);
+  const byGap = (a, b) => gap(a) - gap(b);
+  const nearest = [...live].sort(byGap)[0];
+  const elders = fam.siblings.filter((s) => s.older).sort(byGap);
+  const youngers = live.filter((s) => !s.older).sort(byGap);
+  const lab = (s) => (s ? SIB_LABEL[s.rel] || s.rel : '');
+  // 下一胎：還沒出生的弟弟妹妹，再過幾個回合出生（沒有就是 99）。turnsUntil(月齡)＝時間軸上第一個月齡 ≥ 該月齡的回合序號 − 現在的回合序號（buildCtx 給）。
+  // kid_newborn 只在 1–2 個回合之前出現（家裡知道要多一個人了）。沒有時間軸時（開局抽籤）全部是 99。
+  const due = fam.siblings.filter((s) => !s.older && ageMonths != null && turnsUntil && (s.arriveMonths ?? 0) > ageMonths).map((s) => turnsUntil(s.arriveMonths));
+  return {
+    手足關係: lab(nearest), 年長手足: lab(elders[0]), 年幼手足: lab(youngers[0]),
+    手足數: live.length, 年長手足數: elders.length, 年幼手足數: youngers.length, 下一胎回合差: due.length ? Math.min(...due) : 99,
+  };
+}
+
+/** 條件環境裡跟家庭有關的部分（用在 startAdjust 與卡片條件）。ageMonths（孩子目前月齡）給了就把還沒出生的弟弟妹妹排除。 */
+export function familyCtx(fam, role, ageMonths, turnsUntil = null) {
+  const has = (k) => fam.child.needs.some((n) => n.kind === k);
+  return {
+    角色: role, 經濟: fam.econ, 城鄉: fam.urban, 縣市: fam.county, 棒球重鎮: BASEBALL_COUNTIES.includes(fam.county),
+    職業: fam.job.name, 工時: fam.pattern, 家庭: fam.structure,
+    職位: fam.rank || '基層', 交通工具: fam.transport || '機車', 通勤距離: fam.commute || '中', // 舊存檔沒有時由 migrate 補上，這裡只是保險
+    學校有交通車: schoolBusOf(fam.seed, fam.urban),
+    另一半: fam.partner.attitude || '', 有另一半: !!fam.partner.present, 長輩: fam.elders.status, 長輩謹慎: fam.elders.caution || '普通', 住屋: fam.housing, 孩子空間: fam.space,
+    升學資源: fam.support, 被帶大: fam.upbringing, ...siblingRelations(fam, ageMonths, turnsUntil),
+    有寵物: !!fam.pet, 寵物種類: fam.pet ? fam.pet.type : '',
+    孩子性別: fam.child.sex, 孩子活動量: fam.child.temperament.活動量, 孩子敏感度: fam.child.temperament.敏感度, 孩子堅持度: fam.child.temperament.堅持度,
+    // 特殊需求：各類各一個旗標（卡片的訊號與修正用精確的這幾個）；有特殊需求ADHD 沿用舊名
+    背景: fam.background || '無', 有同住的另一半: !!fam.partner.present && fam.partner.status === '同住',
+    有ADHD: has('ADHD'), 有學習障礙: has('學習障礙'), 有自閉症類群: has('自閉症'), 有發展遲緩: has('發展遲緩'),
+    有特殊需求ADHD: has('ADHD'), 有情緒行為障礙: has('情緒行為障礙'), 有特殊需求: fam.child.needs.some((n) => n.kind !== '資優'), 有資優: has('資優'),
+    偏鄉: fam.urban === '偏鄉' || fam.urban === '離島', 都會: fam.urban === '都會核心' || fam.urban === '都會外圍',
+    有嗜好夥伴: (fam.hobbies || []).some((h) => h.buddy), // 嗜好（§4.41）：有固定夥伴才會有人來約
+  };
+}
+
+
+/* ───────────── 開場文字（給家長看的白話） ───────────── */
+export const partnerWord = (role, fam) => (fam.partner.present ? (role === '爸爸' ? '孩子的媽媽' : '孩子的爸爸') : role === '爸爸' ? '孩子的媽媽' : '孩子的爸爸');
+
+const ATT_LINE = {
+  一起陪: '對方願意一起帶孩子，家務和半夜起床大致會輪流。',
+  只出錢: '對方主要負責賺錢，孩子的大小事多半落在你身上。',
+  幾乎不在家: '對方工作忙，很少在家，家裡的事幾乎是你一個人在顧。',
+  會反對你的做法: '對方對怎麼帶孩子有很多自己的想法，常常和你的做法不一樣。',
+};
+const EX_LINE = {
+  一起陪: '孩子還是會定期見到對方，你們盡量在帶孩子的事上有商量。',
+  只出錢: '對方有付孩子的費用，但很少見面。',
+  幾乎不在家: '對方現在幾乎不見孩子。',
+};
+const TEMP_LINE = (t) => {
+  const bits = [];
+  if (t.活動量 >= 4) bits.push('手腳一刻不停');
+  if (t.活動量 <= 2) bits.push('很安靜');
+  if (t.敏感度 >= 4) bits.push('一點聲音就會醒');
+  if (t.敏感度 <= 2) bits.push('不太挑剔');
+  if (t.堅持度 >= 4) bits.push('想要的東西就是不肯放');
+  if (t.堅持度 <= 2) bits.push('很容易被轉移注意力');
+  return bits.length ? `月子裡你就發現，${bits.slice(0, 2).join('，')}。` : '月子裡你還在摸索，只知道他是個普通的新生兒。';
+};
+
+export function openingText(fam, role) {
+  const c = fam.child;
+  const P = c.pronoun;
+  const pw = partnerWord(role, fam);
+  const sibN = fam.siblings.filter((s) => s.older);
+  const order = sibN.length ? `家裡已經有${sibN.map((s) => s.rel).join('和')}，${c.given}排行比較小。` : '這是你的第一個孩子。';
+  const paras = [];
+  paras.push(`你是${c.given}的${role}。${c.name}在${c.birthMonth}月出生，家住${fam.county}${fam.district}。${order}`);
+  paras.push(`${fam.job.line}，${patternLine(fam).replace(/^你的?/, '')}。${({ 寬裕: '家裡經濟寬裕', 小康: '家裡經濟小康', 吃緊: '家裡經濟有點吃緊' })[fam.econ]}。`);
+  const struct = { 雙親: '', 離異: `你和${pw}已經分開，孩子平常跟你住。`, 隔代: `你在外地工作，${c.given}平常主要由${fam.elders.who || '長輩'}帶。`, 重組: `你再婚了，家裡多了一位新的家人，孩子還在適應。`, 喪親: `${pw}已經不在了，現在是你一個人帶孩子。` }[fam.structure];
+  if (struct) paras.push(struct);
+  const BG = { 新住民家庭: '你們家是新住民家庭，家裡有兩個地方的語言和飲食。', 原住民族: '你們家是原住民族家庭，家裡有族語、祭典，和部落裡的人情。', 客家: '你們家是客家家庭，家裡還有人說客語、守著客家的節慶。' };
+  if (BG[fam.background]) paras.push(BG[fam.background]);
+  if (fam.structure === '隔代') paras.push(`${pw}${fam.partner.job ? `的工作是${fam.partner.job}，` : ''}也在外地工作。你們平常靠視訊，週末和假日才見得到${c.given}。`);
+  else if (fam.partner.present) paras.push(`${pw}${fam.partner.job ? `的工作是${fam.partner.job}。` : '。'}${ATT_LINE[fam.partner.attitude]}`);
+  else if (fam.partner.attitude) paras.push(EX_LINE[fam.partner.attitude]);
+  const elderTxt = { 同住: `${fam.elders.who}和你們同住，可以搭把手，也會有不同的意見。`, 住附近會幫忙: `${fam.elders.who}住在附近，需要的時候會來幫忙。`, 住遠: `${fam.elders.who}住得比較遠，一年見不了幾次。`, 沒有: '身邊沒有長輩可以幫忙，什麼都要靠自己和另一半。' }[fam.elders.status];
+  paras.push(`${elderTxt}你們住的是${fam.housing === '住長輩家' ? '長輩的房子' : fam.housing === '租屋' ? '租來的房子' : '自己的房子'}${fam.space === '自己的房間' ? '，之後孩子可以有自己的房間' : fam.space === '和手足同房' ? '，之後孩子會和手足同一間房' : '，空間不大，之後孩子多半在客廳或餐桌寫功課'}。`);
+  paras.push(workLine(fam));
+  paras.push(idnSupport(fam));
+  paras.push(`${TEMP_LINE(c.temperament)}`);
+  if (fam.pet) paras.push(`家裡本來就有一隻${fam.pet.type === fam.pet.kind ? fam.pet.kind : fam.pet.type}，叫${fam.pet.name}。`);
+  paras.push(`學區的國小是${fam.school.name}，離現在還很遠。接下來要陪${P}長大了。`);
+  return paras;
+}
+function patternLine(fam) {
+  return { 朝九晚五: '你大多朝九晚五，晚餐和睡前通常都在家', 常加班: '你常常加班，晚餐桌上不一定看得到你', 輪班: '你輪班，有些週整週都不在晚餐桌上', 清晨開店: '你清晨就得出門，早上家裡沒有人，下午比較能顧到孩子', 晚上工作: '你的工作多在晚上，晚餐和睡前常常不在家，早上才有力氣陪', 常出差: '你常出差，一出門就是好幾天' }[fam.pattern];
+}
+function workLine(fam) {
+  const rank = { 基層: '你在職場上是一般職員，下班的事不太會帶回家，不過薪水也就那樣', 主管: '你是主管，底下有人要帶，晚上和假日手機不太能關', 自己當老闆: '你自己當老闆，時間自己排，可是事情出了狀況沒有人能替你扛' }[fam.rank];
+  const car = { 沒有車: '家裡沒有車，出門靠走路、公車或捷運', 機車: '家裡主要靠機車代步', 汽車: '家裡有一台車，接送和出遊都比較方便' }[fam.transport];
+  const way = { 近: '上班很近，十幾分鐘就到', 中: '上班單程大約半小時', 遠: '上班單程要花一個鐘頭上下' }[fam.commute];
+  return `${rank}。${car}，${way}。`;
+}
+function idnSupport(fam) {
+  return { 自己就是資源: '你熟悉升學制度，知道去哪裡問；代價是對孩子的期待也容易偏高。', 花錢買資源: '你不太熟升學制度，但願意把錢花在補習、才藝和營隊上。', 自己找資源: '你工時長，能給孩子的主要是信任和放手；要靠學校、老師和自己去問、去找。' }[fam.support];
+}
+
+/* 學前托育的文字（「從國小開始」時在開場交代） */
+export function childcareText(fam) {
+  const c = fam.childcare, P = fam.child.pronoun;
+  const first = { 父母自己帶: `${fam.child.given}小時候主要是你們自己帶。`, 長輩主要照顧: `${fam.child.given}小時候主要由${fam.elders.who || '長輩'}照顧。`, 送托: `${fam.child.given}小時候送去${c.daycare}。` }[c.mode];
+  const kg = { 公立或非營利幼兒園: '上的是公立（或非營利）幼兒園', 準公共幼兒園: '上的是準公共幼兒園', 私立幼兒園: '上的是私立幼兒園', 雙語或美語幼兒園: '上的是雙語幼兒園', 在家給長輩帶: '沒上幼兒園，在家給長輩帶到上小學' }[c.kindergarten];
+  return `${first}幼兒園${c.kindergarten === '在家給長輩帶' ? '：' + kg : kg}。現在${P}要上國小了。`;
+}

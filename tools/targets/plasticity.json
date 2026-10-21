@@ -1,0 +1,52 @@
+{
+  "plasticity": {
+    "_why": "M3 B1 階段可塑性的目標（計畫 §2.1、§8 第 2–4 項）。2026-10-20 E1 開放 72 回合：七項在完整 72 回合的預設局上量測都過，pending 改成 false（強制，擋 CI）。局數＝每個分段機器人各玩幾局（玩到第 72 回合）；ax.0＝親子軸、w.2＝彼此之間的幸福。",
+    "pending": false,
+    "games": 600,
+    "bots": [
+      "earlyGood",
+      "lateStarter",
+      "veryLateStarter",
+      "neverChange",
+      "earlyLapse",
+      "earlyHarshLate",
+      "elemHarsh"
+    ],
+    "repairRatio": {
+      "min": 0.3,
+      "max": 0.65,
+      "note": "B2 之前（全 1）0.76；B2（習慣＋國中、高中的主動找他）之後（全 1、600 局）0.77；B5 結局混合（0.6 近期＋0.4 整個童年，預覽局）之後（全 1、600 局）0.59（已過）——早期的陪伴不再被最後兩年洗掉"
+    },
+    "earlyMinusLate": {
+      "min": 8,
+      "max": 20,
+      "note": "B2 之前（全 1）+8.8；B2 之後（全 1）+8.9（已過）；B5 混合之後（全 1）+14.5（已過）"
+    },
+    "veryLateMinusNever": {
+      "min": 2,
+      "note": "B2 之前（全 1）+16.6；B2 之後（全 1）+17.9（已過）；B5 混合之後（全 1）+11.1（已過）"
+    },
+    "veryLateApproachExit": {
+      "min": 0.1,
+      "switchTurn": 63,
+      "note": "B2 之前（全 1）0%（243 局）：國中以後還沒有 approach／initiate 卡；B2 之後（全 1）93%（271 局）——一路選溫暖做法的機器人很容易離開；習慣反應型的機器人幾乎離不開（commonReaction 高中 10%、國中 1%）"
+    },
+    "harshLateVsElem": {
+      "min": 0.7,
+      "note": "今日（全 1）0.74（已過）；B5 混合之後（全 1）0.73（已過）；負向地板 0.85 之下再降不應低於 0.70"
+    },
+    "earlyMinusLapse": {
+      "min": 8,
+      "max": 25,
+      "note": "國中起不再陪伴，到 18 歲時親子分數明顯下降是合理的；上限防止早期完全無效。B2 之前（全 1）+21.2；B2 之後（全 1）+19.8；B5 混合之後（全 1）+13.4（已過）；原範圍 3–12 改為 8–25（規劃者決定）"
+    },
+    "stepSwing": {
+      "games": 200,
+      "bots": ["random", "permissive", "controlling", "warmFirm", "tiredLazy", "commonReaction", "occasionalResearch"],
+      "p95Ratio": 1,
+      "p99Ratio": 1.1,
+      "note": "2026-10-20 E1 審查：DESIGN §6『高中每一次決定對親子關係隱藏值的單次影響比小時候小』。7 種策略 × 200 局，每回合結束後親子信任的絕對變動：高中 P95 ≤ 國小中高 P95、P99 ≤ 1.1 × 國小中高 P99。byStage 全 1 時（審查者量測）高中 P95 4.9 > 4.1、P99 10.3 > 7.6、最大 23.0；byStage.高中 = 0.7 之後 P95 3.2、P99 7.0（本機量測）"
+    },
+    "_note": "2026-10-21 E1 審查：byStage.高中、離家 = 0.7（見 stepSwing）；六項目標仍全過。以下是 2026-10-20 E1 的記錄：拿掉預覽的劑量上限 previewKMax、結局混合改成每一局（appliesTo:'all'）之後，全 1 的六項都過（補救比例 0.62、earlyGood−lateStarter +14.0、veryLateStarter−neverChange +14.0、veryLate 離開 89%、earlyHarshLate 0.80、earlyGood−earlyLapse +14.5），byStage 維持 1。以下是 B1 當時的記錄：byStage 目前全部是 1（B1 規劃者決定：等 B2 習慣與國中以後的來找你卡片之後重新量測，再決定是否調到 1 以下）。B5 的結局混合（data/ending.json outcomeBlend）之後，全 1 的六項都已通過，所以 byStage 暫時維持 1；以下 note 是 byStage 全 1、600 局的數值。"
+  }
+}

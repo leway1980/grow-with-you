@@ -1,0 +1,498 @@
+// 沿用《高中，只有一次》(leway1980/Game 47wan @ ce1d972) events.js：條件求值器（逐字複製）與兩段式抽卡、grayIf、textIf、後續卡的做法；
+// 改動：移除高中專屬的態度／交往／詐騙邏輯，條件環境改為親子遊戲，新增『池開啟／加重』、選項層級條件（showIf）與機率分支。純函式，無 DOM。
+import { pickWeighted, clamp, rngAt, shuffleOrder } from './rng.js';
+import { fillSlots, persistedSlots } from './slots.js';
+import { familyCtx, hobbyPrimary } from './family.js';
+import { applyTags, isGrowthChoice, depFactor, discountHomework } from './tags.js';
+import { cardDoseK, scaleEffects, turnAtOrAfter, REF_MONTHS } from './timescale.js';
+import { applyClassroomTags, resetClassroom, classroomCtx, CARE_P, CARE_P_CONCERNED } from './classroom.js';
+
+/* ───────────── 小型條件求值器 ─────────────
+   語法：數字、'字串'、變數名(中文可)、#旗標、== != < <= > >=、and or not（也可用 && || !）、括號、true/false */
+
+const cache = new Map();
+
+export function tokenize(src) {
+  const toks = [];
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i];
+    if (/\s/.test(c)) { i++; continue; }
+    if (c === "'" || c === '"') {
+      let j = i + 1;
+      while (j < src.length && src[j] !== c) j++;
+      if (j >= src.length) throw new Error('字串沒有結尾: ' + src);
+      toks.push({ t: 'str', v: src.slice(i + 1, j) });
+      i = j + 1; continue;
+    }
+    if (/[0-9]/.test(c) || (c === '-' && /[0-9]/.test(src[i + 1] || '') && !isValueTok(toks[toks.length - 1]))) {
+      let j = i + 1;
+      while (j < src.length && /[0-9.]/.test(src[j])) j++;
+      toks.push({ t: 'num', v: parseFloat(src.slice(i, j)) });
+      i = j; continue;
+    }
+    if (c === '#') {
+      let j = i + 1;
+      while (j < src.length && /[^\s()=!<>&|]/.test(src[j])) j++;
+      toks.push({ t: 'flag', v: src.slice(i + 1, j) });
+      i = j; continue;
+    }
+    const two = src.slice(i, i + 2);
+    if (['==', '!=', '<=', '>=', '&&', '||'].includes(two)) { toks.push({ t: 'op', v: two }); i += 2; continue; }
+    if ('<>!()'.includes(c)) { toks.push({ t: 'op', v: c }); i++; continue; }
+    if (/[A-Za-z_㐀-鿿]/.test(c)) {
+      let j = i + 1;
+      while (j < src.length && /[A-Za-z0-9_㐀-鿿]/.test(src[j])) j++;
+      const w = src.slice(i, j);
+      if (w === 'and') toks.push({ t: 'op', v: '&&' });
+      else if (w === 'or') toks.push({ t: 'op', v: '||' });
+      else if (w === 'not') toks.push({ t: 'op', v: '!' });
+      else if (w === 'true') toks.push({ t: 'lit', v: true });
+      else if (w === 'false') toks.push({ t: 'lit', v: false });
+      else toks.push({ t: 'var', v: w });
+      i = j; continue;
+    }
+    throw new Error(`無法解析條件 "${src}" 在位置 ${i}`);
+  }
+  return toks;
+}
+const isValueTok = (t) => t && (t.t === 'num' || t.t === 'str' || t.t === 'var' || t.t === 'flag' || t.t === 'lit' || (t.t === 'op' && t.v === ')'));
+
+function parse(toks) {
+  let p = 0;
+  const peek = () => toks[p];
+  const eat = (v) => { if (peek() && peek().t === 'op' && peek().v === v) { p++; return true; } return false; };
+  function orE() {
+    let l = andE();
+    while (eat('||')) { const a = l, b = andE(); l = (c) => a(c) || b(c); }
+    return l;
+  }
+  function andE() {
+    let l = notE();
+    while (eat('&&')) { const a = l, b = notE(); l = (c) => a(c) && b(c); }
+    return l;
+  }
+  function notE() {
+    if (eat('!')) { const a = notE(); return (c) => !a(c); }
+    return cmpE();
+  }
+  function cmpE() {
+    const l = prim();
+    const t = peek();
+    if (t && t.t === 'op' && ['==', '!=', '<', '<=', '>', '>='].includes(t.v)) {
+      p++;
+      const r = prim();
+      switch (t.v) {
+        case '==': return (c) => l(c) === r(c);
+        case '!=': return (c) => l(c) !== r(c);
+        case '<': return (c) => num(l(c)) < num(r(c));
+        case '<=': return (c) => num(l(c)) <= num(r(c));
+        case '>': return (c) => num(l(c)) > num(r(c));
+        default: return (c) => num(l(c)) >= num(r(c));
+      }
+    }
+    return l;
+  }
+  function prim() {
+    const t = toks[p++];
+    if (!t) throw new Error('條件不完整');
+    if (t.t === 'op' && t.v === '(') { const e = orE(); if (!eat(')')) throw new Error('缺少右括號'); return e; }
+    if (t.t === 'num' || t.t === 'str' || t.t === 'lit') return () => t.v;
+    if (t.t === 'flag') return (c) => !!(c.__flags && c.__flags[t.v]);
+    if (t.t === 'var') return (c) => c[t.v];
+    throw new Error('意外的符號 ' + t.v);
+  }
+  const f = orE();
+  if (p < toks.length) throw new Error('條件後面有多餘的內容');
+  return f;
+}
+const num = (x) => (typeof x === 'number' ? x : x === undefined || x === null ? NaN : Number(x));
+
+export function compile(expr) {
+  let f = cache.get(expr);
+  if (!f) { f = parse(tokenize(expr)); cache.set(expr, f); }
+  return f;
+}
+export const evalCond = (expr, ctx) => !!compile(expr)(ctx);
+
+/* ───────────── 條件環境 ───────────── */
+
+/** 工作插播（§4.28）：孩子來問的事「其實重要」的機率與骰子的名字。選項的 chance 要寫 id＝PING_BIG_ID、p＝PING_BIG_P（lint 檢查）。 */
+export const PING_BIG_ID = 'ping_big';
+export const PING_BIG_P = 0.3;
+
+/** 具名門檻（tags.json 的 gates）：卡片寫「了解度高」，不寫 55，全遊戲只有一個地方改門檻。名字叫『低』的門檻是『小於』（親子信任低），其餘是『大於等於』 */
+let GATES = {};
+export function setGates(g) { GATES = g || {}; }
+export const gateNames = () => Object.entries(GATES).flatMap(([k, m]) => Object.keys(m).map((n) => k + n));
+
+/** 孩子對這件事有多想要（隱藏）：0 還沒決定／1 還好／2 很想要。由興趣、堅持度、主見決定（§3.3） */
+export function willOf(st, topic) {
+  if (!topic || !(topic in st.interest)) return 0;
+  const v = st.interest[topic];
+  let w = v >= 0.6 ? 2 : v >= 0.42 ? 1 : 0;
+  if (st.family.child.temperament.堅持度 >= 4 && w > 0) w = 2;
+  if (st.hidden.主見 < 35 && w > 0) w -= 1;
+  return w;
+}
+
+/** 選項的 route／habitPattern 掛鉤（M3 A3）：引擎本身不知道路線或習慣怎麼算，後面的工作包把函式登記進來，events.js 不必再改。
+ *  route：選項寫 route:{decide,prefer,…}，選完時呼叫 resolver(st, data, ch.route, { ctx, tl, card, choice, r })；resolver 自己把結果寫進 st.vars／st.flags（paths.js）。
+ *  habitPattern：選項寫 habitPattern:{family,pattern}，選完時呼叫 hook(st, data, ch.habitPattern, { ctx, tl, card, choice })（habits.js）。沒登記時什麼都不做（行為中性）。 */
+let ROUTE_RESOLVER = null, HABIT_HOOK = null;
+export function setRouteResolver(fn) { ROUTE_RESOLVER = typeof fn === 'function' ? fn : null; }
+export function setHabitHook(fn) { HABIT_HOOK = typeof fn === 'function' ? fn : null; }
+/** 條件環境的附加欄位（M3 B4）：paths.js 登記，只在高中算（心情低連續、離校機率、離校骰）；沒登記時用下面 buildCtx 的預設值。 */
+let CTX_HOOK = null;
+export function setCtxHook(fn) { CTX_HOOK = typeof fn === 'function' ? fn : null; }
+
+/** 旗標 前綴_值 → 值（例如 學制_普高 → '普高'）；沒有就是空字串。P1 的旗標照舊可用，這裡只是讓條件式可以直接寫 學制 == '普高' */
+const flagValue = (flags, prefix) => { for (const k of Object.keys(flags || {})) if (flags[k] && k.startsWith(prefix)) return k.slice(prefix.length); return ''; };
+/** 習慣（M3 B2）：st.habits[f] = { pattern, shift:{n} }；每個家族給兩個條件變數，讓結果文字能隨習慣與『改變中的冷淡』改變 */
+function habitCtx(st) {
+  const o = {};
+  for (const [f, h] of Object.entries(st.habits || {})) { o['習慣_' + f] = (h && h.pattern) || ''; o['習慣改變_' + f] = (h && h.shift && h.shift.n) || 0; }
+  return o;
+}
+function hobbyCtx(st, tl) {
+  const h = hobbyPrimary(st.family), v = st.vars;
+  return {
+    嗜好可帶孩子: !!(h && h.kidMonths != null && tl.ageMonths >= h.kidMonths), 嗜好推掉連續: v.嗜好推掉連續 || 0, 嗜好退出: !!v.嗜好退出, 嗜好荒廢: !!v.嗜好荒廢, 嗜好夥伴不約: !!v.嗜好夥伴不約,
+    嗜好照去: v.嗜好照去 || 0, 嗜好減量: v.嗜好減量 || 0,
+  };
+}
+export function buildCtx(st, tl, extra = {}) {
+  const f = st.family, P = st.parent, C = st.child;
+  const month = tl.month ?? ((f.child.birthMonth - 1 + Math.floor(tl.ageMonths / 12) * 12 + (tl.ageMonths % 12)) % 12) + 1;
+  const ctx = {
+    __flags: st.flags,
+    ...familyCtx(f, st.role, tl.ageMonths, tl.ages ? (m) => turnAtOrAfter(tl.ages, m) - tl.turn : null),
+    ...st.hidden, // 隱藏數值只在引擎內部給條件用（例如選項的門檻）；不會出現在任何畫面
+    體力: P.體力, 耐心: P.耐心, 錢: P.錢, 工作表現: P.工作表現, 夫妻關係: P.夫妻關係,
+    心情: C.心情, 成績: C.成績, 作業: C.作業, 三C: C['3C時間'], 睡眠: C.睡眠, 同學往來: C.同學往來,
+    回合: st.turn, 階段: tl.stage, 月齡: tl.ageMonths, 回合月數: tl.span ?? 2, 年齡: Math.floor(tl.ageMonths / 12), 年級: tl.grade, 假期: !!tl.vacation, 月: month,
+    托育方式: st.vars.托育方式, 幼兒園類型: st.vars.幼兒園類型, 照顧者: st.vars.照顧者, 換照顧者次數: st.vars.換照顧者次數,
+    孩子不再開口: st.vars.孩子不再開口 || 0, 孩子主動開口: st.vars.孩子主動開口 || 0, 起點: st.startMode,
+    學制: st.vars.學制 || flagValue(st.flags, '學制_'), 去向: st.vars.去向 || flagValue(st.flags, '去向_'), // 高中的學制（普高／技高／綜高）、離家的去向（外地／本地／工作）；先讀變數（paths.js 的路線結果），沒有才讀 P1 的旗標
+    國中類型: st.vars.國中類型 || '', 中途離校: st.vars.中途離校 || '', 實驗教育: st.vars.實驗教育 || '', 選組: st.vars.選組 || '',
+    在學: !(st.vars.學制 === '未升學' || ['在家', '工作', '職訓'].includes(st.vars.中途離校)), // 孩子現在有沒有在學校（中途離校後待在家、工作、職訓，或沒進學校）；自學（實驗教育）算在學習
+    心情低連續: 0, 離校機率: 0, 離校骰: 0, ...(CTX_HOOK ? CTX_HOOK(st, tl) : null), // 中途離校的前兆（paths.js，只在高中算）
+    ...habitCtx(st), // 習慣_<家族>（目前的習慣模式）、習慣改變_<家族>（已連續換了幾次）；沒有習慣資料時什麼都不加
+    ...hobbyCtx(st, tl), // 嗜好（§4.41）：夥伴的狀態、孩子現在能不能帶去
+    上學方式: st.vars.上學方式 || '', 孩子來找_連續錯過: st.vars.孩子來找_連續錯過 || 0, 不太來找你: !!st.vars.不太來找你,
+    三C陪伴連續: st.vars['3C陪伴_連續'] || 0, 三C回彈中: (st.vars['3C回彈'] || 0) > 0.5, 三C依賴高: (st.hidden['3C依賴度'] ?? 0) >= 50, 邀約接受: st.vars.邀約接受 || 0, 邀約婉拒: st.vars.邀約婉拒 || 0, // 手機與平板（§4.39）、假日邀約（§4.40）：計數與狀態，卡片的條件與池權重讀它；依賴度本身（隱藏）不進條件環境以外的任何畫面
+    事故骰: rngAt(st.seed, st.turn, 'acc_dice'), // 命運骰（0–1）：重大意外（cm_hospital）只在這個回合的骰子夠小時才可能出現，不因為『池裡剩下它』就被抽到
+    訊號骰: rngAt(st.seed, st.turn, 'sig_dice'), // 一般孩子版的訊號卡（_gen）只在骰子夠小時才出現，不因為『池裡剩下它』就被抽到（規則 16）
+    來問重要: rngAt(st.seed, st.turn, PING_BIG_ID) < PING_BIG_P, // 命運骰：孩子這次來問的事其實重不重要（§4.28）；和選項的 chance（id＝ping_big、p＝0.3）用同一顆骰子，文字與結果才會一致
+    // 已經選定的事（hi_pet 養的寵物、lo_club 想要的球類……）：之後的卡讀同一個值；養了寵物之後 有寵物／寵物種類 也跟著變
+    有寵物: !!f.pet || !!st.vars.養的寵物, 寵物種類: f.pet ? f.pet.type : st.vars.養的寵物 || '',
+    養的寵物: st.vars.養的寵物 || '', 想要的球類: st.vars.想要的球類 || '', 選的才藝: st.vars.選的才藝 || '', 校隊項目: st.vars.校隊項目 || '',
+    意願強度: willOf(st, extra.topic),
+    班級骰: rngAt(st.seed, st.turn, 'cl_dice'), // 命運骰：老師真的體罰或羞辱的事件只在骰子夠小時才可能出現（§4.38 查證後正式反映）
+    對方在意: rngAt(st.seed, st.turn, 'cl_care') < (st.flags.關心過對方家長 ? CARE_P_CONCERNED : CARE_P), // 命運骰：被提醒的那一家在不在意（設計估計 0.3；有人私下關心過是 0.5）
+    ...classroomCtx(st), 對象: extra.toward || '', // 班級共享狀態（§4.38）：老師投入度、班上常投訴的家長人數；對象＝這個選項的做法是對著誰（'老師'＝老師或學校）
+    // 身體照顧（§4.37）的命運骰：同一個種子、同一個回合結果相同，和玩家的選擇無關；卡片寫『視力骰 < 0.3』這類門檻，不因為『池裡剩下它』就被抽到
+    視力骰: rngAt(st.seed, st.turn, 'hl_vision'), 脊椎骰: rngAt(st.seed, st.turn, 'hl_spine'), 牙齒骰: rngAt(st.seed, st.turn, 'hl_teeth'),
+    腳骰: rngAt(st.seed, st.turn, 'hl_foot'), 過敏骰: rngAt(st.seed, st.turn, 'hl_allergy'), 摔傷骰: rngAt(st.seed, st.turn, 'hl_fall'),
+    疲勞: Math.round(((st.costEMA && st.costEMA.體力) || 0) + ((st.costEMA && st.costEMA.耐心) || 0)), // 最近幾回合體力與耐心花費的累積（「父母自己」池的權重用）
+  };
+  for (const [k, m] of Object.entries(GATES)) for (const [n, thr] of Object.entries(m)) ctx[k + n] = n === '低' ? st.hidden[k] < thr : st.hidden[k] >= thr; // 『低』＝小於門檻，其他（高、中）＝大於等於
+  return ctx;
+}
+
+/* ───────────── 效果（看得見的數值） ───────────── */
+const clampV = (x) => clamp(x, 0, 100);
+/** 套用可見數值的變化。acc 會記下「想要造成的變化」（不是夾在 0–100 之後的實際差），給劑量表用。 */
+export function applyEffects(st, eff, acc) {
+  if (!eff) return;
+  for (const [k, d] of Object.entries(eff)) {
+    if (k in st.parent) {
+      if (k === '夫妻關係' && !st.family.partner.present) continue;
+      st.parent[k] = clampV(st.parent[k] + d);
+    } else if (k in st.child) st.child[k] = clampV(st.child[k] + d);
+    else throw new Error('未知的可見數值: ' + k + '（隱藏數值只能經由 tags 改變）');
+    if (acc) acc[k] = (acc[k] || 0) + d;
+  }
+}
+
+/* ───────────── 陪伴時段（§2.3）：工作型態決定這個回合的晚餐、睡前、早晨、週末在不在 ───────────── */
+export function slotAvailable(st, data, need, turn = st.turn) {
+  const pat = data.identities.patterns[st.family.pattern];
+  const p = pat && need in pat ? pat[need] : 1;
+  return rngAt(st.seed, turn, 'slot:' + need) < p; // 命運骰：和玩家的選擇無關
+}
+
+/* ───────────── 抽卡 ───────────── */
+export function cardById(data, id) {
+  const c = data.cardIndex[id];
+  if (!c) throw new Error('找不到事件卡: ' + id);
+  return c;
+}
+export function passes(card, st, ctx) {
+  const rq = card.requires, ex = card.excludes;
+  if (rq) {
+    if (rq.flags && !rq.flags.every((f) => st.flags[f])) return false;
+    if (rq.expr && !evalCond(rq.expr, ctx)) return false;
+  }
+  if (ex) {
+    if (ex.flags && ex.flags.some((f) => st.flags[f])) return false;
+    if (ex.expr && evalCond(ex.expr, ctx)) return false;
+  }
+  return true;
+}
+function eligible(card, st, ctx) {
+  if (card.once && st.used[card.id]) return false;
+  if ((st.cooldowns[card.id] ?? -1) > ctx.月齡) return false; // cooldowns[id]＝最早可以再出現的月齡
+  return passes(card, st, ctx);
+}
+function mulMods(mods, ctx) {
+  let x = 1;
+  if (mods) for (const m of mods) if (evalCond(m.if, ctx)) x *= m.x;
+  return x;
+}
+export function poolWeight(st, data, name, ctx) {
+  const def = data.pools[name] || { base: 3, mods: [] };
+  const op = st.openPools[name];
+  const open = op && op.until >= ctx.月齡; // until＝最後一個還開著的月齡
+  return ((def.base ?? 0) + (open ? def.follow ?? 0 : 0)) * mulMods(def.mods, ctx) * (open ? op.x : 1);
+}
+/** 兩段式抽卡（沿用 47wan）：先抽池（被選項打開或加重的池權重較高），再抽卡。卡片依「階段 × 池」建好索引，不必每回合掃全部。 */
+/** excludeHabit：這個回合已經自動帶入的習慣家族（M3 B2）；同家族的卡這回合不再抽 */
+/** 抽一張日常卡。excludeId／excludeHabit：這回合已經出現的卡與習慣家族不再抽。 */
+export function drawCard(st, data, ctx, tl, r, excludeId = null, excludeHabit = null) {
+  const idx = data.index[tl.stage] || {};
+  const pools = [];
+  const live = {};
+  for (const name of Object.keys(idx)) {
+    const cs = idx[name].filter((c) => c.id !== excludeId && !(excludeHabit && c.habit === excludeHabit) && eligible(c, st, ctx));
+    if (!cs.length) continue;
+    const w = poolWeight(st, data, name, ctx);
+    if (w > 0) { pools.push({ name, w }); live[name] = cs; }
+  }
+  const pool = pickWeighted(r, pools);
+  if (!pool) return null;
+  return pickWeighted(r, live[pool.name], (c) => (c.weight ?? 1) * mulMods(c.modifiers, ctx) * (c.approach && ctx.不太來找你 ? data.tags.approach?.weightX ?? 1 : 1) * (c.approach ? 1 - (data.tags.screen?.harm?.approachCut ?? 0) * depFactor(st, data.tags) : 1));
+}
+export function pickFixed(st, data, tl, ctx) {
+  for (const id of tl.fixed || []) { const c = data.cardIndex[id]; if (c && passes(c, st, ctx)) return c; }
+  return null;
+}
+/** 到期的後續卡。回傳 { card, delay }（delay＝從排進去到出現隔了幾個月），沒有就是 null。 */
+export function pickDelayed(st, data, tl, ctx, excludeId = null) {
+  st.delayed.sort((a, b) => a.due - b.due);
+  for (let i = 0; i < st.delayed.length; i++) {
+    const d = st.delayed[i];
+    if (d.due > st.turn) break;
+    const c = data.cardIndex[d.card];
+    if (c && c.id === excludeId) continue;
+    st.delayed.splice(i, 1);
+    if (c && passes(c, st, ctx)) return { card: c, delay: tl.ageMonths - data.timeline[Math.min(d.from ?? d.due, data.timeline.length - 1)].ageMonths }; // 延遲以月計
+    i--;
+  }
+  return null;
+}
+
+/** 情境負荷（§4.14）：這個回合附在卡片上的事（帳單……）。命運骰決定，和玩家的選擇無關。 */
+export function rollLoads(st, data, ctx) {
+  const out = [];
+  for (const L of data.loads || []) {
+    if (L.if && !evalCond(L.if, ctx)) continue;
+    // L.p＝每 2 個月（舊的國小回合）的機率；每月的發生率不變，回合越長機率越高
+    if (rngAt(st.seed, st.turn, 'load:' + L.id) < 1 - Math.pow(1 - L.p, (ctx.回合月數 ?? REF_MONTHS) / REF_MONTHS)) out.push({ id: L.id, text: L.text, effects: L.effects }); // 命運事件只改看得見的數值，不帶任何家長行為標籤（規則 18）
+  }
+  return out;
+}
+
+/* ───────────── 顯示用資料 ───────────── */
+/**
+ * 依角色切換的稱謂（規則 15）：玩家是爸爸或媽媽、孩子怎麼叫長輩，都不寫死在卡片裡。
+ * 你爸媽＝孩子叫你什麼；另一半稱呼＝對孩子說話時叫另一半（你媽／你爸）；另一半稱呼_大人＝對大人說（我太太／我先生）；
+ * 另一半代名詞＝他／她；長輩稱呼＝孩子叫長輩的說法；同學叫你＝孩子的朋友叫你叔叔或阿姨；假期結束＝媽媽是產假、爸爸是假期；
+ * 另一個大人＝可以「去問」的人：另一半在家就是另一半，不然是長輩。
+ */
+function hobbyWords(f) {
+  const h = hobbyPrimary(f);
+  return h ? { 嗜好: h.name, 嗜好夥伴: h.buddy, 嗜好邀約: h.invite.replace('{嗜好夥伴}', h.buddy), 嗜好帶孩子: h.kidLine } : { 嗜好: '', 嗜好夥伴: '', 嗜好邀約: '', 嗜好帶孩子: '' };
+}
+export function roleWords(st) {
+  const f = st.family, dad = st.role === '爸爸';
+  const partner = dad ? '你媽' : '你爸';
+  const near = f.partner.present && f.partner.attitude !== '幾乎不在家';
+  return {
+    你爸媽: dad ? '爸爸' : '媽媽', 另一半稱呼: partner, 另一半稱呼_大人: dad ? '我太太' : '我先生', 另一半代名詞: dad ? '她' : '他',
+    長輩稱呼: f.elders.who || '長輩', 同學叫你: dad ? '叔叔' : '阿姨', 假期結束: dad ? '假期結束' : '產假結束',
+    另一個大人: near ? partner : (f.elders.who || '長輩'),
+    ...hobbyWords(f), // 嗜好（§4.41）：{嗜好}{嗜好夥伴}{嗜好邀約}{嗜好帶孩子}
+  };
+}
+export function fill(text, st, ctx, scope) {
+  if (text == null) return '';
+  if (ctx && text.includes('{')) text = fillSlots(text, st, ctx, null, scope || {});
+  const f = st.family;
+  if (text.includes('{')) { const rw = roleWords(st); text = text.replace(/\{([^{}]+)\}/g, (m, n) => (n in rw ? rw[n] : m)); } // 稱謂先換（嗜好的句子裡還有 {他}、{孩子}，下面一起換）
+  text = text.replace(/\{孩子\}/g, f.child.given).replace(/\{他\}/g, f.child.pronoun).replace(/\{另一半\}/g, f.partner.present ? '另一半' : '對方')
+    .replace(/\{寵物名\}/g, f.pet ? f.pet.name : (st.vars && st.vars.養的寵物名) || '').replace(/\{學校\}/g, f.school.name).replace(/\{長輩\}/g, f.elders.who || '長輩');
+  if (text.includes('{')) { const rw = roleWords(st); text = text.replace(/\{([^{}]+)\}/g, (m, n) => (n in rw ? rw[n] : m)); }
+  return text;
+}
+export function pickText(card, ctx, st) {
+  for (const t of card.textIf || []) if (ctx && evalCond(t.if, ctx)) return t.text;
+  return card.text;
+}
+// 同一張卡的內文與選擇後的結果共用同一組槽值
+export function cardScope(st, cardId) {
+  const k = cardId + '@' + st.turn;
+  if (!st.cardScope || st.cardScope.k !== k) st.cardScope = { k, v: {} };
+  return st.cardScope.v;
+}
+/** 選項的情境版本（規則 17／21）：labelIf／resultIf／tagsIf／effectsIf＝[{if, value}, …]，每個欄位各自由上往下第一個成立的版本取代原值（沒寫 if＝一律成立）；都不成立就用原本的欄位。和 textIf 同一個求值器。 */
+export const VARIANT_FIELDS = { labelIf: 'label', resultIf: 'result', tagsIf: 'tags', effectsIf: 'effects' };
+export function resolveChoice(ch, ctx) {
+  let out = ch;
+  for (const [key, field] of Object.entries(VARIANT_FIELDS)) {
+    const list = ch[key];
+    if (!list || !ctx) continue;
+    const v = list.find((x) => !x.if || evalCond(x.if, ctx));
+    if (v) { if (out === ch) out = { ...ch }; out[field] = v.value; }
+  }
+  return out;
+}
+export function choiceState(ch, ctx) {
+  if (ch.showIf && !evalCond(ch.showIf, ctx)) return { hidden: true, disabled: true, reason: '' };
+  for (const g of [].concat(ch.grayIf || [])) if (evalCond(g.if, ctx)) return { hidden: false, disabled: true, reason: g.reason };
+  return { hidden: false, disabled: false, reason: '' };
+}
+/** 選項所在的條件環境：和「套用選擇」用同一個（含這個選項自己的 topic），所以顯示、變灰與結果一致。 */
+export const choiceCtx = (st, tl, card, ch) => buildCtx(st, tl, { topic: ch.topic || card.topic, toward: ch.toward || card.toward });
+
+/**
+ * 卡片的顯示資料：只有文字與選項，沒有任何數值、標籤或提示（劑量表在選擇之後才出現）。
+ * 選項依 (種子, 回合, 卡片) 決定性洗牌；choices[k].i 是原始索引（只給引擎與機器人用），k 是顯示位置。
+ */
+export function describeCard(card, st, data, tl) {
+  const ctx = buildCtx(st, tl, { topic: card.topic });
+  const scope = cardScope(st, card.id);
+  const order = shuffleOrder(st.seed, st.turn, card.id, card.choices.length);
+  const choices = [];
+  for (const i of order) {
+    const ch = card.choices[i];
+    const cctx = choiceCtx(st, tl, card, ch);
+    const s = choiceState(ch, cctx);
+    if (s.hidden) continue;
+    choices.push({ i, pos: choices.length, label: fill(resolveChoice(ch, cctx).label, st, cctx, scope), disabled: s.disabled, reason: fill(s.reason, st) });
+  }
+  return { id: card.id, title: fill(card.title, st, ctx, scope), text: fill(pickText(card, ctx, st), st, ctx, scope), choices };
+}
+
+/* ───────────── 套用選擇 ───────────── */
+function applyBranch(st, b, turnNo, r, ctx, acc, scope, tl, k = 1) {
+  applyEffects(st, scaleEffects(b.effects, k), acc); // k＝這張卡這個回合的劑量倍率（timescale.js doseScale）
+  for (const f of b.setFlags || []) st.flags[f] = true;
+  for (const f of b.clearFlags || []) { delete st.flags[f]; if (st.flagExpiry) delete st.flagExpiry[f]; }
+  // 有期限的旗標（打石膏、戴牙套）：flagMonths＝{旗標: 月數 或 [最少, 最多]}，到期由 turn.js 的 expireFlags 在回合開始時清掉
+  for (const [f, m] of Object.entries(b.flagMonths || {})) (st.flagExpiry ||= {})[f] = tl.ageMonths + (Array.isArray(m) ? m[0] + Math.floor(r() * (m[1] - m[0] + 1)) : m);
+  // setVars 的值可以含槽（例如 '{寵物}'），用這張卡抽到的槽值：之後的卡讀同一個值，不重抽（規則 14）
+  const persisted = persistedSlots();
+  for (const [k, v] of Object.entries(b.setVars || {})) {
+    st.vars[k] = fill(v, st, ctx, scope);
+    if (scope) for (const [slot, varName] of Object.entries(persisted)) if (varName === k && st.vars[k]) scope[slot] = st.vars[k]; // 這張卡之後的「父母的收穫」也記同一個值
+  }
+  for (const [k, d] of Object.entries(b.incVars || {})) st.vars[k] = (st.vars[k] || 0) + d;
+  for (const [pool, o] of Object.entries(b.opens || {})) {
+    const cur = st.openPools[pool];
+    // until＝最後一個還開著的月齡：現在這個月齡 + o.months
+    const now = tl.ageMonths;
+    st.openPools[pool] = { x: Math.max(o.x, cur && cur.until >= now ? cur.x : 0), until: Math.max(now + o.months, cur ? cur.until : -1) };
+  }
+  for (const f of b.followUp || []) {
+    if (f.if && !evalCond(f.if, ctx)) continue;
+    if (f.chance != null && r() >= f.chance) continue;
+    // afterMonths：幾個月後（含頭尾的整數月）；due＝第一個月齡 ≥ 那個月的回合序號，from＝現在的回合序號
+    const months = f.afterMonths[0] + Math.floor(r() * (f.afterMonths[1] - f.afterMonths[0] + 1));
+    const due = Math.max(turnNo, tl.ages ? turnAtOrAfter(tl.ages, tl.ageMonths + months) : turnNo + 1);
+    st.delayed.push({ card: f.card, due, from: turnNo });
+  }
+}
+
+/**
+ * 花費的情境倍率（tags.json 的 costMods）：同一個選項，不同的孩子與家庭要付的體力、耐心不一樣
+ * （有 ADHD 傾向的孩子，訂規則與跟進更累；另一半一起陪，什麼都比較省力）。只放大或縮小「花費」（負的效果），不改好處。
+ */
+export function scaleCosts(costMods, ch, ctx) {
+  const eff = { ...(ch.effects || {}) };
+  for (const m of costMods || []) {
+    if (m.tags && !(ch.tags || []).some((t) => m.tags.includes(t))) continue;
+    if (m.if && !evalCond(m.if, ctx)) continue;
+    for (const k of m.keys || ['體力', '耐心']) if (eff[k] < 0) eff[k] *= m.x;
+  }
+  return eff;
+}
+
+/** direction 可以是文字（'升學競爭'）或 '@槽名'（取這張卡抽到的槽值的方向，例如 營隊→科學）；沒寫就用卡片的 direction。 */
+export function resolveDirection(card, ch, scope) {
+  const d = ch.direction ?? card.direction;
+  if (!d) return undefined;
+  if (d[0] === '@') return scope['#dir:' + d.slice(1)] || '_';
+  return d;
+}
+
+/**
+ * 父母的收穫（§7.2b）：記下這次一起參與的是什麼。這張卡抽到的槽值（球類、才藝、出遊、營隊……）才有名字；
+ * 沒有槽的卡就記下標籤本身。st.parentGrowth 不是隱藏數值，隱藏的『父母的收穫』由 tags.js 改。
+ */
+export function recordGrowth(st, T, ch, scope) {
+  const G = T.growth, list = (ch.tags || []).filter((t) => T.growthTags.includes(t) && !G.joinOnly.includes(t));
+  const named = G.slots.filter((n) => scope[n]);
+  (st.parentGrowth ||= []);
+  if (named.length) for (const n of named) st.parentGrowth.push({ turn: st.turn, slot: n, value: scope[n] });
+  else st.parentGrowth.push({ turn: st.turn, tag: list[0] });
+}
+
+/**
+ * 套用玩家的選擇（idx 是 card.choices 的原始索引）。回傳 { result, acc }：acc＝這次想要造成的可見變化（給劑量表）。
+ * 隱藏數值只經由 tags.js 改變。
+ */
+export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
+  const base = card.choices[idx];
+  if (!base) throw new Error(`選項不存在: ${card.id}#${idx}`);
+  const topic = base.topic || card.topic;
+  const ctx = choiceCtx(st, tl, card, base);
+  const ch = resolveChoice(base, ctx); // 情境版本：同一個選項在不同年級、孩子特質下的文字、標籤與效果
+  const gs = choiceState(ch, ctx);
+  if (gs.hidden || gs.disabled) throw new Error(`選項不可選: ${card.id}#${idx}`);
+  const acc = {}; // 這個選項自己造成的可見變化；回合的合計由呼叫端累加
+  const k = cardDoseK(data.model, tl.span ?? 2, card, extra.fu ?? null); // 劑量倍率：一張卡代表這個回合那麼長的時間（循環卡：距離上次隔了幾個月）
+  const scope = cardScope(st, card.id);
+  const parts = [fill(ch.result, st, ctx, scope)];
+  let branchTags = [], approved = true;
+  // 陪伴時段不在：用體力硬換或請假，代價照實顯示在劑量表上，選項不會消失
+  for (const need of ch.needs || []) if (!slotAvailable(st, data, need)) applyEffects(st, scaleEffects(data.tags.slotCost[need], k), acc);
+  applyBranch(st, { ...ch, effects: discountHomework(st, data.tags, scaleCosts(data.tags.costMods, ch, ctx)) }, st.turn, r, ctx, acc, scope, tl, k);
+  if (ch.chance) {
+    const c = ch.chance;
+    const p = clamp(c.p * mulMods(c.mods, ctx), 0, 0.97);
+    const win = rngAt(st.seed, st.turn, c.id) < p; // 命運骰：和玩家的選擇無關，同一個人生結果相同
+    const b = win ? c.win : c.lose;
+    approved = win;
+    applyBranch(st, b, st.turn, r, ctx, acc, scope, tl, k);
+    parts.push(fill(b.result, st, ctx, scope));
+    st.flags[`${c.id}_${win ? '中' : '落'}`] = true;
+    branchTags = b.tags || []; // 分支也可以帶行為標籤（隱藏數值仍然只經由標籤換算）
+  }
+  const allTags = [...(ch.tags || []), ...branchTags];
+  applyTags(st, allTags, data.tags, { turn: st.turn, months: tl.ageMonths, span: tl.span ?? 2, scale: k, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope), approach: !!card.approach, initiate: !!card.initiate, screen: !!card.screen });
+  if (isGrowthChoice(data.tags, ch.tags)) recordGrowth(st, data.tags, ch, scope);
+  if (ch.route && ROUTE_RESOLVER) { const rr = ROUTE_RESOLVER(st, data, ch.route, { ctx, tl, card, choice: ch, r }); if (rr && rr.result) parts.push(fill(rr.result, st, ctx, scope)); } // 路線的結果可以回傳一句話（例如學制選定的那句），接在選項的結果後面
+  if (ch.habitPattern && HABIT_HOOK) HABIT_HOOK(st, data, ch.habitPattern, { ctx, tl, card, choice: ch });
+  applyClassroomTags(st, allTags, data.tags, ctx, k); // 班級共享狀態（§4.38）：標籤自帶的老師投入度效果，不是孩子的隱藏數值
+  if (ch.classroom && ch.classroom.reset && approved) resetClassroom(st, data.tags, tl, 'transfer'); // 轉班：換老師，重抽班上的家長（選項帶 chance 時，只有核准才換；沒核准就留在原來的班）
+  if (card.once) st.used[card.id] = true;
+  if (card.cooldownMonths) st.cooldowns[card.id] = tl.ageMonths + card.cooldownMonths; // 最早可以再出現的月齡
+  const d = {};
+  for (const [k, v] of Object.entries(acc)) if (Math.abs(v) >= 0.05) d[k] = Math.round(v * 10) / 10;
+  const entry = { turn: st.turn, m: tl.ageMonths, k, card: card.id, title: fill(card.title, st, ctx, scope), ch: idx, label: fill(ch.label, st, ctx, scope), tags: allTags, d };
+  if (extra.fu != null) entry.fu = extra.fu;
+  st.hist.push(entry);
+  // 研究小卡（card.note）：選完之後顯示在結果下面的一段事實（規則的細節、出處與年份）；純文字，不含任何隱藏數值
+  return { result: parts.filter(Boolean).join(' '), acc, entry, note: card.note ? fill(card.note, st, ctx, scope) : '' };
+}

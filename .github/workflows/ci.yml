@@ -1,0 +1,23 @@
+name: ci
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tests
+        run: node --test "tests/*.test.mjs"
+      - name: Lint (data, causal model, ending text)
+        run: node tools/lint-data.mjs
+      # 試作階段：機制體檢只報告、不擋（老師 2026-10-21：之後用真人遊玩紀錄來調，不靠模擬）
+      - name: Design check (report only during prototype)
+        continue-on-error: true
+        run: node tools/check-design.mjs 1000

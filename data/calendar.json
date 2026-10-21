@@ -1,0 +1,436 @@
+{
+ "_readme": "日曆 v2（72 回合，全部開放，playableTurns 72）：0–2 歲每年 4 回合（8）、2–6 歲每年 4 回合（16）、國小低每年 5 回合、國小中高每年 4 回合、國中每年 4 回合（國三 5）、高中每年 2 回合、離家 3 回合（逐月）。遊戲在 playableTurns（72，離家那天）結束；previewTurns 只為相容保留（E1 起 ?preview=1 不再有作用）。stage 名稱要和 data/tags.json 的 stages 一致。segmentSets：每組是一學年的段落（month 是段起的月份，9 月開學；months 是顯示文字，可省略）；stage 的 grades 用 {g, segs} 指定每個年級用哪一組。年級回合的月齡 = 72+(g-1)·12+((month-9+12)%12)。fixed：atMonths 是第一個月齡 ≥ 該值的回合，at:{stage,i} 是該階段第 i 回合。schoolFixed 依『年級＋段名』排進每個學年（用名字，不用序號）；國小中高的固定事件刻意變稀（家長會 3、5 年級，校外教學 4、6 年級），免得 4 個回合裡有 3 個是固定的。段的月份是大約值（見 docs/DATA.md §5），各校不同。 【預覽】previewTurns（72）：網址加 ?preview=1 時遊戲玩到這一回合（turn.js 的 playableEnd）；CI、check-design 與黃金範例仍用 playableTurns（50）。",
+ "totalTurns": 72,
+ "playableTurns": 72,
+ "previewTurns": 72,
+ "segmentSets": {
+  "低5": [
+   {
+    "name": "開學之後",
+    "months": "9–10 月",
+    "month": 9,
+    "vacation": false
+   },
+   {
+    "name": "期中之後",
+    "months": "11–12 月",
+    "month": 11,
+    "vacation": false
+   },
+   {
+    "name": "寒假前後",
+    "months": "1–2 月",
+    "month": 1,
+    "vacation": true
+   },
+   {
+    "name": "下學期",
+    "months": "3–5 月",
+    "month": 3,
+    "vacation": false
+   },
+   {
+    "name": "期末與暑假",
+    "months": "6–8 月",
+    "month": 6,
+    "vacation": true
+   }
+  ],
+  "中高4": [
+   {
+    "name": "開學之後",
+    "months": "9–11 月",
+    "month": 9,
+    "vacation": false
+   },
+   {
+    "name": "期中到寒假",
+    "months": "12–2 月",
+    "month": 12,
+    "vacation": false
+   },
+   {
+    "name": "下學期",
+    "months": "3–5 月",
+    "month": 3,
+    "vacation": false
+   },
+   {
+    "name": "期末與暑假",
+    "months": "6–8 月",
+    "month": 6,
+    "vacation": true
+   }
+  ],
+  "國三5": [
+   {
+    "name": "開學之後",
+    "months": "9–11 月",
+    "month": 9,
+    "vacation": false
+   },
+   {
+    "name": "期中到寒假",
+    "months": "12–2 月",
+    "month": 12,
+    "vacation": false
+   },
+   {
+    "name": "下學期",
+    "months": "3–4 月",
+    "month": 3,
+    "vacation": false
+   },
+   {
+    "name": "會考前",
+    "months": "5 月",
+    "month": 5,
+    "vacation": false
+   },
+   {
+    "name": "放榜與選校",
+    "months": "6–8 月",
+    "month": 6,
+    "vacation": true
+   }
+  ],
+  "高中2": [
+   {
+    "name": "上學期",
+    "months": "9–1 月",
+    "month": 10,
+    "vacation": false
+   },
+   {
+    "name": "下學期",
+    "months": "2–6 月",
+    "month": 3,
+    "vacation": false
+   }
+  ]
+ },
+ "stages": [
+  {
+   "id": "嬰幼兒",
+   "turns": 8,
+   "startMonths": 0,
+   "stepMonths": 3
+  },
+  {
+   "id": "幼兒園",
+   "turns": 16,
+   "startMonths": 24,
+   "stepMonths": 3
+  },
+  {
+   "id": "國小低",
+   "grades": [
+    {
+     "g": 1,
+     "segs": "低5"
+    },
+    {
+     "g": 2,
+     "segs": "低5"
+    }
+   ]
+  },
+  {
+   "id": "國小中高",
+   "grades": [
+    {
+     "g": 3,
+     "segs": "中高4"
+    },
+    {
+     "g": 4,
+     "segs": "中高4"
+    },
+    {
+     "g": 5,
+     "segs": "中高4"
+    },
+    {
+     "g": 6,
+     "segs": "中高4"
+    }
+   ]
+  },
+  {
+   "id": "國中",
+   "grades": [
+    {
+     "g": 7,
+     "segs": "中高4"
+    },
+    {
+     "g": 8,
+     "segs": "中高4"
+    },
+    {
+     "g": 9,
+     "segs": "國三5"
+    }
+   ]
+  },
+  {
+   "id": "高中",
+   "grades": [
+    {
+     "g": 10,
+     "segs": "高中2"
+    },
+    {
+     "g": 11,
+     "segs": "高中2"
+    },
+    {
+     "g": 12,
+     "segs": "高中2"
+    }
+   ]
+  },
+  {
+   "id": "離家",
+   "turns": 3,
+   "startMonths": 214,
+   "stepMonths": 1,
+   "labels": [
+    "填志願或找工作",
+    "放榜",
+    "離家那一天"
+   ]
+  }
+ ],
+ "fixed": [
+  {
+   "atMonths": 3,
+   "event": "fx_leave_end"
+  },
+  {
+   "atMonths": 3,
+   "event": "fx_leave_end_gen"
+  },
+  {
+   "atMonths": 32,
+   "event": "fx_kindergarten"
+  },
+  {
+   "at": {
+    "stage": "國小低",
+    "i": 0
+   },
+   "event": "fx_enroll"
+  },
+  {
+   "at": {
+    "stage": "國中",
+    "i": 1
+   },
+   "event": "jh_habit_change"
+  },
+  {
+   "at": {
+    "stage": "離家",
+    "i": 0
+   },
+   "event": "fx_leave_apply"
+  },
+  {
+   "at": {
+    "stage": "離家",
+    "i": 1
+   },
+   "event": "fx_leave_offer"
+  },
+  {
+   "at": {
+    "stage": "離家",
+    "i": 2
+   },
+   "event": "fx_leave_day"
+  }
+ ],
+ "schoolFixed": [
+  {
+   "grade": [
+    1
+   ],
+   "seg": "開學之後",
+   "event": "fx_commute"
+  },
+  {
+   "grade": [
+    2,
+    3,
+    5
+   ],
+   "seg": "開學之後",
+   "event": "fx_teacher_meet"
+  },
+  {
+   "grade": [
+    1,
+    2
+   ],
+   "seg": "期中之後",
+   "event": "fx_sports_day"
+  },
+  {
+   "grade": [
+    3,
+    4,
+    5,
+    6
+   ],
+   "seg": "期中到寒假",
+   "event": "fx_sports_day"
+  },
+  {
+   "grade": [
+    1
+   ],
+   "seg": "期中之後",
+   "event": "fx_field_trip"
+  },
+  {
+   "grade": [
+    2,
+    4,
+    6
+   ],
+   "seg": "下學期",
+   "event": "fx_field_trip"
+  },
+  {
+   "grade": [
+    6
+   ],
+   "seg": "期末與暑假",
+   "event": "fx_graduation"
+  },
+  {
+   "grade": [
+    6
+   ],
+   "seg": "期末與暑假",
+   "event": "fx_choose_jh"
+  },
+  {
+   "grade": [
+    7,
+    8,
+    9
+   ],
+   "seg": "期中到寒假",
+   "event": "fx_exam_report"
+  },
+  {
+   "grade": [
+    9
+   ],
+   "seg": "會考前",
+   "event": "fx_exam_basic"
+  },
+  {
+   "grade": [
+    9
+   ],
+   "seg": "放榜與選校",
+   "event": "fx_choose_hs"
+  },
+  {
+   "grade": [
+    9
+   ],
+   "seg": "放榜與選校",
+   "event": "fx_jh_graduate"
+  },
+  {
+   "grade": [
+    10
+   ],
+   "seg": "上學期",
+   "event": "fx_sh_start"
+  },
+  {
+   "grade": [
+    10
+   ],
+   "seg": "上學期",
+   "event": "fx_sh_start_out"
+  },
+  {
+   "grade": [
+    10
+   ],
+   "seg": "下學期",
+   "event": "fx_sh_track"
+  },
+  {
+   "grade": [
+    12
+   ],
+   "seg": "上學期",
+   "event": "fx_sh_exam"
+  },
+  {
+   "grade": [
+    12
+   ],
+   "seg": "下學期",
+   "event": "fx_sh_grad"
+  },
+  {
+   "grade": [
+    12
+   ],
+   "seg": "下學期",
+   "event": "fx_sh_grad_out"
+  }
+ ],
+ "flavor": {
+  "嬰幼兒": [
+   "這幾天{孩子}學會了翻身，一翻過去就不肯翻回來。",
+   "晚上抱著{他}看窗外的月亮，{他}難得安靜了好一陣子。",
+   "{他}開始對你的臉有反應了，只要你一靠近就咯咯笑。",
+   "家裡的奶瓶、尿布和玩具又多了一堆，生活像是被縮小成一個嬰兒床。"
+  ],
+  "幼兒園": [
+   "{孩子}從幼兒園帶回一張塗得滿滿的圖畫，說這是「我們全家」。",
+   "這陣子{他}開始說「我自己來」，什麼都想自己試試看。",
+   "週末的公園裡，{他}追著鴿子跑了三圈，才被你抱起來。",
+   "晚上睡前，{他}突然問：「為什麼天空是藍色的？」你想了很久。"
+  ],
+  "國小低": [
+   "聯絡簿上這週的評語是：「上課很有精神，下課也是。」",
+   "{孩子}今天帶回來一朵用色紙折的花，說是送給你的。",
+   "這陣子{他}每天放學第一句話都是：「我今天……」",
+   "書包裡又多了一張沒簽名的通知單，你在最底下找了半天。"
+  ],
+  "國小中高": [
+   "{孩子}的房門開始會自己關上了，你敲門時要等一下才有回應。",
+   "這陣子{他}說的話裡，同學的名字越來越多。",
+   "家長群組又在討論補習班，你默默把訊息往下滑。",
+   "一個尋常的週三，你下班回到家，聞到有人在煮泡麵。"
+  ],
+  "國中": [
+   "{孩子}的書包比去年重了一倍，肩帶被拉得很長。",
+   "晚餐桌上，{他}一邊吃一邊看手機，被你提醒了兩次才放下。",
+   "週三的晚上，{孩子}房間的門縫透出光，還有壓低的笑聲。",
+   "家長群組又在討論補習班和模擬考，你把訊息往下滑，沒有回。"
+  ],
+  "高中": [
+   "{孩子}早上出門的時間，比你起床的時間還早。",
+   "你在週日中午叫了{他}三次，房間裡只傳出一聲「知道了」。",
+   "聯絡簿換成了手機裡的行事曆，你看不到{他}這週有哪些考試。",
+   "深夜十一點，玄關有鑰匙的聲音，{他}說：「我回來了。」然後直接進了房間。"
+  ],
+  "離家": [
+   "{孩子}的房間已經收了一半，書桌上留著一張沒寫完的備忘紙。",
+   "你站在玄關，發現鞋櫃裡{他}的鞋少了兩雙。",
+   "晚餐煮了平常的份量，才想起少了一個人。",
+   "你關上燈，把門留了一條縫。{他}的故事還在往前走，而你們從這一天起，換成用別的方式在一起。"
+  ]
+ }
+}

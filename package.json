@@ -1,0 +1,17 @@
+{
+  "name": "grow-with-you",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "《陪你長大》台灣親職人生模擬（純靜態網頁，無相依套件）",
+  "scripts": {
+    "test": "node --test \"tests/*.test.mjs\"",
+    "lint": "node tools/lint-data.mjs",
+    "sim": "node tools/simulate.mjs 200",
+    "bench": "node tools/bench.mjs",
+    "sensitivity": "node tools/sensitivity.mjs 30",
+    "check-design": "node tools/check-design.mjs 3000",
+    "golden": "node tools/golden.mjs",
+    "impact": "node tools/impact.mjs"
+  }
+}
