@@ -31,6 +31,11 @@ export function lastMonths(rows, months) {
 function avgHidden(st, key, months) { return mean(lastMonths(st.curves, months).map((c) => c[key]).filter((x) => x != null)); }
 function avgVis(st, key, months) { return mean(lastMonths(st.vcurves, months).map((c) => c[key]).filter((x) => x != null)); }
 
+/** 每一筆紀錄的月份權重：和前一筆相差的月數（第一筆從 0 歲算起；沒有 m 的舊紀錄每筆算 2 個月）。wholeAvg 與 wellbeing 共用 */
+export function monthWeights(rows) {
+  let prev = 0;
+  return rows.map((c) => { const m = c.m ?? prev + 2, w = Math.max(1, m - prev); prev = m; return w; });
+}
 /** 整個童年的月份加權平均：每一筆的權重＝它和前一筆相差的月數（第一筆從 0 歲算起），所以 1 個月和 6 個月的回合不會因為筆數不同而失衡 */
 export function wholeAvg(rows, key) {
   let num = 0, den = 0, prev = 0;
@@ -96,12 +101,14 @@ export function wellbeing(st, PM = DEFAULT_PM, M) {
   const child = evalOutcome(M, '孩子幸福', r);
   const keys = ['體力', '耐心'];
   if (st.family.partner.present) keys.push('夫妻關係');
-  const rows = st.vcurves;
+  const rows = st.vcurves, mw = monthWeights(rows), mwSum = mw.reduce((x, y) => x + y, 0);
   // 平均水準只算一半的權重（往 50 收）：辛苦但可持續——撐不住的那幾回合（體力或耐心見底）才是主要的扣分
-  const whole = 50 + PM.levelWeight * (mean(rows.map((c) => mean(keys.map((k) => c[k])))) - 50);
-  const lowShare = rows.length ? rows.filter((c) => c.體力 < PM.lowThreshold || c.耐心 < PM.lowThreshold).length / rows.length : 0;
+  // E1 審查：平均與『見底的比例』都依月份加權（和 wholeAvg、結果軸一致，A2.5 窗口以月計）；
+  // 之前按回合筆數算，高中 36 個月只有 6 筆、國小 2 個月就是 1 筆，晚期被低估
+  const whole = 50 + PM.levelWeight * ((mwSum ? rows.reduce((a, c, i) => a + mw[i] * mean(keys.map((k) => c[k])), 0) / mwSum : 50) - 50);
+  const lowShare = mwSum ? rows.reduce((a, c, i) => a + (c.體力 < PM.lowThreshold || c.耐心 < PM.lowThreshold ? mw[i] : 0), 0) / mwSum : 0;
   // 父母的收穫（§7.2b）：一起參與的活動補回一部分犧牲，權重中等，不會抵消全部（也不會讓沒參與的人扣分：收穫從 0 起算）
-  const parent = mean([whole, avgHidden(st, '父母情緒穩定度')]) - PM.lowShareWeight * lowShare + (PM.growthWeight ?? 0) * (h.父母的收穫 ?? 0);
+  const parent = mean([whole, wholeAvg(st.curves, '父母情緒穩定度') ?? avgHidden(st, '父母情緒穩定度')]) - PM.lowShareWeight * lowShare + (PM.growthWeight ?? 0) * (h.父母的收穫 ?? 0);
   const between = evalOutcome(M, '彼此之間', r);
   return { child: clamp(child), parent: clamp(parent), between: clamp(between) };
 }

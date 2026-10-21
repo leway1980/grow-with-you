@@ -125,3 +125,24 @@ test('關鍵時刻從標籤重新推算，不需要存檔裡的每次選擇隱�
   assert.ok(m.length >= 3 && m.every((x) => x.when && x.title && x.label));
   assert.ok(st.hist.every((h) => h.h === undefined));
 });
+
+test('父母幸福：平均與「見底的比例」依月份加權（和 wholeAvg 一致），不是按回合筆數——高中 6 個月一筆、國小 2 個月一筆', () => {
+  const PM = { lowShareWeight: 40, lowThreshold: 35, levelWeight: 1, growthWeight: 0 };
+  const mk = (rows) => {
+    const st = newState(3, data, {});
+    st.family.partner = { present: false, attitude: '' };
+    st.hidden.父母的收穫 = 0;
+    st.vcurves = rows.map((r, i) => ({ t: i, ...r }));
+    st.curves = rows.map((r, i) => ({ t: i, m: r.m, 父母情緒穩定度: 50 }));
+    return st;
+  };
+  // 第一筆涵蓋 0–24 個月（權重 24）：體力見底；第二筆涵蓋 24–26 個月（權重 2）：正常。按筆數算見底是 50%，按月份算是 24/26
+  const a = wellbeing(mk([{ m: 24, 體力: 20, 耐心: 60 }, { m: 26, 體力: 70, 耐心: 70 }]), PM);
+  const lowShare = 24 / 26; // keys＝體力、耐心（沒有另一半）：第一筆平均 40，第二筆 70
+  const wholeMean = (((20 + 60) / 2) * 24 + ((70 + 70) / 2) * 2) / 26;
+  const expected = Math.max(0, Math.min(100, (wholeMean + 50) / 2 - 40 * lowShare));
+  assert.ok(Math.abs(a.parent - expected) < 1e-9, `${a.parent} vs ${expected}`);
+  // 反過來：第一筆正常、第二筆見底（長度比 24:2）→ 見底的比例只有 2/26，不是 50%
+  const b = wellbeing(mk([{ m: 24, 體力: 70, 耐心: 70 }, { m: 26, 體力: 20, 耐心: 60 }]), PM);
+  assert.ok(b.parent > a.parent + 10, `${b.parent} vs ${a.parent}`);
+});
