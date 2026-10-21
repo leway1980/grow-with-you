@@ -107,6 +107,48 @@ export function matchedAge(recs, d) {
   return { n, nCtl, mean, se, upper: mean + z * se, lower: mean - z * se };
 }
 /**
+ * 差中差的方向檢查（direction.kind === 'matchedDiD'）：處理組＝進入過『不太來找你』的局，量（進入後 lag 個月的值 − 進入當時的值）；
+ * 對照＝同一個機器人、在同樣兩個回合（同月齡、同一段時間）的值變化，只取兩個回合都還沒進入過的局（control: 'clean' 再要求整段期間都沒進入）。
+ * 每個處理局的差中差＝它的變化 − 同機器人同兩個回合的對照平均變化（對照不到 minGroup 局的處理局不算）。
+ * 為什麼不用 matchedAge：同月齡的水準比較量到的是『哪些家庭會進入這個狀態』（進入前就已經較低），不是進入之後狀態做了什麼；差中差把進入當時的水準扣掉。
+ * 判定同 matchedAge：平均差的單邊 95% 上界 < 0，而且幅度 ≥ minDiff。
+ */
+export function matchedDiD(recs, d) {
+  const lag = d.lag ?? 12, z = d.z ?? 1.645, minGroup = d.minGroup ?? 10, clean = (d.control ?? 'notYet') === 'clean';
+  const firstEnter = (r) => (r.episodes && r.episodes.length ? Math.min(...r.episodes.map((e) => e.enter)) : null);
+  const byBot = {};
+  for (const r of recs) if (r.und) (byBot[r.bot] ||= []).push({ r, fe: firstEnter(r) });
+  const cache = new Map();
+  const control = (bot, i0, i1) => {
+    const key = `${bot}|${i0}|${i1}`;
+    if (!cache.has(key)) {
+      let sum = 0, n = 0;
+      for (const { r, fe } of byBot[bot] || []) {
+        const a = r.und[i0], b = r.und[i1];
+        if (!a || !b || a[1] == null || b[1] == null) continue;
+        if (fe != null && fe <= (clean ? b[0] : a[0])) continue;
+        sum += b[1] - a[1]; n++;
+      }
+      cache.set(key, { sum, n });
+    }
+    return cache.get(key);
+  };
+  const diffs = []; let nCtl = 0, sumTreated = 0, sumCtl = 0;
+  for (const { r, fe } of Object.values(byBot).flat()) {
+    if (fe == null) continue;
+    const i0 = r.und.findIndex(([m]) => m >= fe), i1 = r.und.findIndex(([m]) => m >= fe + lag);
+    if (i0 < 0 || i1 < 0 || r.und[i0][1] == null || r.und[i1][1] == null) continue;
+    const o = control(r.bot, i0, i1);
+    if (o.n < minGroup) continue;
+    const ch = r.und[i1][1] - r.und[i0][1];
+    diffs.push(ch - o.sum / o.n); nCtl += o.n; sumTreated += ch; sumCtl += o.sum / o.n;
+  }
+  const n = diffs.length, mean = n ? diffs.reduce((a, b) => a + b, 0) / n : NaN;
+  const sd = n > 1 ? Math.sqrt(diffs.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1)) : NaN;
+  const se = sd / Math.sqrt(n);
+  return { n, nCtl, mean, se, upper: mean + z * se, lower: mean - z * se, treatedChange: n ? sumTreated / n : NaN, controlChange: n ? sumCtl / n : NaN };
+}
+/**
  * 比例的判定（機制發生率、路線、決定鏈共用）：用 Wilson 95% 信賴區間，整段區間都在範圍外才算 ✗；
  * 點估計在範圍外但區間有重疊時，樣本 ≥ 200 局算過、不到 200 局只標 △（pending，不擋 CI）。x＝比例，n＝分母，R＝{min,max}。
  */
@@ -150,10 +192,13 @@ export function evaluateMechanisms(recs, targets) {
     rows.push({ ok, pending, group: m.reportOnly ? '機制（僅報告）' : '機制', name: m.name + (m.mode || m.where ? `（${pool.length} 局）` : ''), value: fmt(v) + ci, range: `${m.min == null ? '' : fmt(m.min)}～${m.max == null ? '' : fmt(m.max)}`, note: pending ? (m.pending ? '暫時（pending，只報告不擋 CI）：' : '樣本不足：') + (m.note || '') : m.note || '' });
   }
   for (const d of targets.mechanisms.directions || []) {
-    if (d.kind === 'matchedAge') {
-      const r = matchedAge(recs, d), okSample = r.n >= (d.minN ?? 30);
+    if (d.kind === 'matchedAge' || d.kind === 'matchedDiD') {
+      const r = (d.kind === 'matchedDiD' ? matchedDiD : matchedAge)(recs, d), okSample = r.n >= (d.minN ?? 30);
       const sign = d.expect === '-' ? -1 : 1, bound = sign < 0 ? r.upper : -r.lower; // 單邊 95% 界限要在正確的一側
-      add(okSample && bound < 0 && sign * r.mean >= d.minDiff, '方向', d.name, okSample ? `${r.mean >= 0 ? '+' : ''}${f2(r.mean)}（95% 單邊上界 ${r.upper >= 0 ? '+' : ''}${f2(r.upper)}；處理 ${r.n} 局、對照平均來自 ${r.nCtl} 局次）` : `樣本不足（${r.n} 局）`, `${d.expect === '-' ? '≤ −' : '≥ +'}${d.minDiff} 且單邊 95% 界限 ${d.expect === '-' ? '< 0' : '> 0'}`, d.note || '');
+      const ok = okSample && bound < 0 && sign * r.mean >= d.minDiff;
+      const row = { ok, group: '方向', name: d.name, value: okSample ? `${r.mean >= 0 ? '+' : ''}${f2(r.mean)}（95% 單邊上界 ${r.upper >= 0 ? '+' : ''}${f2(r.upper)}；處理 ${r.n} 局、對照平均來自 ${r.nCtl} 局次）` : `樣本不足（${r.n} 局）`, range: `${d.expect === '-' ? '≤ −' : '≥ +'}${d.minDiff} 且單邊 95% 界限 ${d.expect === '-' ? '< 0' : '> 0'}`, note: d.note || '' };
+      if (d.pending && !ok) row.pending = true; // 暫時：只報告、不擋 CI（顯示 △）
+      rows.push(row);
       continue;
     }
     const scoped = (d.where || []).length ? recs.filter((x) => d.where.every((c) => fired(x, c))) : recs;
