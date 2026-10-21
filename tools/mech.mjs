@@ -77,6 +77,35 @@ export function wilson(k, n, z = 1.96) {
   const p = k / n, d = 1 + z * z / n, c = p + z * z / (2 * n), w = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n));
   return [(c - w) / d, (c + w) / d];
 }
+/**
+ * 配對月齡的方向檢查（direction.kind === 'matchedAge'）：處理組＝進入過『不太來找你』的局，量進入後 lag 個月（第一個月齡 ≥ 進入月齡 + lag 的回合）的 hid 值；
+ * 對照＝同一個機器人、在同一個回合『還沒進入過』這個狀態的局的平均。每個處理局的差＝它的值 − 同機器人同回合的對照平均（對照不到 minGroup 局的處理局不算）。
+ * 判定：平均差的單邊 95% 上界（平均 + 1.645 × 標準誤）< 0（expect '+' 則下界 > 0），而且平均差的幅度 ≥ minDiff。
+ */
+export function matchedAge(recs, d) {
+  const lag = d.lag ?? 12, z = d.z ?? 1.645, minGroup = d.minGroup ?? 10;
+  const ctl = {}; // bot → 回合序號 → { s, n }
+  const firstEnter = (r) => (r.episodes && r.episodes.length ? Math.min(...r.episodes.map((e) => e.enter)) : null);
+  for (const r of recs) {
+    if (!r.und) continue;
+    const fe = firstEnter(r), c = (ctl[r.bot] ||= []);
+    r.und.forEach(([m, v], i) => { if (v == null || (fe != null && fe <= m)) return; const o = (c[i] ||= { s: 0, n: 0 }); o.s += v; o.n++; });
+  }
+  const diffs = []; let nCtl = 0;
+  for (const r of recs) {
+    const fe = firstEnter(r);
+    if (fe == null || !r.und) continue;
+    const i = r.und.findIndex(([m]) => m >= fe + lag);
+    if (i < 0 || r.und[i][1] == null) continue;
+    const o = ctl[r.bot] && ctl[r.bot][i];
+    if (!o || o.n < minGroup) continue;
+    diffs.push(r.und[i][1] - o.s / o.n); nCtl += o.n;
+  }
+  const n = diffs.length, mean = n ? diffs.reduce((a, b) => a + b, 0) / n : NaN;
+  const sd = n > 1 ? Math.sqrt(diffs.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1)) : NaN;
+  const se = sd / Math.sqrt(n);
+  return { n, nCtl, mean, se, upper: mean + z * se, lower: mean - z * se };
+}
 const f2 = (x) => (Number.isFinite(x) ? x.toFixed(2) : 'NaN');
 const pc = (x) => (x * 100).toFixed(1) + '%';
 
@@ -109,6 +138,12 @@ export function evaluateMechanisms(recs, targets) {
     rows.push({ ok, pending, group: m.reportOnly ? '機制（僅報告）' : '機制', name: m.name + (m.mode || m.where ? `（${pool.length} 局）` : ''), value: fmt(v) + ci, range: `${m.min == null ? '' : fmt(m.min)}～${m.max == null ? '' : fmt(m.max)}`, note: pending ? (m.pending ? '暫時（pending，只報告不擋 CI）：' : '樣本不足：') + (m.note || '') : m.note || '' });
   }
   for (const d of targets.mechanisms.directions || []) {
+    if (d.kind === 'matchedAge') {
+      const r = matchedAge(recs, d), okSample = r.n >= (d.minN ?? 30);
+      const sign = d.expect === '-' ? -1 : 1, bound = sign < 0 ? r.upper : -r.lower; // 單邊 95% 界限要在正確的一側
+      add(okSample && bound < 0 && sign * r.mean >= d.minDiff, '方向', d.name, okSample ? `${r.mean >= 0 ? '+' : ''}${f2(r.mean)}（95% 單邊上界 ${r.upper >= 0 ? '+' : ''}${f2(r.upper)}；處理 ${r.n} 局、對照平均來自 ${r.nCtl} 局次）` : `樣本不足（${r.n} 局）`, `${d.expect === '-' ? '≤ −' : '≥ +'}${d.minDiff} 且單邊 95% 界限 ${d.expect === '-' ? '< 0' : '> 0'}`, d.note || '');
+      continue;
+    }
     const scoped = (d.where || []).length ? recs.filter((x) => d.where.every((c) => fired(x, c))) : recs;
     const r = stratifiedDiff(scoped, (x) => fired(x, d.fired), d.axis, d.minGroup ?? 10);
     const okSample = r.n1 >= (d.minN ?? 30) && r.n0 >= (d.minN ?? 30);

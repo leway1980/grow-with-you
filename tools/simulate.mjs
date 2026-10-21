@@ -90,6 +90,7 @@ export function playGame(data, bot, seed, opts = {}) {
   };
   if (opts.mech) {
     rec.mech = mechRecord(st, data, { approachEpisodes: tracker.episodes });
+    rec.und = st.curves.map((c) => [c.m, c.了解度]); // 每回合的了解度（月齡, 值）：『不太來找你』之後 12 個月的配對比較用（tools/mech.mjs matchedAge）
     const lines = pickLines(endingContext({ axes: ax, wellbeing: w, route: rp, combo: rec.combo }, chainRecords(st, data.ending), data.ending), data.ending);
     rec.ending = { ids: lines.map((l) => l.id), facets: lines.map((l) => l.facet), contra: lineContradictions(lines, data.ending).length };
   }
