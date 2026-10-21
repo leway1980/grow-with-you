@@ -116,7 +116,7 @@ export function playGame(data, bot, seed, opts = {}) {
     const C = data.chains, late = C ? C.settings.lateAfterMonths : 144, r = buildChains(st, data), cl = classroomSummary(st, data);
     rec.chains = {
       n: r.chains.length, pos: r.chains.filter((c) => c.positive).length, cands: r.all, latePos: r.chains.some((c) => c.positive && c.m0 >= late), latePosCand: (r.cands || []).some((c) => c.positive && c.m0 >= late),
-      themes: r.chains.map((c) => c.theme), traced: r.chains.filter((c) => c.trace).length, curved: r.chains.filter((c) => c.curve).length, researched: r.chains.filter((c) => c.research).length,
+      themes: r.chains.map((c) => c.theme), traced: r.chains.filter((c) => c.trace).length, curved: r.chains.filter((c) => c.curve).length, researched: r.chains.filter((c) => c.research || (C && C.themes[c.theme] && C.themes[c.theme].setting)).length, // setting:true 的主題（3C 規則，遊戲設定）不掛研究小卡
       shortChoices: r.chains.filter((c) => c.choices.length < 3 || c.choices.length > 5).length, noSituation: r.chains.filter((c) => !c.situation).length, auto: r.chains.reduce((a, c) => a + c.autoN, 0),
       classLines: cl.lines.length, lowGrades: cl.lowGrades.length, reports: cl.reports.length,
     };
