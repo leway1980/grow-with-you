@@ -74,11 +74,11 @@ export async function checkDesign(N = 3000, s0 = 1, opts = {}) {
   let edgeWorst = { r: 0, id: '' }, edgeBad = [];
   for (const e of M.edges) if (e.id.startsWith('h:')) {
     const t = inf.edgeTurn[e.id] || 0, g = inf.edgeGame[e.id] || 0;
-    edgeWorst = Math.max(t / e.maxTurn, g / e.maxGame) > edgeWorst.r ? { r: Math.max(t / e.maxTurn, g / e.maxGame), id: e.id } : edgeWorst;
-    if (t > e.maxTurn) edgeBad.push(`${e.id} 單回合 ${t.toFixed(1)} > ${e.maxTurn}`);
-    if (g > e.maxGame) edgeBad.push(`${e.id} 整局 ${g.toFixed(1)} > ${e.maxGame}`);
+    edgeWorst = Math.max(t / e.maxTurn, g / e.maxGame) > edgeWorst.r ? { r: Math.max(t / e.maxTurn, g / e.maxGame), id: e.id, t, g, mt: e.maxTurn, mg: e.maxGame } : edgeWorst;
+    if (t > e.maxTurn) edgeBad.push(`${e.id} 單回合 ${t.toFixed(2)} > ${e.maxTurn}`);
+    if (g > e.maxGame) edgeBad.push(`${e.id} 整局 ${g.toFixed(2)} > ${e.maxGame}`);
   }
-  add(edgeBad.length === 0, '影響上限', '因果圖每條邊的單回合／整局變動量都在 maxTurn／maxGame 內', edgeBad.length ? `${edgeBad.length} 條超出` : `最高使用率 ${(edgeWorst.r * 100).toFixed(0)}%（${edgeWorst.id}）`, '全部 ≤ 100%', edgeBad.slice(0, 4).join('；'));
+  add(edgeBad.length === 0, '影響上限', '因果圖每條邊的單回合／整局變動量都在 maxTurn／maxGame 內', edgeBad.length ? `${edgeBad.length} 條超出` : `最高使用率 ${(edgeWorst.r * 100).toFixed(0)}%（${edgeWorst.id}：單回合 ${edgeWorst.t.toFixed(2)}／${edgeWorst.mt}、整局 ${edgeWorst.g.toFixed(2)}／${edgeWorst.mg}）`, '全部 ≤ 100%', edgeBad.slice(0, 4).join('；'));
 
   // ── 節奏：每個階段『有固定事件的回合』的比例（由日曆算，不需要玩；M3 計畫 §8 第 11 項）──
   {

@@ -249,12 +249,26 @@ export function poolWeight(st, data, name, ctx) {
 }
 /** 兩段式抽卡（沿用 47wan）：先抽池（被選項打開或加重的池權重較高），再抽卡。卡片依「階段 × 池」建好索引，不必每回合掃全部。 */
 /** excludeHabit：這個回合已經自動帶入的習慣家族（M3 B2）；同家族的卡這回合不再抽 */
-export function drawCard(st, data, ctx, tl, r, excludeId = null, excludeHabit = null) {
+/** 一張卡所有可能出現的行為標籤（每個選項的 tags 加上 tagsIf 的各個版本） */
+export function cardTagSet(card) {
+  const out = new Set();
+  for (const ch of card.choices || []) {
+    for (const t of ch.tags || []) out.add(t);
+    for (const v of ch.tagsIf || []) for (const t of v.value || []) out.add(t);
+  }
+  return out;
+}
+/**
+ * 抽一張日常卡。excludeId／excludeHabit：這回合已經出現的卡與習慣家族不再抽。
+ * excludeTags（Set）：這回合的固定事件卡（fx_*）可能帶的標籤；日常卡只要有任何一個選項帶了其中一個標籤就不抽，
+ * 否則同一個回合裡固定事件和日常卡把同一個方向的標籤疊兩次（E1 審查：高一下 7 個月的回合『了解度-』單回合超過上限）。
+ */
+export function drawCard(st, data, ctx, tl, r, excludeId = null, excludeHabit = null, excludeTags = null) {
   const idx = data.index[tl.stage] || {};
   const pools = [];
   const live = {};
   for (const name of Object.keys(idx)) {
-    const cs = idx[name].filter((c) => c.id !== excludeId && !(excludeHabit && c.habit === excludeHabit) && eligible(c, st, ctx));
+    const cs = idx[name].filter((c) => c.id !== excludeId && !(excludeHabit && c.habit === excludeHabit) && !(excludeTags && excludeTags.size && [...cardTagSet(c)].some((t) => excludeTags.has(t))) && eligible(c, st, ctx));
     if (!cs.length) continue;
     const w = poolWeight(st, data, name, ctx);
     if (w > 0) { pools.push({ name, w }); live[name] = cs; }

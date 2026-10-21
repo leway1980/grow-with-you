@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { loadData, loadRaw } from '../tools/data-node.mjs';
 import { newState, startTurnOf } from '../js/engine/state.js';
 import { startTurn, chooseCard, nextCard, finishTurn, playTurn, buildTimeline, gradeName, ageLabel, playedStages } from '../js/engine/turn.js';
-import { describeCard, buildCtx, poolWeight, applyChoice, slotAvailable, gateNames, choiceCtx, choiceState, applyEffects } from '../js/engine/events.js';
+import { drawCard, cardTagSet, describeCard, buildCtx, poolWeight, applyChoice, slotAvailable, gateNames, choiceCtx, choiceState, applyEffects } from '../js/engine/events.js';
 import { shuffleOrder } from '../js/engine/rng.js';
 import { doseView } from '../js/engine/dose.js';
 import { stateRng } from '../js/engine/rng.js';
@@ -539,4 +539,36 @@ test('模擬器的 money30 以月計：從出生與從國小開始的局都有�
     assert.equal(r.money30, r.st.vcurves.find((c) => c.t === t).錢);
     assert.equal(moneyAtSchoolPlus(r.st, data, e), r.money30);
   }
+});
+
+/* ───── 固定事件的回合：日常卡不和固定事件卡共用標籤（E1 審查：同一個方向在一個回合疊兩次） ───── */
+test('固定事件的回合：第二張日常卡的任何選項都不帶固定事件卡的標籤', () => {
+  let checked = 0;
+  for (const tl of data.timeline) {
+    if (!tl.fixed.length) continue;
+    for (let seed = 1; seed <= 25; seed++) {
+      const st = fresh(seed); st.turn = tl.turn;
+      const r = startTurn(st, data);
+      if (!r.card || !r.twoSlot) continue;
+      const fxTags = cardTagSet(r.raw);
+      const o = chooseCard(st, data, r.card.choices.find((c) => !c.disabled).i);
+      if (!o.more) continue;
+      const c2 = data.cardIndex[st.cur.next.id];
+      if (st.cur.next.fu != null) continue; // 到期的後續卡不是抽的，不在這條規則內
+      checked++;
+      const shared = [...cardTagSet(c2)].filter((t) => fxTags.has(t));
+      assert.deepEqual(shared, [], `回合 ${tl.turn}：${r.raw.id} 與 ${c2.id} 共用標籤 ${shared.join('、')}`);
+    }
+  }
+  assert.ok(checked > 50, `只檢查到 ${checked} 個第二張日常卡`);
+});
+
+test('drawCard：excludeTags 排除任何選項（含 tagsIf 版本）帶那個標籤的卡', () => {
+  const st = fresh(7); st.turn = 64;
+  const tl = data.timeline[64], ctx = buildCtx(st, tl), r = stateRng(st, 'rngS');
+  const all = new Set();
+  for (let i = 0; i < 200; i++) { const c = drawCard(st, data, ctx, tl, r); if (c) all.add(c); }
+  assert.ok(all.size > 3);
+  const tag = [...cardTagSet([...all][0])][0];
+  for (let i = 0; i < 200; i++) { const c = drawCard(st, data, ctx, tl, r, null, null, new Set([tag])); if (c) assert.ok(!cardTagSet(c).has(tag), c.id); }
 });
