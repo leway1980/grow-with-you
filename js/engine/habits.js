@@ -115,8 +115,8 @@ export function autoHabit(st, data, tl, ctx, skipFamilies = new Set()) {
   let abs = 0;
   if (h.pattern !== mixed) {
     assertAppliedSubset(st, data, family, h.tags);
-    const k = cfg.scale[tl.stage] * cardDoseK(data.model, tl.span ?? 2, { scale: true });
-    const { deltas } = applyTags(st, h.tags, data.tags, { turn: st.turn, months: tl.ageMonths, span: tl.span ?? 2, scale: k, stage: tl.stage, ctx, approach: false, initiate: false });
+    const refK = cardDoseK(data.model, tl.span ?? 2, { scale: true }), k = cfg.scale[tl.stage] * refK; // refK：參考劑量的基準（回合長度），不含習慣的階段 scale
+    const { deltas } = applyTags(st, h.tags, data.tags, { turn: st.turn, months: tl.ageMonths, span: tl.span ?? 2, scale: k, refK, stage: tl.stage, ctx, approach: false, initiate: false });
     abs = sum(Object.values(deltas).map(Math.abs));
   }
   st.autoLog.push({ turn: st.turn, family, pattern: h.pattern, tags: h.pattern === mixed ? [] : [...h.tags], line, abs: Math.round(abs * 1000) / 1000 });

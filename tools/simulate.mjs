@@ -29,11 +29,11 @@ export function influenceMeter(st, data) {
   let curTurn = -1, turnAcc = {};
   const flush = () => { for (const [e, v] of Object.entries(turnAcc)) edgeTurn[e] = Math.max(edgeTurn[e] || 0, v); turnAcc = {}; };
   const add = (m, key, vec) => { const a = (m[key] ||= [0, 0, 0]); for (let i = 0; i < 3; i++) a[i] += vec[i]; };
-  setTagObserver(({ turn, perTag, scale }) => {
+  setTagObserver(({ turn, perTag, scale, refK }) => {
     if (turn !== curTurn) { flush(); curTurn = turn; }
     const cid = st.cur && st.cur.cardId, p = cid && data.cardIndex[cid] ? data.cardIndex[cid].pool : null;
     // 單回合的邊變動用『參考劑量』（÷ 這張卡的劑量倍率 k）記，maxTurn 以每 2 個月的一次為單位；整局累計（edgeGame）仍用實際值
-    const kk = scale || (cid && data.cardIndex[cid] ? cardDoseK(data.model, data.timeline[Math.min(turn, data.timeline.length - 1)].span ?? 2, data.cardIndex[cid]) : 1); // 實際套用的劑量倍率（循環卡依間隔，paceMonths）；沒帶就用卡片的
+    const kk = refK || scale || (cid && data.cardIndex[cid] ? cardDoseK(data.model, data.timeline[Math.min(turn, data.timeline.length - 1)].span ?? 2, data.cardIndex[cid]) : 1); // 實際套用的劑量倍率（循環卡依間隔，paceMonths）；沒帶就用卡片的
     for (const [t, ds] of Object.entries(perTag)) {
       const vec = [0, 0, 0];
       for (const [k, d] of Object.entries(ds)) {
