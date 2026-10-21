@@ -235,6 +235,7 @@ const gateVars = new Set(gateNames());
       if (!eff.some(([, v]) => v !== 0)) errors.push(`${WC}：至少要有 1 個看得到的效果（effects）`);
       else if (!String(ch.result || '').trim()) errors.push(`${WC}：有看得到的效果就要有結果文字（result），劑量表的 ▲▼ 要能從結果文字解釋`);
       for (const w of R.bannedWords) if (String(ch.label || '').includes(w)) errors.push(`${WC}：選項只寫動作，不寫態度——不能用「${w}」（DESIGN §11 寫卡規則 1）`);
+      for (const w of R.attitudeAdverbs || []) if (String(ch.label || '').includes(w)) errors.push(`${WC}：選項只寫說出口的話和做的事，情緒藏在句子裡——不能用描述態度的詞「${w}」（DESIGN §11 寫卡規則 23）`);
       for (const [k] of eff) if (!VISIBLE.includes(k)) errors.push(`${WC}：可見數值「${k}」不存在`);
       if (!ch.tags || !ch.tags.length) errors.push(`${WC}：至少要有 1 個行為標籤`);
       for (const t of ch.tags || []) {

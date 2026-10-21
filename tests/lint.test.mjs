@@ -68,6 +68,15 @@ test('休息選項的規則（§11 規則 6）：孩子的事件卡每張最多�
   assert.ok(stats.restCards <= 0.2 * stats.childCards, `${stats.restCards}/${stats.childCards}`);
 });
 
+test('寫卡規則 23：選項標籤不能含描述說話態度的詞（清單在 tags.json 的 cardRules.attitudeAdverbs，含 labelIf 的每個版本）', () => {
+  const run = (mutate) => { const raw = JSON.parse(JSON.stringify(loadRaw())); mutate(raw); return lintData(raw).errors.join('\n'); };
+  assert.equal(lintData().errors.filter((e) => e.includes('寫卡規則 23')).length, 0, '現有的卡沒有任何一句違規');
+  assert.ok(loadRaw().tags.cardRules.attitudeAdverbs.includes('語氣平和') && loadRaw().tags.cardRules.attitudeAdverbs.includes('輕聲地'));
+  assert.match(run((r) => { r.events.cards.find((c) => c.id === 'hi_task_borrow').choices[0].label = '語氣平和地說：「查完還我」'; }), /寫卡規則 23/);
+  assert.match(run((r) => { r.events.cards.find((c) => c.id === 'hi_task_borrow').choices[0].label = '耐心地說：「查完還我」'; }), /不能用描述態度的詞「耐心地」/);
+  assert.match(run((r) => { r.tags.cardRules.attitudeAdverbs.push('趕時間'); r.events.cards.find((c) => c.id === 'hi_task_borrow').choices[0].label = '趕時間說：「查完還我」'; }), /「趕時間」/); // 清單是資料
+});
+
 test('寫卡規則 1：選項標籤不能出現透露好壞的副詞（清單在 tags.json 的 cardRules.bannedWords）', () => {
   for (const w of ['好好', '慢慢', '耐心地', '溫柔地', '認真', '然後做到', '冷靜地', '用心', '貼心']) {
     assert.match(mut((r) => { card(r, 'kid_dress').choices[0].label += w; }), new RegExp(`不能用「${w}」`));
