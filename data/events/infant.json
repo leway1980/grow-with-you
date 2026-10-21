@@ -281,7 +281,7 @@
    "stages": ["嬰幼兒"],
    "cooldownMonths": 27,
    "once": true,
-   "weight": 0.3,
+   "weight": 0.36,
    "choices": [
     {"label":"照手冊檢查表記下兩週看到的，健檢給醫師看，先不轉介","effects":{"體力":-1,"耐心":-1},"tags":["先了解再處理","事後跟進"],"setFlags":["說話_記錄"],"followUp":[{"card":"inf_talk_check","afterMonths":[6,9]}],"result":"你一條一條對：會指、會揮手、叫名字會回頭。有一行你不確定，用鉛筆圈起來，留到下次健檢問醫師。"},
     {"label":"說：「貴人語遲啦」，那就先等到兩歲再看一次，不用急","effects":{"耐心":3,"體力":2},"tags":["說沒關係就結束"],"setFlags":["說話_等"],"followUp":[{"card":"inf_talk_check","afterMonths":[6,9]}],"result":"你把手冊放回抽屜。{他}拉你去拿水杯，一直「啊、啊」。"},
