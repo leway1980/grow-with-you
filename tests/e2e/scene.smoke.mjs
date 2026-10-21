@@ -23,6 +23,10 @@ try { ({ chromium } = await import('playwright')); } catch {
   const g = process.env.PLAYWRIGHT_PATH || '/opt/node-tools/node_modules/playwright/index.mjs';
   ({ chromium } = await import(g));
 }
+// 結局標題的『陪伴到』：從資料算出最後一個回合（離家階段寫「離家」，其他寫回合名稱，同 ending.js 的 to），不寫死
+const { loadData } = await import('../../tools/data-node.mjs');
+const lastTl = loadData().timeline.at(-1);
+const LAST_STOP = lastTl.stage === '離家' ? '離家' : lastTl.label;
 const browser = await chromium.launch();
 try {
   for (const [scheme, width] of [['light', 360], ['dark', 800]]) {
@@ -49,7 +53,7 @@ try {
     await page.click('[data-act="skip-end"]');
     await page.waitForSelector('#ending-portrait svg');
     assert.ok(await page.locator('#ending-portrait .album svg').count() >= 3, '成長相簿至少三張');
-    assert.match(await page.locator('.head .small').first().textContent(), /陪伴到：國小六年級/, '一般版的結局標題要寫最後玩的回合（國小六年級），不是下一個回合');
+    assert.match(await page.locator('.head .small').first().textContent(), new RegExp(`陪伴到：${LAST_STOP}`), `結局標題要寫最後玩的回合（${LAST_STOP}），不是下一個回合`);
     assert.ok(await noScroll(), `${width}px 結局沒有水平捲軸`);
     if (shots && scheme === 'light') { await page.locator('#ending-portrait').scrollIntoViewIfNeeded(); await page.screenshot({ path: join(shots, '3-ending.png') }); }
     if (shots && scheme === 'dark') await page.screenshot({ path: join(shots, '4-ending-dark.png') });
