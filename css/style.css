@@ -158,7 +158,8 @@ ul, ol { padding-left: 20px; }
   .meter-box summary .sum-t { display: none; }
   .meter-box > section + section { margin-top: 6px; }
   .meter-box .sec { margin-bottom: 4px; font-size: 13px; }
-  .meter-box .meters { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .meter-box .meters { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+  .meter, .meter .ml { min-width: 0; } .meter .ml { overflow-wrap: anywhere; }
   .meter { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "l w" "b b"; gap: 2px 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 4px 10px 6px; font-size: 13px; }
   .meter .ml { grid-area: l; color: var(--muted); } .meter .mw { grid-area: w; white-space: nowrap; font-weight: 700; color: var(--ink); } .meter .mb { grid-area: b; height: 6px; }
   .meter.warn .mw { color: var(--bad); }

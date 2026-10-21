@@ -1,5 +1,5 @@
 // 版面煙霧測試（不屬於 npm test）：node tests/e2e/layout.smoke.mjs [截圖資料夾]
-// 檢查：桌面 1366×768、1920×1080 每張卡的最後一個選項底部不超出視窗（含國中回合；E1 起預設就玩到 18 歲）；360px 沒有水平捲軸。
+// 檢查：桌面 1366×768、1920×1080 每張卡的最後一個選項底部不超出視窗（含國中回合；E1 起預設就玩到 18 歲）；768–1024 寬數值格不超出左欄；360px 沒有水平捲軸。
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join, extname, dirname } from 'node:path';
@@ -133,6 +133,15 @@ try {
       if (shots) await page.screenshot({ path: join(shots, 'ending-yearly-1366.png') });
     }
     assert.deepEqual(errs, []);
+    await page.close();
+  }
+  for (const w of [768, 885, 960, 1024]) { // 窄桌面：數值格不能超出左欄的框（老師回報 885 寬時「3C 時間」那欄跑出去）
+    const page = await browser.newPage({ viewport: { width: w, height: 800 } });
+    await page.goto(`http://localhost:${port}/?seed=11&ms=100`);
+    await page.click('[data-act="new"]'); await page.click('[data-act="start"]'); await toCard(page);
+    const over = await page.evaluate(() => { const box = document.querySelector('.meter-box').getBoundingClientRect();
+      return Math.max(0, ...[...document.querySelectorAll('.meter-box .meter')].map((m) => m.getBoundingClientRect().right - box.right)); });
+    assert.ok(over <= 0.5, `${w} 寬：數值格超出框 ${over}px`);
     await page.close();
   }
   { // 手機與平板
