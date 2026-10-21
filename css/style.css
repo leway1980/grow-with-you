@@ -284,3 +284,16 @@ p.yearly-events { padding-left: 0; }
 .research .level { font-size: 12.5px; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
 .research summary { cursor: pointer; }
 .research a { color: inherit; }
+
+/* 開場轉盤：重點欄位像老虎機的捲軸，依序減速停下；其他列等全部停了才浮現 */
+.status-win { position: relative; }
+.reel { display: block; }
+.reel.spinning { height: 26px; overflow: hidden; border: 2px solid var(--ink); border-radius: 2px; background: var(--bg); box-shadow: inset 0 6px 6px -6px var(--ink), inset 0 -6px 6px -6px var(--ink); margin-block: 0; }
+.reel-strip { display: block; will-change: transform; transform: translateY(0); }
+.reel-strip > span { display: block; height: 22px; line-height: 22px; padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+.reel.landed { animation: reel-land .7s ease-out; border-radius: 2px; }
+@keyframes reel-land { 0% { background: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 3px var(--accent); } 100% { background: transparent; box-shadow: 0 0 0 0 transparent; } }
+.roulette-on .sw-row:not(.has-reel) { visibility: hidden; }
+.sw-row { transition: opacity .3s; }
+.reel-skip { position: absolute; top: 6px; right: 8px; padding: 2px 10px; min-height: 0; font-size: 12px; z-index: 1; }
+@media (prefers-reduced-motion: reduce) { .reel.landed { animation: none; } .sw-row { transition: none; } }

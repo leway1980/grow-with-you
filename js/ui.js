@@ -37,18 +37,51 @@ export function renderTitle(root, { hasSave, onNew, onContinue }) {
   ));
 }
 
-export function renderIntro(root, { sections, role, portrait, flavour, seed, onStart }) {
+/** 轉盤的時間（毫秒）：第一個停在 REEL_FIRST，之後每個隔 REEL_GAP；全部不超過約 4 秒 */
+export const REEL_FIRST = 900, REEL_GAP = 700;
+const reduced = () => typeof globalThis.matchMedia === 'function' && globalThis.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+export function renderIntro(root, { sections, role, portrait, flavour, seed, onStart, reels = [], instant = false }) {
+  const isReel = (sec, k) => reels.some((r) => r.sec === sec.title && r.key === k);
   const win = (sec) => h('section', { class: 'sw-sec', 'aria-label': sec.title }, h('h2', null, sec.title),
-    h('dl', null, sec.rows.map(([k, v]) => h('div', { class: 'sw-row' }, h('span', { class: 'sw-ico', 'aria-hidden': 'true', html: rowIcon(sec, k, v) }), h('dt', null, k), h('dd', null, v)))));
+    h('dl', null, sec.rows.map(([k, v]) => h('div', { class: isReel(sec, k) ? 'sw-row has-reel' : 'sw-row' }, h('span', { class: 'sw-ico', 'aria-hidden': 'true', html: rowIcon(sec, k, v) }), h('dt', null, k),
+      h('dd', null, isReel(sec, k) ? h('span', { class: 'reel', 'data-reel': k }, v) : v)))));
+  const startBtn = h('button', { class: 'btn primary block', 'data-act': 'start', onClick: onStart }, '開始陪伴');
+  const skipBtn = h('button', { class: 'btn reel-skip', 'data-act': 'skip-roulette', type: 'button' }, '跳過');
+  const winEl = h('div', { class: 'status-win', role: 'group', 'aria-label': '這一局的家庭' }, h('div', { class: 'sw-grid' }, sections.map(win)));
   root.replaceChildren(h('main', { class: 'wrap wide intro' },
     h('div', { class: 'intro-grid' },
       h('div', { class: 'intro-art' }, h('figure', { class: 'portrait', 'aria-label': `你是${role}`, html: portrait })),
-      h('div', { class: 'status-win', role: 'group', 'aria-label': '這一局的家庭' },
-        h('div', { class: 'sw-grid' }, sections.map(win)))),
+      winEl),
     h('p', { class: 'flavour' }, flavour),
-    h('div', { class: 'actions' }, h('button', { class: 'btn primary block', 'data-act': 'start', onClick: onStart }, '開始陪伴')),
+    h('div', { class: 'actions' }, startBtn),
     h('p', { class: 'small muted' }, `人生編號 ${seed}（網址加 ?seed=${seed} 可以重來同一個家庭）`),
   ));
+  const els = [...winEl.querySelectorAll('.reel')];
+  if (instant || reduced() || !els.length) return;
+  // 轉盤：每個欄位是一條捲軸，經過候選字後減速停在已抽好的值（停下的值就是表格原本的字）
+  startBtn.setAttribute('disabled', '');
+  winEl.classList.add('roulette-on'); winEl.append(skipBtn);
+  const timers = []; let done = false;
+  const land = (el, final) => { el.replaceChildren(final); el.classList.remove('spinning'); el.classList.add('landed'); };
+  const finish = () => {
+    if (done) return; done = true; timers.forEach(clearTimeout);
+    els.forEach((el) => { if (!el.classList.contains('landed')) land(el, el.dataset.final); });
+    winEl.classList.remove('roulette-on'); skipBtn.remove(); startBtn.removeAttribute('disabled');
+  };
+  const order = reels.map((r) => els.find((e) => e.dataset.reel === r.key)).filter(Boolean);
+  order.forEach((el, i) => {
+    const final = el.textContent, pool = reels.find((r) => r.key === el.dataset.reel).pool.filter((x) => x !== final);
+    const dur = REEL_FIRST + REEL_GAP * i, n = Math.max(8, Math.round(dur / 60));
+    const items = Array.from({ length: n }, (_, j) => pool.length ? pool[(j * 7 + i * 3) % pool.length] : final);
+    items.push(final); el.dataset.final = final;
+    const strip = h('span', { class: 'reel-strip', 'aria-hidden': 'true' }, items.map((t) => h('span', null, t)));
+    el.replaceChildren(strip); el.classList.add('spinning');
+    strip.style.transition = `transform ${dur}ms cubic-bezier(.12,.6,.15,1)`;
+    timers.push(setTimeout(() => { strip.style.transform = `translateY(-${(100 * (items.length - 1)) / items.length}%)`; }, 30));
+    timers.push(setTimeout(() => { if (!done) land(el, final); if (i === order.length - 1) finish(); }, dur + 60));
+  });
+  skipBtn.addEventListener('click', finish);
 }
 
 /* ───────────── 遊戲畫面 ───────────── */

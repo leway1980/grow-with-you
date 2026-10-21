@@ -9,7 +9,7 @@ import { selfChoice, playRestAuto } from './engine/auto.js';
 import { meterView } from './engine/dose.js';
 import { yearSummary } from './engine/yearly.js';
 import { sceneSpec, sceneSVG, albumSpecs } from './engine/scene.js';
-import { introSections, rollRole } from './intro.js';
+import { introSections, introReels, rollRole } from './intro.js';
 import * as ui from './ui.js';
 
 const root = document.getElementById('app');
@@ -72,7 +72,7 @@ function showIntro(seed) {
     sections: introSections(draft.family, role), role,
     portrait: sceneSVG(sceneSpec(draft, data, tl, { portrait: true })),
     flavour: `接下來要陪${draft.family.child.pronoun}長大了。`,
-    seed,
+    seed, reels: introReels(data.identities, seed), instant: TURN_MS <= 100, // ?ms=100（測試用快速模式）不轉
     onStart: () => startGame(newState(seed, data, newOpts({ role, startMode: 'birth' }))),
   });
 }

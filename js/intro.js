@@ -44,3 +44,25 @@ export function introSections(fam, role) {
     { title: '學區', rows: [['國小', fam.school.name]] },
   ];
 }
+
+/**
+ * 開場轉盤：依序轉出的重點項目（只轉狀態視窗本來就顯示的列）。純表現：停下的值由 introSections 決定，
+ * 這裡只提供「轉的時候經過的候選字」，來源是引擎抽籤用的同一批表（identities.json），沒有表的欄位用顯示用的短清單。
+ * @returns {{sec:string, key:string, pool:string[]}[]}
+ */
+export function introReels(idn, seed) {
+  let s = (seed >>> 0) || 1; // 候選字的順序只影響畫面，用自己的小亂數，不動引擎的任何亂數流
+  const rnd = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+  const shuffle = (a) => { const r = a.slice(); for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; } return r; };
+  const T = idn.child.temperament, vals = [T.min, Math.round((T.min + T.max) / 2), T.max];
+  const temps = new Set();
+  for (const a of vals) for (const b of vals) for (const c of vals) temps.add(TEMP({ 活動量: a, 敏感度: b, 堅持度: c }));
+  const places = shuffle(idn.counties.flatMap((c) => c.districts.map((d) => `${c.name}${d}`))).slice(0, 40);
+  return [
+    { sec: '你', key: '身分', pool: ['爸爸', '媽媽'] },
+    { sec: '孩子', key: '氣質', pool: shuffle([...temps]) },
+    { sec: '家', key: '地點', pool: places },
+    { sec: '家', key: '家庭型態', pool: idn.familyStructures.map((f) => STRUCT[f.id]).filter(Boolean) },
+    { sec: '家', key: '經濟', pool: idn.econLabels.slice() },
+  ];
+}
