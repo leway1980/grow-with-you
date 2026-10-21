@@ -119,11 +119,11 @@ function situationOf(st, data, m0, m1) {
 }
 
 /** 被這段選擇推得最多的隱藏數值：前後的曲線（整個童年的點，加上這一段的起訖） */
-function curveOf(st, data, items, m0, m1, T, W, C) {
+function curveOf(st, data, items, m0, m1, T, W, C, forced = null) {
   const stage = (e) => e.stage;
   const acc = {};
   for (const e of items) for (const [k, d] of Object.entries(estimateDeltas(e.tags, stage(e), T))) acc[k] = (acc[k] || 0) + d * e.w;
-  const cands = Object.entries(acc).filter(([k]) => st.curves.length && st.curves[0][k] != null).sort((a, b) => Math.abs(b[1] * (W[b[0]] || 0.2)) - Math.abs(a[1] * (W[a[0]] || 0.2))).slice(0, 4);
+  const cands = (forced ? [[forced, acc[forced] || 0]] : Object.entries(acc)).filter(([k]) => st.curves.length && st.curves[0][k] != null).sort((a, b) => Math.abs(b[1] * (W[b[0]] || 0.2)) - Math.abs(a[1] * (W[a[0]] || 0.2))).slice(0, 4);
   if (!cands.length || !st.curves.length) return null;
   const rows = st.curves;
   const before = (m) => { let r = rows[0]; for (const c of rows) { if (c.m <= m) r = c; else break; } return r; };
@@ -138,6 +138,17 @@ function curveOf(st, data, items, m0, m1, T, W, C) {
   const k = best.k, step = Math.max(1, Math.ceil(rows.length / C.settings.sparkPoints));
   const pts = rows.filter((c, i) => i % step === 0 || i === rows.length - 1).map((c) => ({ m: c.m, v: c[k] }));
   return { node: k, m0: best.r0.m, m1: best.r1.m, v0: Math.round(best.r0[k]), v1: Math.round(best.r1[k]), up: best.move > 0, pts };
+}
+
+/** 隱藏數值整個童年的走勢（只寫事實：最高的時候與最後的值；DESIGN §4.39 終局『3C 規則』讀依賴度的走勢）。沒有曲線就是空字串 */
+export function trajectoryOf(st, node) {
+  const rows = (st.curves || []).filter((c) => c[node] != null);
+  if (rows.length < 2) return '';
+  const peak = rows.reduce((a, c) => (c[node] > a[node] ? c : a), rows[0]), last = rows[rows.length - 1];
+  const nm = st.family.child.given;
+  return peak.m === last.m || last[node] >= peak[node] - 2
+    ? `${nm}${ageAt(last.m)}時是 ${Math.round(last[node])}，這一路是往上走的。`
+    : `${nm}${ageAt(peak.m)}時最高，是 ${Math.round(peak[node])}；${ageAt(last.m)}時是 ${Math.round(last[node])}。`;
 }
 
 /** 後來留下的痕跡：第一張之後出現、標了 traceOf: 主題 的卡；沒有就用習慣句（鏈結束超過 traceAfterMonths 之後的第一句） */
@@ -212,7 +223,8 @@ function describe(st, data, c, theme, C, W) {
     ages: agesLabel(c.m0, c.m1), m0: c.m0, m1: c.m1,
     situation: situationOf(st, data, c.m0, c.m1),
     choices,
-    curve: curveOf(st, data, c.items, c.m0, c.m1, data.tags, W, C),
+    curve: curveOf(st, data, c.items, c.m0, c.m1, data.tags, W, C, theme.curveNode || null),
+    trajectory: theme.curveNode ? trajectoryOf(st, theme.curveNode) : '',
     trace: traceOf(st, data, c.theme, theme, c.m1, C),
     research: researchOf(data, theme, c.m1),
     note: theme.note || '',

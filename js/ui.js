@@ -277,6 +277,7 @@ export function chainCard(c) {
     h('ol', { class: 'chain-choices' }, c.choices.map((x) => h('li', { class: x.auto ? 'auto' : '' }, h('span', { class: 'age' }, x.age), '　', x.text,
       x.formedBy && x.formedBy.length > 0 && h('div', { class: 'small muted formed' }, '這個習慣是這幾次形成的：' + x.formedBy.map((f) => `${f.age}「${f.text}」`).join('、'))))),
     c.curve && h('figure', { class: 'chain-fig' }, chainSpark(c), h('figcaption', { class: 'small muted' }, `${c.curve.node}　${c.curve.v0} → ${c.curve.v1}（底色是這一段）`)),
+    c.trajectory && h('p', { class: 'small muted chain-traj' }, c.trajectory),
     c.trace && h('p', { class: 'chain-trace small' }, h('b', null, '後來　'), c.trace.text),
     r && h('div', { class: 'research' },
       h('div', { class: 'rh' }, h('b', null, '研究怎麼說'), h('span', { class: 'level', title: r.strength }, `證據強度：${r.level}`)),
