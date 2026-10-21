@@ -43,6 +43,8 @@ try {
     let m = await read(page);
     assert.deepEqual(m.reels.map((r) => r.key).sort(), [...KEYS].sort(), '五個捲軸');
     assert.ok(m.startDisabled && m.skip && m.reels.every((r) => r.spinning), '轉的時候：開始鈕停用、有跳過鈕');
+    const pre = await page.evaluate(() => ({ ph: [...document.querySelectorAll('.sw-row:not(.has-reel) dd')].every((d) => getComputedStyle(d, '::after').content.includes('？？？')), rows: [...document.querySelectorAll('.sw-row')].map((r) => Math.round(r.getBoundingClientRect().height)), top: Math.round(document.querySelector('[data-act="start"]').getBoundingClientRect().top) }));
+    assert.ok(pre.ph, '沒轉的列顯示 ？？？');
     if (shots) await page.screenshot({ path: join(shots, 'spin-1366.png') });
     await page.waitForTimeout(2000);
     m = await read(page);
@@ -52,7 +54,13 @@ try {
     assert.ok(took <= 4800, `總時間 ${took}ms`);
     m = await read(page);
     for (const r of m.reels) assert.equal(r.text, m.table[r.key], `${r.key} 停下的值等於表格`);
+    const post = await page.evaluate(() => ({ rows: [...document.querySelectorAll('.sw-row')].map((r) => Math.round(r.getBoundingClientRect().height)), top: Math.round(document.querySelector('[data-act="start"]').getBoundingClientRect().top) }));
+    assert.deepEqual(post, { rows: pre.rows, top: pre.top }, '轉的時候和停下後版面不位移');
     assert.ok(m.reels.every((r) => !r.spinning) && !m.skip && m.sw && m.sh <= m.vh, `停下後版面 ${JSON.stringify({ sh: m.sh, vh: m.vh })}`);
+    await page.waitForTimeout(1500); // 落地閃光要在 0.8 秒內退乾淨
+    const bg = await page.evaluate(() => [...document.querySelectorAll('.reel')].map((e) => getComputedStyle(e).backgroundColor));
+    assert.ok(bg.every((c) => c === 'rgba(0, 0, 0, 0)' || c === 'transparent'), `停下 1.5 秒後捲軸背景要透明 ${bg}`);
+    assert.equal(await page.locator('.roulette-on').count(), 0);
     if (shots) await page.screenshot({ path: join(shots, 'landed-1366.png') });
     assert.deepEqual(errs, []); await page.close();
     console.log('roulette 自然播放 ok', took, 'ms');
@@ -76,6 +84,7 @@ try {
     let m = await read(page); assert.ok(m.sw, '360 轉的時候沒有水平捲軸');
     if (shots) await page.screenshot({ path: join(shots, 'spin-360.png'), fullPage: true });
     await page.click('[data-act="skip-roulette"]'); m = await read(page); assert.ok(m.sw, '360 停下後沒有水平捲軸');
+    await page.waitForTimeout(1500);
     if (shots) await page.screenshot({ path: join(shots, 'landed-360.png'), fullPage: true });
     await page.close(); console.log('roulette 360 ok');
   }

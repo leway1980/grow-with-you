@@ -63,7 +63,7 @@ export function renderIntro(root, { sections, role, portrait, flavour, seed, onS
   startBtn.setAttribute('disabled', '');
   winEl.classList.add('roulette-on'); winEl.append(skipBtn);
   const timers = []; let done = false;
-  const land = (el, final) => { el.replaceChildren(final); el.classList.remove('spinning'); el.classList.add('landed'); };
+  const land = (el, final) => { const dd = el.parentNode; if (dd && dd.style) { dd.style.height = ''; dd.style.display = ''; dd.style.alignItems = ''; } el.replaceChildren(final); el.classList.remove('spinning'); el.classList.add('landed'); };
   const finish = () => {
     if (done) return; done = true; timers.forEach(clearTimeout);
     els.forEach((el) => { if (!el.classList.contains('landed')) land(el, el.dataset.final); });
@@ -75,6 +75,7 @@ export function renderIntro(root, { sections, role, portrait, flavour, seed, onS
     const dur = REEL_FIRST + REEL_GAP * i, n = Math.max(8, Math.round(dur / 60));
     const items = Array.from({ length: n }, (_, j) => pool.length ? pool[(j * 7 + i * 3) % pool.length] : final);
     items.push(final); el.dataset.final = final;
+    const dd = el.parentNode, hh = dd.getBoundingClientRect().height; if (hh) { dd.style.height = `${hh.toFixed(2)}px`; dd.style.display = 'flex'; dd.style.alignItems = 'center'; } // 預留停下後的高度，換成捲軸版面不位移
     const strip = h('span', { class: 'reel-strip', 'aria-hidden': 'true' }, items.map((t) => h('span', null, t)));
     el.replaceChildren(strip); el.classList.add('spinning');
     strip.style.transition = `transform ${dur}ms cubic-bezier(.12,.6,.15,1)`;
