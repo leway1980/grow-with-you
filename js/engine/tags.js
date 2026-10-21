@@ -2,7 +2,7 @@
 // 換算會依情境調整：孩子的階段、（只有害處會累積的標籤才有的）重複加速、「父母傳遞的方向」計數、孩子的狀態與氣質。
 // 數值有飽和（越接近 0 或 100 越難動）與自然漂移（不維持就慢慢回到常態，例如了解度）。純函式，無 DOM。
 import { evalCond } from './events.js';
-import { derivedValue, plasticityOf } from './model.js';
+import { derivedValue, plasticityOf, edgeForTagEffect, edgeById } from './model.js';
 import { perSpan, decaySpan } from './timescale.js';
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
@@ -138,6 +138,20 @@ export function updateApproach(st, tags, T, opts) {
   if (v.不太來找你 && v.孩子來找_回來連續 >= (A.exitStreak[opts.stage] ?? 3)) { const k = opts.approach ? '不太來找你_離開_接住' : '不太來找你_離開_主動'; v[k] = (v[k] || 0) + 1; v.不太來找你 = 0; v.孩子來找_連續錯過 = 0; v.孩子來找_回來連續 = 0; }
 }
 
+/* ───── 單回合邊預算（DESIGN §3.7 第 2 點）：一個回合裡推到同一條 h: 因果邊（隱藏數值＋方向）的總量，以『參考劑量』（÷ 劑量倍率 refK）計，不超過那條邊的 maxTurn ─────
+   同一個回合的兩張卡、自動帶入的習慣、父母的收穫都算同一份預算；超出的部分在套用時直接截掉（照比例縮小這一次的變化量）。
+   預算只活在這個 WeakMap（以 st 物件為鍵、依回合重置），不進 st，存檔格式不變；從存檔讀回來的局在該回合的預算從頭算。 */
+const TURN_BUDGET = new WeakMap();
+function turnBudget(st, T, opts, edge, raw) {
+  if (!raw || !edge || !edge.maxTurn || opts.turn == null) return raw;
+  let b = TURN_BUDGET.get(st);
+  if (!b || b.turn !== opts.turn) { b = { turn: opts.turn, used: {} }; TURN_BUDGET.set(st, b); }
+  const k = opts.refK || opts.scale || 1, ref = Math.abs(raw) / k;
+  const use = Math.min(ref, Math.max(0, edge.maxTurn - (b.used[edge.id] || 0)));
+  b.used[edge.id] = (b.used[edge.id] || 0) + use;
+  return ref > 0 ? raw * (use / ref) : raw;
+}
+
 export const applyTags = writer((st, tags, T, opts) => {
   const deltas = {}, perTag = observer ? {} : null;
   const { stage, ctx, topic, direction } = opts;
@@ -160,7 +174,7 @@ export const applyTags = writer((st, tags, T, opts) => {
     for (const [k, d] of Object.entries(def.d || {})) {
       const m = mult * (def.dirAccel && def.dirAccel.includes(k) && pressureSide(k, d) ? dirMult : 1) * plasticityOf(T.model, stage, k, def, Math.sign(d)); // 階段可塑性（B1）
       const before = st.hidden[k];
-      st.hidden[k] = clamp(before + saturate(before, d * m), 0, 100);
+      st.hidden[k] = clamp(before + turnBudget(st, T, opts, T.model ? edgeForTagEffect(T.model, tag, k, d) : null, saturate(before, d * m)), 0, 100);
       deltas[k] = (deltas[k] || 0) + (st.hidden[k] - before);
       if (perTag) ((perTag[tag] ||= {})[k] = (perTag[tag][k] || 0) + (st.hidden[k] - before));
     }
@@ -174,12 +188,12 @@ export const applyTags = writer((st, tags, T, opts) => {
   // 父母的收穫：一個選項只算一次，只在這裡寫（單一寫入口）；飽和與其他隱藏數值相同
   if (isGrowthChoice(T, tags)) {
     const before = st.hidden.父母的收穫 ?? 0;
-    st.hidden.父母的收穫 = clamp(before + saturate(before, T.growth.gain * scale), 0, 100);
+    st.hidden.父母的收穫 = clamp(before + turnBudget(st, T, opts, T.model ? edgeById(T.model).get('h:父母的收穫+') : null, saturate(before, T.growth.gain * scale)), 0, 100);
     deltas.父母的收穫 = (deltas.父母的收穫 || 0) + (st.hidden.父母的收穫 - before);
     if (perTag) perTag['@父母的收穫'] = { 父母的收穫: st.hidden.父母的收穫 - before };
   }
   recomputeDerived(st, T);
-  if (observer) observer({ st, turn: opts.turn, stage, tags: tags || [], perTag, deltas, scale });
+  if (observer) observer({ st, turn: opts.turn, stage, tags: tags || [], perTag, deltas, scale, refK: opts.refK });
   return { deltas };
 });
 

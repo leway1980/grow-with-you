@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadData, loadRaw } from '../tools/data-node.mjs';
-import { newState } from '../js/engine/state.js';
+import { newState, serialize, deserialize } from '../js/engine/state.js';
 import { buildCtx, applyChoice, applyEffects, resolveDirection, cardScope, describeCard } from '../js/engine/events.js';
 import { applyTags, stageMult, modifierFactor, saturate, driftHidden, repetitionMult, hiddenWriteAllowed } from '../js/engine/tags.js';
 import { stateRng } from '../js/engine/rng.js';
@@ -209,4 +209,66 @@ test('孩子不再開口／孩子主動開口：標籤的 counts 會累計到 va
   apply(st, ['沒聽孩子重複的要求', '聽他說完', '聽孩子重複的要求'], 30);
   assert.equal(st.vars.孩子不再開口, 1);
   assert.equal(st.vars.孩子主動開口, 2);
+});
+
+/* ───── 單回合邊預算（DESIGN §3.7）：同一個回合推到同一條 h: 邊的總量（參考劑量）不超過 maxTurn ───── */
+// 挑一條有兩個以上標籤餵它、且每個標籤自己就能推這個方向的邊
+function budgetEdge() {
+  let best = null;
+  for (const e of data.model.edges) {
+    if (!e.id.startsWith('h:') || e.to === '父母的收穫' || !e.maxTurn) continue;
+    const tags = (e.fromTags || []).filter((t) => T.tags[t] && T.tags[t].d && Math.sign(T.tags[t].d[e.to]) === (e.sign === '+' ? 1 : -1)).sort((a, b) => Math.abs(T.tags[b].d[e.to]) - Math.abs(T.tags[a].d[e.to]));
+    if (tags.length >= 2 && (!best || e.maxTurn < best.e.maxTurn)) best = { e, tags };
+  }
+  if (!best) throw new Error('找不到有兩個標籤的邊');
+  return best;
+}
+
+test('單回合邊預算：兩張卡加一個習慣推同一條邊，一個回合的總和 ≤ maxTurn；下一個回合預算重置', () => {
+  const { e, tags } = budgetEdge();
+  const push = (st, turn) => { // 同一個回合：卡 A、卡 B（劑量 1）、習慣（劑量 0.5，參考劑量基準 1）各推好幾次
+    const sum = () => st.hidden[e.to];
+    const before = sum();
+    for (let i = 0; i < 40; i++) { apply(st, [tags[0]], turn); apply(st, [tags[1]], turn); apply(st, [tags[0]], turn, { scale: 0.5, refK: 1 }); }
+    return Math.abs(sum() - before);
+  };
+  const st = fresh(11); st.turn = 40;
+  const first = push(st, 40);
+  assert.ok(first <= e.maxTurn + 1e-9, `一個回合 ${first} > maxTurn ${e.maxTurn}`);
+  // 沒有預算時（每次換一個回合號碼）會超過，才代表預算真的有擋
+  const free = fresh(11); free.turn = 40;
+  let n = 0; const b0 = free.hidden[e.to];
+  for (let i = 0; i < 40; i++) { apply(free, [tags[0]], 40 + n++); apply(free, [tags[1]], 40 + n++); apply(free, [tags[0]], 40 + n++, { scale: 0.5, refK: 1 }); }
+  assert.ok(Math.abs(free.hidden[e.to] - b0) > e.maxTurn + 1e-9, '對照組沒有超過 maxTurn，測試沒意義');
+  const second = push(st, 41);
+  assert.ok(second > 0 && second <= e.maxTurn + 1e-9, `下一個回合 ${second}`);
+});
+
+test('單回合邊預算：以參考劑量計——習慣的階段 scale 不讓它被當成一整張卡', () => {
+  const { e, tags } = budgetEdge();
+  // 同一個回合一直推到預算用完為止，數放得進幾次：refK 1、scale 0.4 的習慣每次只花約 0.4 份參考劑量，放得進的次數比整張卡（scale 1）多
+  const fits = (extra) => { const s = fresh(12); s.turn = 40; let n = 0; for (; n < 500; n++) { const b = s.hidden[e.to]; apply(s, [tags[0]], 40, extra); if (Math.abs(s.hidden[e.to] - b) < 1e-9) break; } return n; };
+  const full = fits({}), habit = fits({ scale: 0.4, refK: 1 });
+  assert.ok(full >= 2 && habit > full * 1.5, `整張卡放得進 ${full} 次、scale 0.4 的習慣 ${habit} 次`);
+});
+
+test('單回合邊預算：父母的收穫也算 h:父母的收穫+ 的 maxTurn', () => {
+  const e = data.model.edges.find((x) => x.id === 'h:父母的收穫+');
+  const st = fresh(13); st.turn = 40; st.hidden.父母的收穫 = 10;
+  const before = st.hidden.父母的收穫;
+  for (let i = 0; i < 20; i++) apply(st, ['放下手機陪'], 40);
+  assert.ok(st.hidden.父母的收穫 - before <= e.maxTurn + 1e-9, `${st.hidden.父母的收穫 - before} > ${e.maxTurn}`);
+});
+
+test('單回合邊預算不進存檔：序列化沒有預算欄位、讀回來完全相同，下一個回合照常', () => {
+  const { tags } = budgetEdge();
+  const st = fresh(14); st.turn = 40;
+  for (let i = 0; i < 10; i++) apply(st, [tags[0], tags[1]], 40);
+  const json = serialize(st);
+  assert.ok(!/budget|預算/.test(json));
+  assert.deepEqual(deserialize(json), st);
+  assert.equal(serialize(deserialize(json)), json);
+  const back = deserialize(json);
+  apply(st, [tags[0]], 41); apply(back, [tags[0]], 41);
+  assert.deepEqual(back.hidden, st.hidden);
 });

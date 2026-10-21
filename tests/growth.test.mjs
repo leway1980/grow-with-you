@@ -33,7 +33,7 @@ test('父母的收穫：一個選項只算一次（帶三個參與標籤也只�
   const a = gain(fresh(), ['陪讀共讀']), b = gain(fresh(), ['陪讀共讀', '放下手機陪', '陪著觀察']);
   assert.ok(Math.abs(a - saturate(0, T.growth.gain)) < 1e-9 && Math.abs(b - a) < 1e-9);
   const st = fresh();
-  for (let i = 0; i < 400; i++) gain(st, ['陪讀共讀']);
+  for (let i = 0; i < 400; i++) gain(st, ['陪讀共讀'], 30 + (i % 40)); // 每次換一個回合：同一個回合的總量受單回合邊預算限制（tags.js turnBudget），這裡測的是飽和
   assert.ok(st.hidden.父母的收穫 > 90 && st.hidden.父母的收穫 <= 100);
 });
 
