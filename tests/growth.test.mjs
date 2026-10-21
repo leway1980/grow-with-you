@@ -30,7 +30,7 @@ test('父母的收穫：只有一起參與的標籤會讓它上升；送去上�
 
 test('父母的收穫：一個選項只算一次（帶三個參與標籤也只加一次），而且有飽和', () => {
   const a = gain(fresh(), ['陪讀共讀']), b = gain(fresh(), ['陪讀共讀', '放下手機陪', '陪著觀察']);
-  assert.ok(Math.abs(a - saturate(0, T.growth.gain)) < 1e-9 && Math.abs(b - a) < 1e-9);
+  assert.ok(Math.abs(a - saturate(0, T.growth.gainPerMonth * 2)) < 1e-9 && Math.abs(b - a) < 1e-9);
   const st = fresh();
   for (let i = 0; i < 400; i++) gain(st, ['陪讀共讀']);
   assert.ok(st.hidden.父母的收穫 > 90 && st.hidden.父母的收穫 <= 100);

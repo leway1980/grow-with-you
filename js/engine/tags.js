@@ -3,7 +3,7 @@
 // 數值有飽和（越接近 0 或 100 越難動）與自然漂移（不維持就慢慢回到常態，例如了解度）。純函式，無 DOM。
 import { evalCond } from './events.js';
 import { derivedValue, plasticityOf } from './model.js';
-import { perSpan, decaySpan } from './timescale.js';
+import { perSpan, decaySpan, REF_MONTHS } from './timescale.js';
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 export const HIDDEN_KEYS = (T) => Object.keys(T.hidden);
@@ -174,7 +174,9 @@ export const applyTags = writer((st, tags, T, opts) => {
   // 父母的收穫：一個選項只算一次，只在這裡寫（單一寫入口）；飽和與其他隱藏數值相同
   if (isGrowthChoice(T, tags)) {
     const before = st.hidden.父母的收穫 ?? 0;
-    st.hidden.父母的收穫 = clamp(before + saturate(before, T.growth.gain * scale), 0, 100);
+    // 時間正規化：劑量＝每月的量 × 這個回合涵蓋的月數（不受卡片的 scale／kMax 影響），十八年的總量不隨決定回合的多寡變
+    const dose = T.growth.gainPerMonth * (opts.span ?? REF_MONTHS);
+    st.hidden.父母的收穫 = clamp(before + saturate(before, dose), 0, 100);
     deltas.父母的收穫 = (deltas.父母的收穫 || 0) + (st.hidden.父母的收穫 - before);
     if (perTag) perTag['@父母的收穫'] = { 父母的收穫: st.hidden.父母的收穫 - before };
   }
