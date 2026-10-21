@@ -122,7 +122,7 @@ try {
           before: sec.getBoundingClientRect().top < document.querySelector('#ending-achievement').getBoundingClientRect().top, n: cards.length,
           twoCols: cards.length < 2 || Math.abs(r(cards[0]).top - r(cards[1]).top) < 4 && r(cards[0]).right <= r(cards[1]).left + 1,
           minFont: Math.min(...[...sec.querySelectorAll('li, p, summary')].map(fs)), noOverflow: document.documentElement.scrollWidth <= innerWidth && cards.every((c) => r(c).right <= innerWidth + 1),
-          parts: cards.every((c) => c.querySelector('.chain-head b') && c.querySelectorAll('.chain-choices li').length >= 3 && c.querySelector('svg.chain-spark') && c.querySelector('.research .level')),
+          parts: cards.every((c) => c.querySelector('.chain-head b') && c.querySelectorAll('.chain-choices li').length >= 3 && c.querySelector('svg.chain-spark') && (c.querySelector('.research .level') || c.textContent.includes('3C 與螢幕'))), // 3C 規則是遊戲設定，不掛研究小卡（§4.39）
           cls: !!sec.querySelector('#ending-classroom li'),
         };
       });
