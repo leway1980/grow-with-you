@@ -167,6 +167,26 @@ export function updateScreen(st, tags, T, opts) {
   } else if (!neutral) v[S.streakVar] = 0;
 }
 
+/** 依賴度的『傷害係數』0–1（DESIGN §4.39 依賴度怎麼影響孩子；tags.json screen.harm.lo／hi 之間線性）。沒有設定就是 0 */
+export function depFactor(st, T) {
+  const S = T.screen, H = S && S.harm;
+  if (!H) return 0;
+  return clamp(((st.hidden[S.dep] ?? 0) - H.lo) / (H.hi - H.lo), 0, 1);
+}
+/** 學習面的傷害係數：依賴度的傷害係數 ×（1 − resilMax × 抗性）；抗性＝國語與數學天賦平均從 resilFrom 到 resilTo 線性 0→1（天賦好的孩子，即使放任 3C 成績還撐得住，這是『少數例外』；但和家人的互動照樣變少，§4.39） */
+export function learnFactor(st, T) {
+  const H = T.screen && T.screen.harm, f = depFactor(st, T);
+  if (!H || !f) return 0;
+  const t = st.family.child.talents, a = ((t.國語 || 0) + (t.數學 || 0)) / 2;
+  return f * (1 - H.resilMax * clamp((a - H.resilFrom) / (H.resilTo - H.resilFrom), 0, 1));
+}
+/** 作業▲打折：依賴度高的孩子作業會寫完，但草草了事（只打折正的效果，不動花費） */
+export function discountHomework(st, T, eff) {
+  const f = learnFactor(st, T), H = T.screen && T.screen.harm;
+  if (!f || !eff || !(eff.作業 > 0)) return eff;
+  return { ...eff, 作業: eff.作業 * (1 - H.homeworkDiscount * f) };
+}
+
 /* ───── 單回合邊預算（DESIGN §3.7 第 2 點）：一個回合裡推到同一條 h: 因果邊（隱藏數值＋方向）的總量，以『參考劑量』（÷ 劑量倍率 refK）計，不超過那條邊的 maxTurn ─────
    同一個回合的兩張卡、自動帶入的習慣、父母的收穫都算同一份預算；超出的部分在套用時直接截掉（照比例縮小這一次的變化量）。
    預算只活在這個 WeakMap（以 st 物件為鍵、依回合重置），不進 st，存檔格式不變；從存檔讀回來的局在該回合的預算從頭算。 */
@@ -187,7 +207,7 @@ export const applyTags = writer((st, tags, T, opts) => {
   const scale = opts.scale ?? 1;
   const months = opts.months ?? (ctx && ctx.月齡) ?? (st.hist.length ? st.hist[st.hist.length - 1].m : 0);
   updateScreen(st, tags, T, { screen: !!opts.screen, scale, stage });
-  const SC = T.screen;
+  const SC = T.screen, depF = learnFactor(st, T); // 依賴度高：閱讀習慣、嘗試新活動的正面效果打折（§4.39 內在的動力變弱）
   for (const tag of tags || []) {
     const def = T.tags[tag];
     if (!def) throw new Error('未知的行為標籤: ' + tag);
@@ -206,7 +226,8 @@ export const applyTags = writer((st, tags, T, opts) => {
       if (def.streakGate && SC && k === SC.dep && !(st.vars[SC.streakVar] >= (SC.need[stage] ?? 3))) continue; // 3C陪伴同行：連續的陪伴達門檻才把依賴度往下拉（§4.39）
       const m = mult * (def.dirAccel && def.dirAccel.includes(k) && pressureSide(k, d) ? dirMult : 1) * plasticityOf(T.model, stage, k, def, Math.sign(d)); // 階段可塑性（B1）
       const before = st.hidden[k];
-      st.hidden[k] = clamp(before + turnBudget(st, T, opts, T.model ? edgeForTagEffect(T.model, tag, k, d) : null, saturate(before, d * m)), 0, 100);
+      const drive = depF && d > 0 && ((SC.harm.driveKeys || []).includes(k) || (SC.harm.driveTags || []).includes(tag)) ? 1 - SC.harm.driveDiscount * depF : 1;
+      st.hidden[k] = clamp(before + turnBudget(st, T, opts, T.model ? edgeForTagEffect(T.model, tag, k, d) : null, saturate(before, d * m * drive)), 0, 100);
       deltas[k] = (deltas[k] || 0) + (st.hidden[k] - before);
       if (SC && tag === SC.trip.tag && k === SC.dep && st.hidden[k] < before) st.vars[SC.trip.reboundVar] = (st.vars[SC.trip.reboundVar] || 0) + (before - st.hidden[k]); // 一次大活動：下降的量記成待回彈
       if (perTag) ((perTag[tag] ||= {})[k] = (perTag[tag][k] || 0) + (st.hidden[k] - before));
@@ -282,6 +303,13 @@ export const driftHidden = writer((st, T, opts = {}) => {
     v[SC.useVar] = clamp((v[SC.useVar] ?? SC.useDefault) + (SC.useDefault - (v[SC.useVar] ?? SC.useDefault)) * perSpan(SC.useRelaxMonth, span), 0, 1);
     const rem = v[SC.trip.reboundVar] || 0;
     if (rem > 0) { const mv = rem * perSpan(SC.trip.reboundMonth, span); st.hidden[dep] = clamp(st.hidden[dep] + mv, 0, 100); v[SC.trip.reboundVar] = rem - mv < 0.05 ? 0 : rem - mv; }
+    // 依賴度直接帶來的三件事（§4.39，遊戲設定）：和家人的互動變少（親子信任、了解度每月往下）、學習習慣往下（閱讀習慣）
+    const H = SC.harm, f = depFactor(st, T);
+    if (H && f > 0) {
+      st.hidden.親子信任 = clamp(st.hidden.親子信任 - H.trustPerMonth * f * span, 0, 100);
+      st.hidden.了解度 = clamp(st.hidden.了解度 - H.knowPerMonth * f * span, 0, 100);
+      st.hidden.閱讀習慣 = clamp(st.hidden.閱讀習慣 - H.readPerMonth * learnFactor(st, T) * span, 0, 100);
+    }
     const R = SC.rise, vis = st.child['3C時間'] ?? 0;
     const raw = R.perMonth * span * (vis / R.ref) * (R.floor + (1 - R.floor) * v[SC.useVar]) * (R.byStage[opts.stage] ?? 1);
     st.hidden[dep] = clamp(st.hidden[dep] + saturate(st.hidden[dep], raw), 0, 100);

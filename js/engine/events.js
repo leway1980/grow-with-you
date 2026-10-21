@@ -3,7 +3,7 @@
 import { pickWeighted, clamp, rngAt, shuffleOrder } from './rng.js';
 import { fillSlots, persistedSlots } from './slots.js';
 import { familyCtx } from './family.js';
-import { applyTags, isGrowthChoice } from './tags.js';
+import { applyTags, isGrowthChoice, depFactor, discountHomework } from './tags.js';
 import { cardDoseK, scaleEffects, turnAtOrAfter, REF_MONTHS } from './timescale.js';
 import { applyClassroomTags, resetClassroom, classroomCtx, CARE_P, CARE_P_CONCERNED } from './classroom.js';
 
@@ -172,7 +172,7 @@ export function buildCtx(st, tl, extra = {}) {
     心情低連續: 0, 離校機率: 0, 離校骰: 0, ...(CTX_HOOK ? CTX_HOOK(st, tl) : null), // 中途離校的前兆（paths.js，只在高中算）
     ...habitCtx(st), // 習慣_<家族>（目前的習慣模式）、習慣改變_<家族>（已連續換了幾次）；沒有習慣資料時什麼都不加
     上學方式: st.vars.上學方式 || '', 孩子來找_連續錯過: st.vars.孩子來找_連續錯過 || 0, 不太來找你: !!st.vars.不太來找你,
-    三C陪伴連續: st.vars['3C陪伴_連續'] || 0, 三C回彈中: (st.vars['3C回彈'] || 0) > 0.5, 邀約接受: st.vars.邀約接受 || 0, 邀約婉拒: st.vars.邀約婉拒 || 0, // 手機與平板（§4.39）、假日邀約（§4.40）：計數與狀態，卡片的條件與池權重讀它；依賴度本身（隱藏）不進條件環境以外的任何畫面
+    三C陪伴連續: st.vars['3C陪伴_連續'] || 0, 三C回彈中: (st.vars['3C回彈'] || 0) > 0.5, 三C依賴高: (st.hidden['3C依賴度'] ?? 0) >= 50, 邀約接受: st.vars.邀約接受 || 0, 邀約婉拒: st.vars.邀約婉拒 || 0, // 手機與平板（§4.39）、假日邀約（§4.40）：計數與狀態，卡片的條件與池權重讀它；依賴度本身（隱藏）不進條件環境以外的任何畫面
     事故骰: rngAt(st.seed, st.turn, 'acc_dice'), // 命運骰（0–1）：重大意外（cm_hospital）只在這個回合的骰子夠小時才可能出現，不因為『池裡剩下它』就被抽到
     訊號骰: rngAt(st.seed, st.turn, 'sig_dice'), // 一般孩子版的訊號卡（_gen）只在骰子夠小時才出現，不因為『池裡剩下它』就被抽到（規則 16）
     來問重要: rngAt(st.seed, st.turn, PING_BIG_ID) < PING_BIG_P, // 命運骰：孩子這次來問的事其實重不重要（§4.28）；和選項的 chance（id＝ping_big、p＝0.3）用同一顆骰子，文字與結果才會一致
@@ -263,7 +263,7 @@ export function drawCard(st, data, ctx, tl, r, excludeId = null, excludeHabit = 
   }
   const pool = pickWeighted(r, pools);
   if (!pool) return null;
-  return pickWeighted(r, live[pool.name], (c) => (c.weight ?? 1) * mulMods(c.modifiers, ctx) * (c.approach && ctx.不太來找你 ? data.tags.approach?.weightX ?? 1 : 1));
+  return pickWeighted(r, live[pool.name], (c) => (c.weight ?? 1) * mulMods(c.modifiers, ctx) * (c.approach && ctx.不太來找你 ? data.tags.approach?.weightX ?? 1 : 1) * (c.approach ? 1 - (data.tags.screen?.harm?.approachCut ?? 0) * depFactor(st, data.tags) : 1));
 }
 export function pickFixed(st, data, tl, ctx) {
   for (const id of tl.fixed || []) { const c = data.cardIndex[id]; if (c && passes(c, st, ctx)) return c; }
@@ -453,7 +453,7 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
   let branchTags = [], approved = true;
   // 陪伴時段不在：用體力硬換或請假，代價照實顯示在劑量表上，選項不會消失
   for (const need of ch.needs || []) if (!slotAvailable(st, data, need)) applyEffects(st, scaleEffects(data.tags.slotCost[need], k), acc);
-  applyBranch(st, { ...ch, effects: scaleCosts(data.tags.costMods, ch, ctx) }, st.turn, r, ctx, acc, scope, tl, k);
+  applyBranch(st, { ...ch, effects: discountHomework(st, data.tags, scaleCosts(data.tags.costMods, ch, ctx)) }, st.turn, r, ctx, acc, scope, tl, k);
   if (ch.chance) {
     const c = ch.chance;
     const p = clamp(c.p * mulMods(c.mods, ctx), 0, 0.97);

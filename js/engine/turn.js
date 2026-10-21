@@ -4,7 +4,7 @@
 import { stateRng, rngAt } from './rng.js';
 import { setSlotData } from './slots.js';
 import { buildCtx, passes, pickFixed, pickDelayed, drawCard, describeCard, applyChoice, applyEffects, rollLoads, fill, cardById, setGates } from './events.js';
-import { driftHidden } from './tags.js';
+import { driftHidden, learnFactor } from './tags.js';
 import { detectHabits, autoHabit, explainerOf, familyOf } from './habits.js';
 import { doseView } from './dose.js';
 import { setModel } from './model.js';
@@ -277,6 +277,7 @@ function drift(st, data, tl) {
   const base3c = { 嬰幼兒: 6, 幼兒園: 20, 國小低: 30, 國小中高: 42, 國中: 50, 高中: 55, 離家: 55 }[tl.stage] ?? 45;
   // 依賴度高的孩子，3C 時間往更高的水準漂（DESIGN §4.39 依賴度怎麼影響孩子）：基準 + baseLift 每點依賴度；依賴度透過既有的 3C 時間效果（睡眠、心情、成績、親子）發生作用，不另外重複扣分
   const lift = ((data.tags.screen && data.tags.screen.baseLift) || 0) * (h['3C依賴度'] ?? 0);
+  const depF = learnFactor(st, data.tags); // 依賴度高：成績往下（草草了事，§4.39）
   to(C, '3C時間', base3c + (50 - h.規範監督) * 0.25 + (h.試探度 - 25) * 0.12 + lift, R(0.2));
   to(C, '睡眠', 68 - Math.max(0, C['3C時間'] - 40) * 0.3 + (h.規則一致性 - 50) * 0.06, R(0.3));
   to(C, '心情', 62 + (C.睡眠 - 60) * 0.1 - Math.max(0, C['3C時間'] - 60) * 0.1 + (h.安全感 - 55) * 0.1 + (h.內在穩定 - 50) * 0.08, R(0.35));
@@ -285,7 +286,7 @@ function drift(st, data, tl) {
     // 壓力有時候「有用」（§3.1：盯成績在國小常常真的把分數撐住）：不敏感的孩子，期待壓力與替他做主會推高成績與作業；敏感的孩子反過來被拖累
     const examMult = (data.model.examPressure && data.model.examPressure.stageMult[tl.stage]) ?? 1; // 國中、高中的考試年：盯功課、補習、排名壓力短期真的拉得動分數（代價在親子那一條軸），倍率只套在壓力這一項
     const press = ((h.期待壓力 - 30) * (tp.敏感度 <= 2 ? 0.35 : tp.敏感度 >= 4 ? -0.12 : 0.12) + (h.替他做主 - 30) * (tp.敏感度 <= 3 ? 0.12 : -0.04)) * examMult;
-    to(C, '成績', 50 + (f.child.talents.國語 + f.child.talents.數學) * 3 + press + (h.家庭學習環境 - 45) * 0.25 + (h.閱讀習慣 - 40) * 0.2 + (h.自我效能 - 50) * 0.2 + (C.睡眠 - 60) * 0.1 - Math.max(0, C['3C時間'] - 50) * 0.1 - (adhd ? 3 * (1 - medCut) : 0), R(0.12));
+    to(C, '成績', 50 + (f.child.talents.國語 + f.child.talents.數學) * 3 + press + (h.家庭學習環境 - 45) * 0.25 + (h.閱讀習慣 - 40) * 0.2 + (h.自我效能 - 50) * 0.2 + (C.睡眠 - 60) * 0.1 - Math.max(0, C['3C時間'] - 50) * 0.1 - (data.tags.screen.harm ? data.tags.screen.harm.gradeDrift : 0) * depF - (adhd ? 3 * (1 - medCut) : 0), R(0.12));
     to(C, '作業', 55 + press * 0.8 + (h.自理與責任 - 40) * 0.3 + (h.規範監督 - 50) * 0.15 + (C.睡眠 - 60) * 0.05 - (adhd ? 6 * (1 - medCut) : 0), R(0.25));
   }
 }
