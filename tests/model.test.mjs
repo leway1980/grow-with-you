@@ -10,6 +10,7 @@ import { getEnding, endStage, outcomeAxes, wellbeing, opennessOf, comboOf, bandO
 import { edgeForTagEffect, outcomeWeights, evalOutcome, overFor, AXES } from '../js/engine/model.js';
 import { botPolicy, SALT } from '../tools/bots.mjs';
 import { fitBands } from '../tools/bands-fit.mjs';
+import { deriveCaps } from '../tools/derive-caps.mjs';
 
 const data = loadData();
 const M = data.model, E = data.ending;
@@ -247,4 +248,25 @@ test('fitBands：混合把分布壓扁時，門檻跟著往中間收，讓「混
   const f = fitBands(recs);
   // 近期 ≥ 60 的占 40%、< 45 的占 45%；混合軸的 40% 分位在 25 + 0.5 × 60 = 55，45% 分位在 25 + 0.5 × 45 = 47.5
   for (const ax of AXES) { assert.ok(Math.abs(f[ax].good - 55) <= 0.2, `${ax} good ${f[ax].good}`); assert.ok(Math.abs(f[ax].bad - 47.5) <= 0.2, `${ax} bad ${f[ax].bad}`); }
+});
+
+/* ───── 影響上限的推導（E1 審查問題 7、10）：50 回合的量測 × 月數比 1.5 × 餘裕 1.3，不是 72 回合的實測值回寫 ───── */
+test('影響上限：model.json 的上限等於「50 回合的量測最大值 × 1.5 × 1.3」（向上取到 0.1），邊的 maxGame 等於 50 回合的上限 × 1.5、maxTurn 沿用；lint 擋得住手改與回寫實測值', () => {
+  const D = M.influenceCaps.derivation, B = D.basis50;
+  assert.equal(D.monthRatio, 1.5); assert.equal(D.headroom, 1.3);
+  assert.ok(D.basis50.games >= 3000 && /50 回合/.test(B.ref));
+  const c1 = (x) => Math.ceil(x * 10 - 1e-9) / 10;
+  for (const a of AXES) {
+    assert.equal(M.influenceCaps.perTag[a], c1(B.perTagMax[a] * 1.5 * 1.3), `perTag.${a}`);
+    assert.equal(M.influenceCaps.perCard[a], c1(B.perCardMax[a] * 1.5 * 1.3), `perCard.${a}`);
+    assert.equal(M.influenceCaps.perPool[a], c1(B.perPoolMax[a] * 1.5 * 1.3), `perPool.${a}`);
+  }
+  for (const e of M.edges) if (e.id.startsWith('h:')) { assert.equal(e.maxGame, c1(B.edgeMaxGame[e.id] * 1.5), e.id); assert.equal(e.maxTurn, B.edgeMaxTurn[e.id], e.id); }
+  assert.deepEqual(M.influenceCaps.perChoiceStatic, { 親子: 4.4, 人際: 1.8, 學習: 1.4 }, '靜態名義值不隨遊戲長度變');
+  assert.equal(M.influenceCaps.measured, undefined, '72 回合的實測最大值不寫回 model.json');
+  const syn = { influenceCaps: { derivation: { monthRatio: 1.5, headroom: 1.3, basis50: { perTagMax: { 親子: 10, 人際: 4, 學習: 2 }, perCardMax: { 親子: 5, 人際: 2, 學習: 1 }, perPoolMax: { 親子: 8, 人際: 3, 學習: 2 }, edgeMaxTurn: { 'h:x': 7 }, edgeMaxGame: { 'h:x': 40 } } } } };
+  const d = deriveCaps(syn);
+  assert.equal(d.caps.perTag.親子, 19.5); assert.equal(d.caps.perPool.人際, 5.9); assert.deepEqual(d.edges['h:x'], { maxTurn: 7, maxGame: 60 });
+  assert.match(mut((r) => { r.model.influenceCaps.perTag.親子 = 119.1; }), /influenceCaps.perTag.親子（119.1）和推導值（98.1/);
+  assert.match(mut((r) => { r.model.edges.find((e) => e.id === 'h:溫暖陪伴-').maxGame = 247.2; }), /h:溫暖陪伴-：maxTurn／maxGame（12.6／247.2）和推導值/);
 });

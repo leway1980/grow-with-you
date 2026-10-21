@@ -4,6 +4,7 @@
 import { tokenize, compile } from '../js/engine/events.js';
 import { stageMult } from '../js/engine/tags.js';
 import { edgeById, tagEdgeIndex, edgeForTagEffect, outcomeWeights, AXES } from '../js/engine/model.js';
+import { deriveCaps } from './derive-caps.mjs';
 import { ROUTE_DELTA, pickLines, lineContradictions, endingContext } from '../js/engine/ending.js';
 import { PLAYED_STAGES, BAD_WHEN_UP } from './metrics.mjs';
 
@@ -182,6 +183,12 @@ export function lintModel(raw, data, cards) {
     }
   }
   for (const a of AXES) if (!cap.perChoiceStatic || typeof cap.perChoiceStatic[a] !== 'number') errors.push(`因果圖 influenceCaps.perChoiceStatic.${a}：缺少（執行 node tools/check-design.mjs --write-caps）`);
+  // 影響上限的推導（E1 審查）：上限 ＝ 50 回合的量測最大值 × 月數比 × 餘裕，不是 72 回合的實測值回寫（tools/derive-caps.mjs）；model.json 裡的數字要和推導一致
+  if (cap.derivation) {
+    const { caps, edges } = deriveCaps(M), same = (x, y) => Math.abs(x - y) < 1e-9;
+    for (const k of ['perTag', 'perCard', 'perPool']) for (const a of AXES) if (!cap[k] || !same(cap[k][a], caps[k][a])) errors.push(`因果圖 influenceCaps.${k}.${a}（${cap[k] && cap[k][a]}）和推導值（${caps[k][a]}＝50 回合量測 × ${cap.derivation.monthRatio} × ${cap.derivation.headroom}）不一致；用 node tools/derive-caps.mjs --write，不要手改或回寫實測值`);
+    for (const e of M.edges) if (e.id.startsWith('h:')) { const d = edges[e.id]; if (!d) errors.push(`因果圖邊 ${e.id}：influenceCaps.derivation.basis50 沒有這條邊的 50 回合基準`); else if (!same(e.maxTurn, d.maxTurn) || !same(e.maxGame, d.maxGame)) errors.push(`因果圖邊 ${e.id}：maxTurn／maxGame（${e.maxTurn}／${e.maxGame}）和推導值（${d.maxTurn}／${d.maxGame}）不一致；用 node tools/derive-caps.mjs --write`); }
+  }
   for (const k of ['perTag', 'perCard', 'perPool']) if (!cap[k] || typeof cap[k] !== 'object') errors.push(`因果圖 influenceCaps.${k}：缺少（執行 node tools/check-design.mjs --write-caps）`);
   stats.worstRealised = worstRealised;
   stats.staticMax = Object.fromEntries(AXES.map((a) => [a, worstAxis[a].v.toFixed(2)]));

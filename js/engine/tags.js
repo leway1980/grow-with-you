@@ -179,7 +179,7 @@ export const applyTags = writer((st, tags, T, opts) => {
     if (perTag) perTag['@父母的收穫'] = { 父母的收穫: st.hidden.父母的收穫 - before };
   }
   recomputeDerived(st, T);
-  if (observer) observer({ st, turn: opts.turn, stage, tags: tags || [], perTag, deltas });
+  if (observer) observer({ st, turn: opts.turn, stage, tags: tags || [], perTag, deltas, scale });
   return { deltas };
 });
 

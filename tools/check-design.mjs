@@ -2,7 +2,7 @@
 // 設計檢驗（DESIGN §3.7 第 5 點；沿用 47wan 的 tools/check-design.mjs 與 design-targets.json 的作法）：
 // 用「真人混合」機器人（累了偷懶、照習慣反應、偶爾查研究、一點隨機）自動玩 N 局，再用校準用的極端策略各玩 N/12 局，
 // 把『每個機制的發生率』『發生與沒發生的方向』『結局不矛盾』『標籤／卡片／池與每條邊的影響上限』和 tools/design-targets.json、data/model.json 比對。
-// 有任何 ✗ 時結束碼為 1（CI 會紅燈）。--write-caps：依量測的最大值加餘裕，把上限寫回 data/model.json（設計決定，要寫進 PR 說明）。
+// 有任何 ✗ 時結束碼為 1（CI 會紅燈）。--write-caps：依量測的最大值加餘裕，（已停用，見 tools/derive-caps.mjs）把上限寫回 data/model.json。
 import { fileURLToPath } from 'node:url';
 import { runMix, runBots, BOTS } from './simulate.mjs';
 import { evaluateMechanisms, getPath } from './mech.mjs';
@@ -147,6 +147,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const N = parseInt(nums[0] || '3000', 10), s0 = parseInt(nums[1] || '1', 10);
   const res = await checkDesign(N, s0, { calibration: flags.includes('--calibration') });
   if (flags.includes('--write-caps')) {
+    // E1 審查：不再把實測最大值回寫成上限（上限永遠等於現況 × 1.3，使用率全是 77%，守不住任何變化）。上限由 50 回合的基準推導：node tools/derive-caps.mjs --write
+    if (!flags.includes('--measured-caps-i-know')) { console.error('--write-caps 已停用：影響上限改由 node tools/derive-caps.mjs --write 依 50 回合的量測 × 月數比 × 餘裕推導（E1 審查）。實測值比上限大代表還有問題要修，不是上限要調。'); process.exit(2); }
     const c = writeCaps(res);
     console.log('已把上限寫進 data/model.json：', JSON.stringify({ perTag: c.perTag, perCard: c.perCard, perPool: c.perPool, perChoiceStatic: c.perChoiceStatic }));
     process.exit(0);
