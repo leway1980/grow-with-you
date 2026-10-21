@@ -6,7 +6,8 @@ import { newState } from '../js/engine/state.js';
 import { prepareData, startTurn, chooseCard, finishTurn, withTagCosts } from '../js/engine/turn.js';
 import { applyChoice, describeCard, buildCtx } from '../js/engine/events.js';
 import { applyTags, isGrowthChoice, saturate } from '../js/engine/tags.js';
-import { wellbeing, growthSection, buildEnding } from '../js/engine/ending.js';
+import { wellbeing, growthSection, buildEnding, GROWTH_HORIZON_MONTHS } from '../js/engine/ending.js';
+import { cardDoseK } from '../js/engine/timescale.js';
 import { stateRng } from '../js/engine/rng.js';
 import { guardHidden } from './helpers.mjs';
 import { installFakeDom, uninstallFakeDom } from './fake-dom.mjs';
@@ -30,7 +31,7 @@ test('父母的收穫：只有一起參與的標籤會讓它上升；送去上�
 
 test('父母的收穫：一個選項只算一次（帶三個參與標籤也只加一次），而且有飽和', () => {
   const a = gain(fresh(), ['陪讀共讀']), b = gain(fresh(), ['陪讀共讀', '放下手機陪', '陪著觀察']);
-  assert.ok(Math.abs(a - saturate(0, T.growth.gainPerMonth * 2)) < 1e-9 && Math.abs(b - a) < 1e-9);
+  assert.ok(Math.abs(a - saturate(0, T.growth.gain)) < 1e-9 && Math.abs(b - a) < 1e-9);
   const st = fresh();
   for (let i = 0; i < 400; i++) gain(st, ['陪讀共讀']);
   assert.ok(st.hidden.父母的收穫 > 90 && st.hidden.父母的收穫 <= 100);
@@ -113,7 +114,8 @@ test('父母幸福算進父母的收穫：權重中等，補回一部分犧牲�
   st.hidden.父母的收穫 = 0; const base = wellbeing(st, M).parent;
   st.hidden.父母的收穫 = 40; const w40 = wellbeing(st, M).parent;
   assert.ok(M.growthWeight > 0.1 && M.growthWeight <= 0.4, '權重中等');
-  assert.ok(Math.abs((w40 - base) - M.growthWeight * 40) < 1e-6 || w40 >= 99.9);
+  const played = st.vcurves.length * 2; // 沒有 m 的舊紀錄每筆算 2 個月
+  assert.ok(Math.abs((w40 - base) - M.growthWeight * 40 * GROWTH_HORIZON_MONTHS / played) < 1e-6 || w40 >= 99.9);
   assert.ok(w0 === base);
   assert.equal(wellbeing(st, { ...M, growthWeight: 0 }).parent, base, '權重 0 就等於沒有這一項');
   // 沒有任何參與的人不被扣分：收穫從 0 起算
@@ -151,4 +153,40 @@ test('硬撐：選了之後體力與耐心立刻下降，劑量表看得到，�
   const e0 = st.costEMA.體力 + st.costEMA.耐心;
   finishTurn(st, data);
   assert.ok(st.costEMA.體力 + st.costEMA.耐心 > e0 + 0.5);
+});
+
+// 父母的收穫的劑量走和其他標籤一樣的劑量倍率：自動習慣、一次性固定卡都不會比一張 2 個月的參考卡多拿
+const gainAt = (scale, turn = 30) => { const st = fresh(); const b = st.hidden.父母的收穫; applyTags(st, ['陪讀共讀'], T, { turn, stage: tlAt(turn).stage, scale, ctx: buildCtx(st, tlAt(turn), {}) }); return st.hidden.父母的收穫 - b; };
+
+test('父母的收穫：自動習慣每次套用的量不超過一張 2 個月參考卡', () => {
+  const ref = gainAt(cardDoseK(data.model, 2, { scale: true }));
+  assert.ok(ref > 0);
+  const cfg = data.habits.config ?? data.habits;
+  let n = 0;
+  for (const tl of data.timeline) {
+    if (cfg.scale[tl.stage] == null) continue;
+    n++;
+    const k = cfg.scale[tl.stage] * cardDoseK(data.model, tl.span ?? 2, { scale: true });
+    // 回合 ≤ 5 個月：一次套用不超過一張參考卡；7 個月的回合（高一下、高二下）一次是 1.4 倍，但每個月的量仍低於參考卡的每月量（0.2 < 0.5 倍）
+    if ((tl.span ?? 2) <= 5) assert.ok(gainAt(k) <= ref + 1e-9, `turn ${tl.turn} ${tl.stage} span ${tl.span}`);
+    assert.ok(gainAt(k) / (tl.span ?? 2) <= ref / 2 + 1e-9, `每月 turn ${tl.turn}`);
+  }
+  assert.ok(n > 0);
+});
+
+test('父母的收穫：scale:false 的卡在 7 個月的回合也不超過一張 2 個月參考卡', () => {
+  const ref = gainAt(cardDoseK(data.model, 2, { scale: true }));
+  assert.ok(gainAt(cardDoseK(data.model, 7, { scale: false })) <= ref + 1e-9);
+});
+
+test('父母幸福：固定的每月收穫速率，144 個月與 216 個月的水準貢獻相同', () => {
+  const M = data.identities.parentModel, rate = 0.2;
+  const contribution = (months) => {
+    const st = newState(5, data, { role: '媽媽' }); st.turn = data.calendar.playableTurns;
+    for (let m = 2; m <= months; m += 2) { st.vcurves.push({ t: m / 2, m, 體力: 60, 耐心: 55, 夫妻關係: 60, 錢: 50, 心情: 60 }); st.curves.push({ t: m / 2, m, ...st.hidden }); }
+    st.hidden.父母的收穫 = 0; const base = wellbeing(st, M).parent;
+    st.hidden.父母的收穫 = rate * months; return wellbeing(st, M).parent - base;
+  };
+  assert.ok(Math.abs(contribution(144) - contribution(216)) < 1e-6);
+  assert.ok(Math.abs(contribution(144) - M.growthWeight * rate * GROWTH_HORIZON_MONTHS) < 1e-6);
 });

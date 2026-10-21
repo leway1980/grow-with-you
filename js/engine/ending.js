@@ -88,6 +88,8 @@ export function opennessOf(st, M) {
   return opennessFrom(modelOf(st, M), st.vars['孩子主動開口'] || 0, st.vars['孩子不再開口'] || 0);
 }
 
+/** 父母幸福裡『父母的收穫』權重校準時的長度（月）：12 年。存量要換成這個長度上的水準才和其他月份加權平均同尺度 */
+export const GROWTH_HORIZON_MONTHS = 144;
 /** 父母幸福的參數預設值（正式的值在 data/identities.json 的 parentModel；buildEnding 會帶進來） */
 const DEFAULT_PM = { lowShareWeight: 60, lowThreshold: 35, levelWeight: 1, growthWeight: 0 };
 /**
@@ -108,7 +110,11 @@ export function wellbeing(st, PM = DEFAULT_PM, M) {
   const whole = 50 + PM.levelWeight * ((mwSum ? rows.reduce((a, c, i) => a + mw[i] * mean(keys.map((k) => c[k])), 0) / mwSum : 50) - 50);
   const lowShare = mwSum ? rows.reduce((a, c, i) => a + (c.體力 < PM.lowThreshold || c.耐心 < PM.lowThreshold ? mw[i] : 0), 0) / mwSum : 0;
   // 父母的收穫（§7.2b）：一起參與的活動補回一部分犧牲，權重中等，不會抵消全部（也不會讓沒參與的人扣分：收穫從 0 起算）
-  const parent = mean([whole, wholeAvg(st.curves, '父母情緒穩定度') ?? avgHidden(st, '父母情緒穩定度')]) - PM.lowShareWeight * lowShare + (PM.growthWeight ?? 0) * (h.父母的收穫 ?? 0);
+  // 收穫是『累積的存量』（越玩越高），其他項是月份加權的平均；權重是在 144 個月（12 年）的長度上校準的，
+  // 所以把存量除以實際玩過的月數、乘 144（＝每月的收穫速率 × 144），玩 216 個月不會因為存量多累積了一半而多拿分
+  const played = mwSum || 0;
+  const growthLevel = played > 0 ? (h.父母的收穫 ?? 0) * GROWTH_HORIZON_MONTHS / played : 0;
+  const parent = mean([whole, wholeAvg(st.curves, '父母情緒穩定度') ?? avgHidden(st, '父母情緒穩定度')]) - PM.lowShareWeight * lowShare + (PM.growthWeight ?? 0) * growthLevel;
   const between = evalOutcome(M, '彼此之間', r);
   return { child: clamp(child), parent: clamp(parent), between: clamp(between) };
 }
