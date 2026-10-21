@@ -68,8 +68,14 @@ export function evaluateCalibration(games) {
   // A2.5 護欄：時間尺度改了之後，兩條路線／組合的比例不能掉出範圍
   chk('dose-high-route', 'doseGreedy 走到「高壓做主」路線的比例', share(D, (g) => g.route === '高壓做主'), null, true);
   chk('wf-all-good', 'warmFirm 走到「三邊都顧到」的比例', share(W, (g) => g.combo === '三邊都顧到'), null, true);
+  // 組合分類器要真的可達（E1 審查：以前這一條的 ok 寫死 true，只分類到 3/7 也會過）：主要策略合起來至少分類到 5 種（不含『其他』）
   const classified = new Set(Object.values(games).flat().map((g) => g.combo));
-  out.push({ id: 'combos-classified', desc: '七種組合都有被分類到（其他：不在七種之內）', value: `${COMBOS.filter((c) => c !== '其他' && classified.has(c)).length}/7`, target: '分類器可運作（七種都可達）', ok: true });
+  const hit = COMBOS.filter((c) => c !== '其他' && classified.has(c));
+  chk('combos-classified', '主要策略合起來分類到的組合數（七種，不含「其他」）', hit.length, `${hit.length}/7（${hit.join('、')}）`);
+  // 方向（E1 審查）：三邊都垮的常見路是放任（DESIGN §3.1），不是高壓；高壓的典型結局是「成績好、關係冷」「成績好、人際孤立」
+  const collapse = (g) => share(g, (x) => x.combo === '三邊都垮');
+  chk('perm-gt-ctrl-collapse', 'permissive 三邊都垮的比例 − controlling 三邊都垮的比例', collapse(P) - collapse(C), `${((collapse(P) - collapse(C)) * 100).toFixed(0)} 個百分點（permissive ${(collapse(P) * 100).toFixed(0)}%、controlling ${(collapse(C) * 100).toFixed(0)}%）`);
+  chk('ctrl-achiever', 'controlling 走到「成績好、關係冷」或「成績好、人際孤立」的比例（高壓的典型結局）', share(C, (x) => x.combo === '成績好、關係冷' || x.combo === '成績好、人際孤立'), null, true);
   // 家境：同一個機器人，寬裕 vs 吃緊
   let worstGap = 0, worstBot = '';
   for (const [bot, g] of Object.entries(games)) {

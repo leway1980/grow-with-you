@@ -66,3 +66,16 @@ test(`敏感度：每個標籤的權重各 ±20%，warmFirm − doseGreedy 的�
   assert.ok(rows.length >= 100);
   assert.ok(min >= SENSITIVITY_FLOOR, `最小差距 ${min.toFixed(1)}：${rows.filter((r) => r.gap < SENSITIVITY_FLOOR).map((r) => r.tag + '×' + r.f).join('、')}`);
 });
+
+// E1 審查：combos-classified 以前的 ok 寫死 true（只分類到 3/7 也會過）；方向檢查要擋得住退化
+test('組合分類器是真的檢查：全部歸成同一種組合會判 ✗；controlling 比 permissive 更常三邊都垮會判 ✗；controlling 沒有「成績好」的結局會判 ✗', () => {
+  const force = (f) => Object.fromEntries(Object.entries(games).map(([b, g]) => [b, g.map((x) => ({ ...x, combo: f(b, x) }))]));
+  const row = (g, id) => evaluateCalibration(g).find((r) => r.id === id);
+  assert.equal(row(force(() => '三邊都垮'), 'combos-classified').ok, false);
+  const flip = force((b, x) => (b === 'permissive' ? '其他' : b === 'controlling' ? '三邊都垮' : x.combo));
+  assert.equal(row(flip, 'perm-gt-ctrl-collapse').ok, false);
+  assert.equal(row(force((b, x) => (b === 'controlling' ? '其他' : x.combo)), 'ctrl-achiever').ok, false);
+  assert.equal(row(force((b, x) => (b === 'controlling' ? '成績好、關係冷' : x.combo)), 'ctrl-achiever').ok, true);
+  const real = row(games, 'combos-classified');
+  assert.ok(Number(real.value.split('/')[0]) >= 5, real.value);
+});
