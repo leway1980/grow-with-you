@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadData, loadRaw } from '../tools/data-node.mjs';
-import { newState, serialize, deserialize } from '../js/engine/state.js';
+import { newState, serialize, deserialize, migrate } from '../js/engine/state.js';
 import { buildCtx, applyChoice, applyEffects, resolveDirection, cardScope, describeCard } from '../js/engine/events.js';
 import { applyTags, stageMult, modifierFactor, saturate, driftHidden, repetitionMult, hiddenWriteAllowed } from '../js/engine/tags.js';
 import { stateRng } from '../js/engine/rng.js';
@@ -271,4 +271,33 @@ test('單回合邊預算不進存檔：序列化沒有預算欄位、讀回來�
   const back = deserialize(json);
   apply(st, [tags[0]], 41); apply(back, [tags[0]], 41);
   assert.deepEqual(back.hidden, st.hidden);
+});
+
+/* ───── 整局邊上限（maxGame）：和單回合預算一樣在套用時截；累計量 st.edgeUsedGame 進存檔 ───── */
+test('整局邊上限：每個回合都推同一條邊，整局的總量不超過 maxGame（對照：把上限拿掉會超過）；累計量以實際量記', () => {
+  const { e, tags } = budgetEdge();
+  const run = (cap) => {
+    const st = fresh(21); const b0 = st.hidden[e.to], saved = e.maxGame;
+    if (cap === false) e.maxGame = 0; // 0＝不設整局上限
+    try { for (let t = 20; t < 20 + 400; t++) { apply(st, [tags[0]], t); apply(st, [tags[1]], t); } } finally { e.maxGame = saved; }
+    return { moved: Math.abs(st.hidden[e.to] - b0), used: st.edgeUsedGame[e.id] };
+  };
+  const capped = run(true), free = run(false);
+  assert.ok(capped.moved <= e.maxGame + 1e-6, `整局 ${capped.moved} > maxGame ${e.maxGame}`);
+  assert.ok(capped.used <= e.maxGame + 1e-6 && capped.used > 0, `edgeUsedGame ${capped.used}`);
+  assert.ok(free.moved > e.maxGame + 1e-6, `對照組 ${free.moved} 沒有超過 maxGame ${e.maxGame}，測試沒意義`);
+});
+
+test('整局邊上限：edgeUsedGame 進存檔，往返後相同；舊存檔沒有這個欄位時 migrate 補成空物件（從 0 起算）', () => {
+  const { e, tags } = budgetEdge();
+  const st = fresh(22);
+  for (let t = 20; t < 40; t++) apply(st, [tags[0]], t);
+  assert.ok(st.edgeUsedGame[e.id] > 0);
+  const back = deserialize(serialize(st));
+  assert.deepEqual(back.edgeUsedGame, st.edgeUsedGame);
+  const old = JSON.parse(serialize(fresh(22))); delete old.edgeUsedGame;
+  const mig = migrate(old, data);
+  assert.deepEqual(mig.edgeUsedGame, {});
+  apply(mig, [tags[0]], 40); // 補上之後可以照常累計
+  assert.ok(mig.edgeUsedGame[e.id] > 0);
 });

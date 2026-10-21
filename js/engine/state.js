@@ -49,6 +49,7 @@ export function newState(seed, data, opts = {}) {
     interest: { ...fam.child.interests },      // 興趣向量（隱藏）：之後會依接觸經驗改變
     dirCount: {},                              // 父母傳遞的方向計數（§3.3）
     tagCounts: {},                             // 各行為標籤累計次數
+    edgeUsedGame: {},                          // 各 h: 因果邊整局已用掉的量（參考劑量；套用時截在 maxGame 內，tags.js turnBudget）
     vars: { ...VAR_DEFAULTS },
     costEMA: { 體力: 0, 耐心: 0 },             // 最近幾回合體力、耐心的花費（指數移動平均），父母的回復目標會被它拉低
     startHidden: null,                         // 開局時的隱藏數值（自然漂移與結局的『相對於開局』用）
@@ -167,7 +168,7 @@ export function migrate(st, data) {
   for (const k of Object.keys(T.hidden)) if (typeof st.hidden[k] !== 'number' || Number.isNaN(st.hidden[k])) st.hidden[k] = T.hidden[k];
   st.vars = { ...VAR_DEFAULTS, ...(st.vars || {}) };
   st.costEMA = { 體力: 0, 耐心: 0, ...(st.costEMA || {}) };
-  for (const k of ['dirCount', 'tagCounts', 'flags', 'flagExpiry', 'cooldowns', 'used', 'openPools', 'slotLast', 'done', 'habits']) st[k] ||= {};
+  for (const k of ['dirCount', 'tagCounts', 'edgeUsedGame', 'flags', 'flagExpiry', 'cooldowns', 'used', 'openPools', 'slotLast', 'done', 'habits']) st[k] ||= {};
   st.classroom = { ...newClassroom(T), ...(st.classroom || {}) }; // 舊存檔沒有班級狀態：下一個換老師的年級會重抽；在那之前用預設值
   for (const k of ['delayed', 'hist', 'curves', 'vcurves', 'parentGrowth', 'autoLog', 'classLog']) st[k] ||= [];
   // 舊存檔沒有職位、交通工具、通勤距離：用同一個種子補上（各自獨立的亂數流，不影響已經抽好的其他東西）

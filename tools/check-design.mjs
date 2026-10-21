@@ -71,14 +71,19 @@ export async function checkDesign(N = 3000, s0 = 1, opts = {}) {
     const t = inf.top[c][ax], lim = cap[capKey] && cap[capKey][ax];
     add(typeof lim === 'number' && t.v <= lim, '影響上限', `單一${label}對「${ax}」軸的整局影響（最大：${t.key || '—'}）`, t.v.toFixed(1), `≤ ${lim ?? '（未設）'}`, lim ? `使用率 ${(t.v / lim * 100).toFixed(0)}%` : '');
   }
-  let edgeWorst = { r: 0, id: '' }, edgeBad = [];
+  // 單回合上限 maxTurn 由引擎在套用時截（tags.js turnBudget），這裡量最大值確認沒有漏網；
+  // 整局上限 maxGame 也由引擎截（st.edgeUsedGame），所以『最大值 ≤ maxGame』必然成立、沒有資訊量，改量『有多少局碰到上限』：碰頂的局越少，代表上限只是安全網、不是在改寫結果
+  let turnWorst = { r: 0, id: '' }, turnBad = [];
+  const hitGames = new Map(), hitEdges = {};
   for (const e of M.edges) if (e.id.startsWith('h:')) {
-    const t = inf.edgeTurn[e.id] || 0, g = inf.edgeGame[e.id] || 0;
-    edgeWorst = Math.max(t / e.maxTurn, g / e.maxGame) > edgeWorst.r ? { r: Math.max(t / e.maxTurn, g / e.maxGame), id: e.id, t, g, mt: e.maxTurn, mg: e.maxGame } : edgeWorst;
-    if (t > e.maxTurn) edgeBad.push(`${e.id} 單回合 ${t.toFixed(2)} > ${e.maxTurn}`);
-    if (g > e.maxGame) edgeBad.push(`${e.id} 整局 ${g.toFixed(2)} > ${e.maxGame}`);
+    const t = inf.edgeTurn[e.id] || 0;
+    if (t / e.maxTurn > turnWorst.r) turnWorst = { r: t / e.maxTurn, id: e.id, t, mt: e.maxTurn };
+    if (t > e.maxTurn + 0.011) turnBad.push(`${e.id} 單回合 ${t.toFixed(2)} > ${e.maxTurn}`);
   }
-  add(edgeBad.length === 0, '影響上限', '因果圖每條邊的單回合／整局變動量都在 maxTurn／maxGame 內', edgeBad.length ? `${edgeBad.length} 條超出` : `最高使用率 ${(edgeWorst.r * 100).toFixed(0)}%（${edgeWorst.id}：單回合 ${edgeWorst.t.toFixed(2)}／${edgeWorst.mt}、整局 ${edgeWorst.g.toFixed(2)}／${edgeWorst.mg}）`, '全部 ≤ 100%', edgeBad.slice(0, 4).join('；'));
+  for (const r of mix) for (const e of M.edges) if (e.id.startsWith('h:') && r.inf && (r.inf.edgeGame[e.id] || 0) >= e.maxGame - 0.011) { hitGames.set(r, 1); hitEdges[e.id] = (hitEdges[e.id] || 0) + 1; }
+  add(turnBad.length === 0, '影響上限', '因果圖每條邊的單回合變動量都在 maxTurn 內（引擎截；量最大值）', turnBad.length ? `${turnBad.length} 條超出` : `最高使用率 ${(turnWorst.r * 100).toFixed(0)}%（${turnWorst.id}：${turnWorst.t.toFixed(2)}／${turnWorst.mt}）`, '全部 ≤ 100%', turnBad.slice(0, 4).join('；'));
+  const hitShare = hitGames.size / mix.length;
+  add(hitShare <= 0.001 + 1e-9, '影響上限', `有任何一條邊碰到整局上限 maxGame 的局數比例（共 ${mix.length} 局，種子 ${s0}–${s0 + N - 1}）`, `${(hitShare * 100).toFixed(2)}%（${hitGames.size} 局）`, '≤ 0.1%', Object.keys(hitEdges).length ? '碰頂的邊：' + Object.entries(hitEdges).map(([k, v]) => `${k}×${v}`).join('、') : '');
 
   // ── 節奏：每個階段『有固定事件的回合』的比例（由日曆算，不需要玩；M3 計畫 §8 第 11 項）──
   {

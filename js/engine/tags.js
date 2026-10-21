@@ -189,15 +189,18 @@ export function discountHomework(st, T, eff) {
 
 /* ───── 單回合邊預算（DESIGN §3.7 第 2 點）：一個回合裡推到同一條 h: 因果邊（隱藏數值＋方向）的總量，以『參考劑量』（÷ 劑量倍率 refK）計，不超過那條邊的 maxTurn ─────
    同一個回合的兩張卡、自動帶入的習慣、父母的收穫都算同一份預算；超出的部分在套用時直接截掉（照比例縮小這一次的變化量）。
-   預算只活在這個 WeakMap（以 st 物件為鍵、依回合重置），不進 st，存檔格式不變；從存檔讀回來的局在該回合的預算從頭算。 */
+   單回合預算只活在這個 WeakMap（以 st 物件為鍵、依回合重置），不進存檔；整局累計 st.edgeUsedGame 進存檔（舊存檔補 0），maxGame 也在這裡截。 */
 const TURN_BUDGET = new WeakMap();
 function turnBudget(st, T, opts, edge, raw) {
   if (!raw || !edge || !edge.maxTurn || opts.turn == null) return raw;
   let b = TURN_BUDGET.get(st);
   if (!b || b.turn !== opts.turn) { b = { turn: opts.turn, used: {} }; TURN_BUDGET.set(st, b); }
+  const game = (st.edgeUsedGame ||= {});
   const k = opts.refK || opts.scale || 1, ref = Math.abs(raw) / k;
-  const use = Math.min(ref, Math.max(0, edge.maxTurn - (b.used[edge.id] || 0)));
+  const left = edge.maxGame ? Math.max(0, edge.maxGame - (game[edge.id] || 0)) / k : Infinity; // 整局以實際量計（和 check-design 的 edgeGame 同單位），換成參考劑量再比
+  const use = Math.min(ref, Math.max(0, edge.maxTurn - (b.used[edge.id] || 0)), left);
   b.used[edge.id] = (b.used[edge.id] || 0) + use;
+  game[edge.id] = (game[edge.id] || 0) + use * k;
   return ref > 0 ? raw * (use / ref) : raw;
 }
 
