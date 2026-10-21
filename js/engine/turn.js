@@ -292,7 +292,7 @@ export function finishTurn(st, data) {
   const tl = data.timeline[st.turn];
   drift(st, data, tl);
   driftClassroom(st, data, tl);
-  driftHidden(st, data.tags, { span: tl.span, months: tl.ageMonths });
+  driftHidden(st, data.tags, { span: tl.span, months: tl.ageMonths, stage: tl.stage });
   const r1 = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.round(v * 10) / 10]));
   st.curves.push({ t: st.turn, m: tl.ageMonths, ...r1(st.hidden) });
   st.vcurves.push({ t: st.turn, m: tl.ageMonths, ...r1(st.parent), ...r1(st.child) });

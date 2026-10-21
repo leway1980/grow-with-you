@@ -162,7 +162,7 @@ export function lintData(raw = loadRaw()) {
   // ── 事件卡 ──
   const leakRe = new RegExp(hiddenKeys.join('|'));
   const allowedChoiceKeys = new Set(['label', 'effects', 'tags', 'result', 'showIf', 'grayIf', 'opens', 'followUp', 'chance', 'setFlags', 'clearFlags', 'setVars', 'incVars', 'direction', 'topic', 'needs', 'labelIf', 'resultIf', 'tagsIf', 'effectsIf', 'toward', 'classroom', 'flagMonths', 'route', 'habitPattern']);
-  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldownMonths', 'scale', 'requires', 'excludes', 'modifiers', 'stages', 'topic', 'direction', 'approach', 'initiate', 'toward', 'note', 'habit', 'traceOf', 'sensitive', 'reviewed', '_variantOf', '_variantIf', 'kMax', 'paceMonths']);
+  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldownMonths', 'scale', 'requires', 'excludes', 'modifiers', 'stages', 'topic', 'direction', 'approach', 'initiate', 'toward', 'note', 'habit', 'traceOf', 'sensitive', 'reviewed', '_variantOf', '_variantIf', 'kMax', 'paceMonths', 'screen']);
     // 規則 25 的資料：followUp 圖上繞得回自己的卡（直接排自己，或 A→B→A）
   const selfLoopIds = (() => {
     const g = {}; for (const c of cards) { g[c.id] = new Set(); for (const ch of c.choices || []) for (const b of [ch, ...(ch.chance ? [ch.chance.win, ch.chance.lose] : [])]) for (const f of (b && b.followUp) || []) g[c.id].add(f.card); }
@@ -194,6 +194,7 @@ const gateVars = new Set(gateNames());
     // 規則 25（E1 審查 Issue 7）：自己排後續卡給自己（followUp 繞回自己，直接或繞一圈）的卡，頻率已經由 afterMonths 以月份排程，
     // 不能再乘回合長度的劑量倍率（否則高中 6 個月一回合的每月劑量是國小的兩倍）：要寫 scale:false，或用數字 kMax 明寫倍率上限
     if (selfLoopIds.has(c._variantOf || c.id) && c.scale !== false && !(typeof c.kMax === 'number' && c.kMax > 0) && !(typeof c.paceMonths === 'number' && c.paceMonths > 0)) errors.push(`${W}：規則 25：followUp 會排回自己的卡不可以 scale:true（或沒寫 scale）——要寫 scale:false（建議加 paceMonths：劑量依實際間隔），或寫數字 kMax（劑量倍率上限）`);
+    if ('screen' in c && typeof c.screen !== 'boolean') errors.push(`${W}：screen 要是 true 或 false（true＝手機與平板的決定卡，選項會改變 3C 使用方式與連續的陪伴，DESIGN §4.39）`);
     if ('kMax' in c && !(typeof c.kMax === 'number' && c.kMax > 0)) errors.push(`${W}：kMax 要是正數`);
     if ('paceMonths' in c && !(typeof c.paceMonths === 'number' && c.paceMonths > 0 && selfLoopIds.has(c._variantOf || c.id))) errors.push(`${W}：paceMonths 要是正數，而且只給自己排後續卡給自己的卡用`);
     // 規則 24（A2.5 審查 Issue 6）：一次性的卡與國中、高中、離家的卡要明寫 scale——單一事件寫 false，設定規矩／安排的卡寫 true；離家（逐月）一律 false，否則 k＝0.5 會把效果減半

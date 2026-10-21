@@ -134,8 +134,37 @@ export function updateApproach(st, tags, T, opts) {
         if (v.孩子來找_連續錯過 >= (sens ? A.enterAtSensitive : A.enterAt)) { v.不太來找你 = 1; v.不太來找你_曾 = (v.不太來找你_曾 || 0) + 1; v.孩子來找_回來連續 = 0; }
       }
     }
+  } else if (!v.不太來找你 && A.absenceTags && has(A.absenceTags)) {
+    // 假日缺席（§4.40）：假日是孩子最常主動找你的時間；接了邀約而人不在家，算半次沒被接住（只在不是 approach 的卡上算）
+    v.孩子來找_連續錯過 += A.absenceWeight ?? 0.5;
+    const sens = st.family.child.temperament.敏感度 >= A.sensitiveFrom;
+    if (v.孩子來找_連續錯過 >= (sens ? A.enterAtSensitive : A.enterAt)) { v.不太來找你 = 1; v.不太來找你_曾 = (v.不太來找你_曾 || 0) + 1; v.孩子來找_回來連續 = 0; }
   } else if (v.不太來找你 && opts.initiate && has(A.initiateTags)) v.孩子來找_回來連續++; // 只有『父母主動去找孩子』的卡（initiate:true：睡前談話、走去找他、一起看手機…）算；固定事件、出遊、買禮物都不算（§4.28 一次的補償不算）
   if (v.不太來找你 && v.孩子來找_回來連續 >= (A.exitStreak[opts.stage] ?? 3)) { const k = opts.approach ? '不太來找你_離開_接住' : '不太來找你_離開_主動'; v[k] = (v[k] || 0) + 1; v.不太來找你 = 0; v.孩子來找_連續錯過 = 0; v.孩子來找_回來連續 = 0; }
+}
+
+/**
+ * 手機與平板（DESIGN §4.39）：使用方式與連續的陪伴。
+ * ・modes：選項帶的標籤把『無人陪伴的比例』（vars 3C無人陪）往各自的目標靠（screenOnly 的標籤只在 screen 卡上算）；
+ * ・screen 卡上：選項有 companionTags 就連續 +1；既不是陪伴、也不是 neutralTags 就歸零（只強制收回、只加時間管控都歸零）；
+ * ・連續達階段門檻（need）之後，陪伴使一次大活動待回彈的量清零（連續的陪伴一建立，下降就留得住）。
+ * st.vars 由這個檔案唯一寫入（同其他計數）。opts: { screen, scale, stage }
+ */
+export function updateScreen(st, tags, T, opts) {
+  const S = T.screen;
+  if (!S) return;
+  const v = st.vars, set = new Set(tags || []), scale = opts.scale ?? 1;
+  v[S.useVar] ??= S.useDefault; v[S.streakVar] ??= 0; v[S.trip.reboundVar] ??= 0;
+  let sum = 0, n = 0, w = 0;
+  for (const [tag, m] of Object.entries(S.modes)) if (set.has(tag) && (!m.screenOnly || opts.screen)) { sum += m.to; n++; w = Math.max(w, m.w); }
+  if (n) v[S.useVar] = clamp(v[S.useVar] + (sum / n - v[S.useVar]) * Math.min(1, w * scale), 0, 1);
+  if (!opts.screen) return;
+  const comp = S.companionTags.some((t) => set.has(t)), neutral = !comp && S.neutralTags.some((t) => set.has(t));
+  if (comp) {
+    v[S.streakVar]++;
+    v['3C陪伴_最長'] = Math.max(v['3C陪伴_最長'] || 0, v[S.streakVar]);
+    if (v[S.streakVar] >= (S.need[opts.stage] ?? 3)) v[S.trip.reboundVar] = 0;
+  } else if (!neutral) v[S.streakVar] = 0;
 }
 
 /* ───── 單回合邊預算（DESIGN §3.7 第 2 點）：一個回合裡推到同一條 h: 因果邊（隱藏數值＋方向）的總量，以『參考劑量』（÷ 劑量倍率 refK）計，不超過那條邊的 maxTurn ─────
@@ -157,6 +186,8 @@ export const applyTags = writer((st, tags, T, opts) => {
   const { stage, ctx, topic, direction } = opts;
   const scale = opts.scale ?? 1;
   const months = opts.months ?? (ctx && ctx.月齡) ?? (st.hist.length ? st.hist[st.hist.length - 1].m : 0);
+  updateScreen(st, tags, T, { screen: !!opts.screen, scale, stage });
+  const SC = T.screen;
   for (const tag of tags || []) {
     const def = T.tags[tag];
     if (!def) throw new Error('未知的行為標籤: ' + tag);
@@ -172,10 +203,12 @@ export const applyTags = writer((st, tags, T, opts) => {
       st.dirCount[key] = prior + def.dir * scale; // 劑量加權（scale＝這張卡的劑量倍率）
     }
     for (const [k, d] of Object.entries(def.d || {})) {
+      if (def.streakGate && SC && k === SC.dep && !(st.vars[SC.streakVar] >= (SC.need[stage] ?? 3))) continue; // 3C陪伴同行：連續的陪伴達門檻才把依賴度往下拉（§4.39）
       const m = mult * (def.dirAccel && def.dirAccel.includes(k) && pressureSide(k, d) ? dirMult : 1) * plasticityOf(T.model, stage, k, def, Math.sign(d)); // 階段可塑性（B1）
       const before = st.hidden[k];
       st.hidden[k] = clamp(before + turnBudget(st, T, opts, T.model ? edgeForTagEffect(T.model, tag, k, d) : null, saturate(before, d * m)), 0, 100);
       deltas[k] = (deltas[k] || 0) + (st.hidden[k] - before);
+      if (SC && tag === SC.trip.tag && k === SC.dep && st.hidden[k] < before) st.vars[SC.trip.reboundVar] = (st.vars[SC.trip.reboundVar] || 0) + (before - st.hidden[k]); // 一次大活動：下降的量記成待回彈
       if (perTag) ((perTag[tag] ||= {})[k] = (perTag[tag][k] || 0) + (st.hidden[k] - before));
     }
     if (def.interest && topic && topic in st.interest) st.interest[topic] = clamp(st.interest[topic] + (def.interest / 100) * mult, 0, 1);
@@ -236,6 +269,22 @@ export const driftHidden = writer((st, T, opts = {}) => {
   for (const k of Object.keys(st.dirCount)) {
     st.dirCount[k] *= decaySpan(T.repetition.directionDecayMonth ?? 1, span);
     if (st.dirCount[k] < 0.01) delete st.dirCount[k];
+  }
+  // 孩子不再主動說，父母的了解就慢慢變少（DESIGN §6 2026-10-21）：『不太來找你』期間了解度每月小幅下滑，幅度在因果圖邊 k:不太來找你→了解度 的 w
+  if (st.vars.不太來找你) {
+    const e = T.model && edgeById(T.model).get('k:不太來找你→了解度');
+    if (e) st.hidden.了解度 = clamp(st.hidden.了解度 - e.w * span, 0, 100);
+  }
+  // 手機與平板的依賴度（DESIGN §4.39）：使用方式慢慢回預設、一次大活動回彈、每月被動累積（讀孩子實際的 3C 時間）
+  const SC = T.screen;
+  if (SC) {
+    const v = st.vars, dep = SC.dep;
+    v[SC.useVar] = clamp((v[SC.useVar] ?? SC.useDefault) + (SC.useDefault - (v[SC.useVar] ?? SC.useDefault)) * perSpan(SC.useRelaxMonth, span), 0, 1);
+    const rem = v[SC.trip.reboundVar] || 0;
+    if (rem > 0) { const mv = rem * perSpan(SC.trip.reboundMonth, span); st.hidden[dep] = clamp(st.hidden[dep] + mv, 0, 100); v[SC.trip.reboundVar] = rem - mv < 0.05 ? 0 : rem - mv; }
+    const R = SC.rise, vis = st.child['3C時間'] ?? 0;
+    const raw = R.perMonth * span * (vis / R.ref) * (R.floor + (1 - R.floor) * v[SC.useVar]) * (R.byStage[opts.stage] ?? 1);
+    st.hidden[dep] = clamp(st.hidden[dep] + saturate(st.hidden[dep], raw), 0, 100);
   }
   recomputeDerived(st, T);
 });

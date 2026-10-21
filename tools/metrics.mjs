@@ -7,7 +7,7 @@ export const VISIBLE_KEYS = ['體力', '耐心', '錢', '工作表現', '夫妻�
 export const GOOD_CHILD = { 心情: 1, 成績: 1, 作業: 1, 睡眠: 1, 同學往來: 1, '3C時間': -1 };
 export const PARENT_W = 0.5;
 /** 隱藏數值裡「越高越糟」的 */
-export const BAD_WHEN_UP = new Set(['期待壓力', '試探度', '替他做主']);
+export const BAD_WHEN_UP = new Set(['期待壓力', '試探度', '替他做主', '3C依賴度']);
 
 const cache = new WeakMap();
 /** 遊戲目前開放的階段（由日曆的 playableTurns 算出）：沒寫 stages 的卡片出現在這些階段 */

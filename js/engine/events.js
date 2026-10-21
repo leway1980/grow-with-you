@@ -172,6 +172,7 @@ export function buildCtx(st, tl, extra = {}) {
     心情低連續: 0, 離校機率: 0, 離校骰: 0, ...(CTX_HOOK ? CTX_HOOK(st, tl) : null), // 中途離校的前兆（paths.js，只在高中算）
     ...habitCtx(st), // 習慣_<家族>（目前的習慣模式）、習慣改變_<家族>（已連續換了幾次）；沒有習慣資料時什麼都不加
     上學方式: st.vars.上學方式 || '', 孩子來找_連續錯過: st.vars.孩子來找_連續錯過 || 0, 不太來找你: !!st.vars.不太來找你,
+    三C陪伴連續: st.vars['3C陪伴_連續'] || 0, 三C回彈中: (st.vars['3C回彈'] || 0) > 0.5, 邀約接受: st.vars.邀約接受 || 0, 邀約婉拒: st.vars.邀約婉拒 || 0, // 手機與平板（§4.39）、假日邀約（§4.40）：計數與狀態，卡片的條件與池權重讀它；依賴度本身（隱藏）不進條件環境以外的任何畫面
     事故骰: rngAt(st.seed, st.turn, 'acc_dice'), // 命運骰（0–1）：重大意外（cm_hospital）只在這個回合的骰子夠小時才可能出現，不因為『池裡剩下它』就被抽到
     訊號骰: rngAt(st.seed, st.turn, 'sig_dice'), // 一般孩子版的訊號卡（_gen）只在骰子夠小時才出現，不因為『池裡剩下它』就被抽到（規則 16）
     來問重要: rngAt(st.seed, st.turn, PING_BIG_ID) < PING_BIG_P, // 命運骰：孩子這次來問的事其實重不重要（§4.28）；和選項的 chance（id＝ping_big、p＝0.3）用同一顆骰子，文字與結果才會一致
@@ -465,7 +466,7 @@ export function applyChoice(st, data, card, idx, tl, r, extra = {}) {
     branchTags = b.tags || []; // 分支也可以帶行為標籤（隱藏數值仍然只經由標籤換算）
   }
   const allTags = [...(ch.tags || []), ...branchTags];
-  applyTags(st, allTags, data.tags, { turn: st.turn, months: tl.ageMonths, span: tl.span ?? 2, scale: k, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope), approach: !!card.approach, initiate: !!card.initiate });
+  applyTags(st, allTags, data.tags, { turn: st.turn, months: tl.ageMonths, span: tl.span ?? 2, scale: k, stage: tl.stage, ctx, topic, direction: resolveDirection(card, ch, scope), approach: !!card.approach, initiate: !!card.initiate, screen: !!card.screen });
   if (isGrowthChoice(data.tags, ch.tags)) recordGrowth(st, data.tags, ch, scope);
   if (ch.route && ROUTE_RESOLVER) { const rr = ROUTE_RESOLVER(st, data, ch.route, { ctx, tl, card, choice: ch, r }); if (rr && rr.result) parts.push(fill(rr.result, st, ctx, scope)); } // 路線的結果可以回傳一句話（例如學制選定的那句），接在選項的結果後面
   if (ch.habitPattern && HABIT_HOOK) HABIT_HOOK(st, data, ch.habitPattern, { ctx, tl, card, choice: ch });
