@@ -107,20 +107,35 @@ export const PLASTICITY_BOTS = {
   elemHarsh: { desc: '鏡像：同樣的嚴厲決定數（22 個回合）放在國小（第 28–49 回合），其餘溫暖＋堅定', phases: [[0, 'warmFirm'], [28, 'harsh'], [50, 'warmFirm']] },
 };
 /* ───── 手機與平板、假日邀約的對照機器人（DESIGN §4.39、§4.40；tools/checks/c3.mjs）─────
-   prefer：依序（越前面越優先）挑帶這些標籤的選項；screenOnly：只在 screen 卡上這樣挑；once：只用一次（一次大活動）；
-   其餘（沒有帶偏好標籤的選項、不是 screen 卡）交給 fallback。不放進 BOTS／HUMAN_BOTS：校準與影響上限的局數不應該多出這些策略。 */
+   設計原則（2026-10-21 審查後）：各組『只在螢幕這件事上不同』，其他選擇完全一樣——全部用同一個 fallback（commonReaction），
+   而且除了『給了就不管』（c3Base）以外，沒有任何一組選 3C當保母（avoid）；這樣組間的差才是螢幕做法造成的，不是其他卡的選法不同。
+   prefer：依序（越前面越優先）挑帶這些標籤的選項；screenOnly：只在 screen 卡上這樣挑；poolOnly：只在這個池的卡上這樣挑；onlyCard：只在這張卡上這樣挑；
+   once：只用一次（一次大活動）；其餘（沒有帶偏好標籤的選項、不是範圍內的卡）交給 fallback。
+   配對：用了 prefer 的那一次不會呼叫 fallback，所以同一個種子下 c3Trip 與 c3NoTrip 的亂數流一致（只差在旅行卡的那一個選擇）。
+   不放進 BOTS／HUMAN_BOTS：校準與影響上限的局數不應該多出這些策略。 */
+const AVOID_NANNY = ['3C當保母'];
 export const C3_BOTS = {
   c3Base: { desc: '給了就不管（任何卡有螢幕當保母就選；螢幕卡上選沒人在旁、沒有後續的做法；其他卡照習慣反應）', everywhere: ['3C當保母'], prefer: ['3C當保母', '沒有下文', '吵了才讓步', '兩手一攤'], screenOnly: true, fallback: 'commonReaction' },
-  c3Agreed: { desc: '約定且大人在旁（螢幕卡）；不拿螢幕當保母', prefer: ['3C約定且在旁'], avoid: ['3C當保母'], screenOnly: true, fallback: 'c3Base' },
-  c3Task: { desc: '任務型借用、用完收回（沒有這個選項時退到約定且在旁）；不拿螢幕當保母', prefer: ['3C任務借用', '3C約定且在旁'], avoid: ['3C當保母'], screenOnly: true, fallback: 'c3Base' },
-  c3Limit: { desc: '只加時間管控（螢幕卡），沒有陪伴；不拿螢幕當保母', prefer: ['事前訂規則', '說到做到', '規定不談判'], avoid: ['3C當保母'], screenOnly: true, fallback: 'c3Base' },
-  c3Confiscate: { desc: '只強制收回（螢幕卡），其餘給了就不管', prefer: ['沒收裝置'], screenOnly: true, fallback: 'c3Base' },
-  c3Companion: { desc: '持續的陪伴互動（螢幕卡）；不拿螢幕當保母', prefer: ['3C陪伴同行', '一起參與', '觀察與參與', '放下手機陪'], avoid: ['3C當保母'], screenOnly: true, fallback: 'c3Base' },
-  c3Trip: { desc: '只有一次大活動（第一次遇到旅行卡就去），其餘給了就不管', prefer: ['3C一次大活動'], once: true, screenOnly: true, fallback: 'c3Base' },
-  c3TripCompanion: { desc: '一次大活動之後接上持續的陪伴', prefer: ['3C一次大活動'], once: true, screenOnly: true, fallback: 'c3Companion' },
-  wkAccept: { desc: '假日的邀約一律接', prefer: ['假日缺席', '沒有下文'], fallback: 'commonReaction' },
-  wkDecline: { desc: '假日的邀約一律婉拒', prefer: ['婉拒邀約'], fallback: 'commonReaction' },
+  c3Agreed: { desc: '約定且大人在旁（螢幕卡）；不拿螢幕當保母', prefer: ['3C約定且在旁'], avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },
+  c3Task: { desc: '任務型借用、用完收回（沒有這個選項時退到約定且在旁）；不拿螢幕當保母', prefer: ['3C任務借用', '3C約定且在旁'], avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },
+  c3Limit: { desc: '只加時間管控（螢幕卡），沒有陪伴；不拿螢幕當保母', prefer: ['事前訂規則', '說到做到', '規定不談判', '3C限定場所'], avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },
+  c3Confiscate: { desc: '只強制收回（螢幕卡）；不拿螢幕當保母', prefer: ['沒收裝置'], avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },
+  c3Companion: { desc: '持續的陪伴互動（螢幕卡）；不拿螢幕當保母', prefer: ['3C陪伴同行', '一起參與', '觀察與參與', '放下手機陪'], avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },
+  c3Trip: { desc: '只有一次大活動：第一次遇到旅行卡就去，其餘和 c3NoTrip 一樣（不拿螢幕當保母）', prefer: ['3C一次大活動'], onlyCard: 'big_trip_c3', once: true, avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },
+  c3NoTrip: { desc: '和 c3Trip 配對的對照：第一次遇到旅行卡選『週末照舊、沒有下文』，其餘和 c3Trip 一模一樣', prefer: ['沒有下文'], onlyCard: 'big_trip_c3', once: true, avoid: AVOID_NANNY, screenOnly: true, fallback: 'commonReaction' },
+  c3LateCompanion: { desc: '前半（到第 40 回合，國小中年級）給了就不管，之後改成持續的陪伴：量『已經升高的依賴度』能不能被拉下來', phases: [[0, 'c3Base'], [40, 'c3Companion']] },
+  wkAccept: { desc: '假日的邀約一律接（只在假日邀約的卡上，其他卡照習慣反應）', prefer: ['假日缺席', '沒有下文'], poolOnly: '假日邀約', fallback: 'commonReaction' },
+  wkMonthly: { desc: '假日的邀約接，但每個月只接一次；孩子來找時留下來（只在假日邀約的卡上，其他卡照習慣反應）', prefer: ['假日缺席_少', '問具體的事'], poolOnly: '假日邀約', fallback: 'commonReaction' },
+  wkDecline: { desc: '假日的邀約一律婉拒（只在假日邀約的卡上，其他卡照習慣反應）', prefer: ['婉拒邀約'], poolOnly: '假日邀約', fallback: 'commonReaction' },
 };
+/* 放任型 3C 的對照（DESIGN §4.39 依賴度的後果；tools/checks/c3.mjs 的 permissive 項）：
+   同一個基底機器人（真人混合裡的四種），對照組在螢幕卡上選『只加時間管控』、不拿螢幕當保母；放任組只在螢幕卡上選沒人在旁、沒有後續的做法；
+   其他卡兩組完全一樣（同一個 fallback）。 */
+export const C3_PERM_BASES = ['tiredLazy', 'commonReaction', 'occasionalResearch', 'random', 'warmFirm'];
+for (const b of C3_PERM_BASES) {
+  C3_BOTS[`c3Ctrl_${b}`] = { desc: `對照：${b}，螢幕卡上只加時間管控、不拿螢幕當保母`, prefer: ['事前訂規則', '說到做到', '規定不談判', '3C限定場所'], avoid: AVOID_NANNY, screenOnly: true, fallback: b };
+  C3_BOTS[`c3Perm_${b}`] = { desc: `放任型 3C：${b}，只在螢幕卡上選沒人在旁、沒有後續的做法，其他卡和對照組完全一樣`, prefer: ['3C當保母', '沒有下文', '吵了才讓步', '兩手一攤'], screenOnly: true, fallback: b };
+}
 export const ALL_BOTS = { ...BOTS, ...HUMAN_BOTS, ...SURFACE_BOTS, ...BLIND_BOTS, ...PLASTICITY_BOTS, ...PHASE_BASE, ...C3_BOTS };
 
 /** only：選填，卡片 id 的集合——只在這些卡上照 bot 的做法選，其他卡隨機（tools/surface.mjs 逐檔量字面機器人用） */
@@ -143,7 +158,7 @@ export function botPolicy(botName, seedSalt, only = null) {
           return best;
         };
         if (bot.everywhere) { const e = pick(bot.everywhere); if (e && !raw.screen) return e.i; }
-        if ((!bot.screenOnly || raw.screen) && !(bot.once && spent)) { const b = pick(bot.prefer); if (b) { spent = true; return b.i; } }
+        if ((!bot.screenOnly || raw.screen) && (!bot.poolOnly || raw.pool === bot.poolOnly) && (!bot.onlyCard || raw.id === bot.onlyCard) && !(bot.once && spent)) { const b = pick(bot.prefer); if (b) { spent = true; return b.i; } }
         if (bot.avoid) { const keep = opts.filter((o) => !tagsOf(st, data, raw, o).some((t) => bot.avoid.includes(t))); if (keep.length && keep.length < opts.length) return fb.choose(st, { ...view, choices: keep }, raw, data); }
         return fb.choose(st, view, raw, data);
       },

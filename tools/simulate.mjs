@@ -89,15 +89,15 @@ export function playGame(data, bot, seed, opts = {}) {
     elemTurns, elemNonFixed, nTurnsElem, fu: st.hist.filter((h) => h.fu != null).map((h) => h.fu), // 後續卡的延遲（月） cards: st.hist.length,
   };
   if (opts.c3) { // 手機與平板、假日邀約的量測（tools/checks/c3.mjs）：依賴度的曲線、第一次大活動前後、邀約與父母的收入
-    const key = '3C依賴度', cv = st.curves, trip = st.hist.find((h) => (h.tags || []).includes('3C一次大活動'));
+    const key = '3C依賴度', cv = st.curves, trip = st.hist.find((h) => h.card === 'big_trip_c3'); // 第一次遇到旅行卡（不論選了哪個選項）：c3Trip 與 c3NoTrip 配對比較
     let tripRec = null;
     if (trip) {
       const pre = [...cv].reverse().find((c) => c.t < trip.turn), post = cv.find((c) => c.t === trip.turn), d12 = cv.find((c) => c.m >= trip.m + 12), mn = Math.min(...cv.filter((c) => c.t >= trip.turn && c.m <= trip.m + 12).map((c) => c[key]));
-      tripRec = pre && post && d12 ? { m: trip.m, pre: pre[key], post: post[key], min: mn, d12: d12[key] } : null;
+      tripRec = pre && post && d12 ? { m: trip.m, turn: trip.turn, took: (trip.tags || []).includes('3C一次大活動'), pre: pre[key], post: post[key], min: mn, d12: d12[key] } : null;
     }
     const jobs = ['大學教授', '教師', '醫生', '藥師或醫檢師', '科技業工程師', '外商公司', '自由接案（設計、攝影）'];
     rec.dep = {
-      end: st.hidden[key], base: st.startHidden[key], trip: tripRec, curve: cv.map((c) => [c.m, c[key]]),
+      end: st.hidden[key], base: st.startHidden[key], dest: st.vars.去向 || '', trust: st.hidden.親子信任, know: st.hidden.了解度, trip: tripRec, curve: cv.map((c) => [c.m, c[key]]),
       invites: st.hist.filter((h) => h.card === 'we_invite').length, accepted: st.vars.邀約接受 || 0, declined: st.vars.邀約婉拒 || 0,
       elig: f.rank === '主管' || f.rank === '自己當老闆' || jobs.includes(f.job.name) ? 1 : 0,
       money: avg(st.vcurves.map((c) => c.錢)), work: avg(st.vcurves.map((c) => c.工作表現)),

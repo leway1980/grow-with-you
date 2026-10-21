@@ -71,7 +71,7 @@ test('3C 的常態＝階段基準 + 規範監督的影響（M1 的 ?? 與 + 優�
   const hi = run(90), lo = run(10);
   assert.ok(hi < lo - 1, `${hi} vs ${lo}`);
   // 數值正確：target = 42（國小中高）+ (50 − 規範) × 0.25，往 target 走一個回合的回復率（舊的每回合 0.2＝2 個月，以月計換成這個回合的月數）
-  const t = 42 + (50 - 90) * 0.25;
+  const t = 42 + (50 - 90) * 0.25 + data.tags.screen.baseLift * data.tags.hidden['3C依賴度']; // 依賴度抬高 3C 時間的基準（§4.39 baseLift），新局的起點依賴度
   const rate = 1 - Math.pow(1 - 0.2, data.timeline[40].span / 2);
   assert.ok(Math.abs(hi - (t - 42) * rate) < 1e-9, String(hi));
 });

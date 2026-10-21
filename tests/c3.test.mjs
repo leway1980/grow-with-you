@@ -137,3 +137,62 @@ test('官方建議的數字只出現在已核的研究小卡（docs/research/scr
   assert.ok(md.includes('【已核】') && !md.includes('【待核】'));
   for (const id of ['inf_song_calm', 'kid_song_calm']) assert.ok(/1 小時|不看螢幕/.test(data.cardIndex[id].note), id);
 });
+
+/* ───── 審查後新增：回彈判定要有鑑別力（reboundMonth＝0 的對照必須失敗）───── */
+import { reboundVerdict } from '../tools/checks/c3.mjs';
+import { loadTargets } from '../tools/plugins.mjs';
+
+/** 配對的微型模擬：同一個起點，一邊在旅行卡選了一次大活動，另一邊沒有；各自過 12 個月（3C 時間固定在 40） */
+function tripPairs(n = 24) {
+  const out = [];
+  for (let seed = 1; seed <= n; seed++) {
+    const mk = () => { const st = newState(seed, data, { role: '媽媽' }); st.turn = 25; st._stage = '國小中高'; st.hidden[DEP] = 40 + (seed % 7) * 3; st.child['3C時間'] = 40; return st; };
+    const a = mk(), b = mk();
+    choose(a, ['3C一次大活動']);
+    const post = (st) => st.hidden[DEP];
+    const pa = post(a), pb = post(b);
+    months(a, 12); months(b, 12);
+    out.push({ trip: { post: pa, d12: post(a) }, base: { post: pb, d12: post(b) } });
+  }
+  return out;
+}
+test('回彈判定：有回彈機制時通過；reboundMonth＝0（沒有回彈）的對照局必須失敗', () => {
+  const R = { ...loadTargets().c3.tripRebound, minTrips: 10 };
+  const ok = reboundVerdict(tripPairs(), R);
+  assert.ok(ok.ok, JSON.stringify(ok));
+  assert.ok(ok.retained <= R.retain, `留下 ${ok.retained}`);
+  const keep = S.trip.reboundMonth;
+  try {
+    S.trip.reboundMonth = 0;
+    const ctl = reboundVerdict(tripPairs(), R);
+    assert.ok(!ctl.ok, '沒有回彈機制時，這個判定不能通過：' + JSON.stringify(ctl));
+    assert.ok(ctl.retained > 0.5, `對照局留下 ${ctl.retained}`);
+  } finally { S.trip.reboundMonth = keep; }
+});
+
+test('放任型 3C 的對照機器人：只有螢幕卡上的做法不同，其他完全用同一個基底；對照組不拿螢幕當保母', async () => {
+  const { ALL_BOTS, C3_PERM_BASES } = await import('../tools/bots.mjs');
+  for (const b of C3_PERM_BASES) {
+    const c = ALL_BOTS[`c3Ctrl_${b}`], p = ALL_BOTS[`c3Perm_${b}`];
+    assert.equal(c.fallback, b); assert.equal(p.fallback, b); assert.ok(c.screenOnly && p.screenOnly);
+    assert.ok(c.avoid.includes('3C當保母') && !p.avoid);
+  }
+  for (const n of ['c3Agreed', 'c3Task', 'c3Limit', 'c3Confiscate', 'c3Companion', 'c3Trip', 'c3NoTrip']) { assert.equal(ALL_BOTS[n].fallback, 'commonReaction', n); assert.ok(ALL_BOTS[n].avoid.includes('3C當保母'), n); }
+});
+
+test('依賴度的直接後果（§4.39）：高依賴度讓親子信任、了解度、閱讀習慣每月往下；作業▲打折；天賦好的孩子學習面受的傷害較輕、互動照樣變少', () => {
+  const H = S.harm;
+  const run = (dep, talent) => { const st = fresh(); st.hidden[DEP] = dep; st.family.child.talents.國語 = talent; st.family.child.talents.數學 = talent; const t0 = { ...st.hidden }; for (let i = 0; i < 12; i++) { st.hidden[DEP] = dep; driftHidden(st, T, { span: 2, months: 100 + i * 2, stage: '國小中高' }); } return { trust: st.hidden.親子信任 - t0.親子信任, know: st.hidden.了解度 - t0.了解度, read: st.hidden.閱讀習慣 - t0.閱讀習慣 }; };
+  const lo = run(10, 0), hi = run(80, 0), gifted = run(80, 2);
+  assert.ok(hi.trust < lo.trust - 1 && hi.know < lo.know - 1 && hi.read < lo.read - 0.5, JSON.stringify({ lo, hi }));
+  assert.ok(gifted.read > hi.read && Math.abs(gifted.trust - hi.trust) < 1e-9, '天賦好的孩子閱讀習慣掉得少，親子信任照樣掉');
+  assert.equal(discountHomework(Object.assign(fresh(), {}), T, { 作業: 3 }).作業, 3, '低依賴度不打折');
+  const st = fresh(); st.hidden[DEP] = 90; st.family.child.talents.國語 = 0; st.family.child.talents.數學 = 0;
+  assert.ok(discountHomework(st, T, { 作業: 4, 耐心: -2 }).作業 <= 4 * (1 - H.homeworkDiscount + 1e-9) + 1e-9);
+  assert.equal(discountHomework(st, T, { 作業: 4, 耐心: -2 }).耐心, -2, '花費不動');
+  // 嘗試新活動、閱讀習慣的好處打折
+  const a = fresh(), b = fresh(); a.hidden[DEP] = 5; b.hidden[DEP] = 90; b.family.child.talents.國語 = 0; b.family.child.talents.數學 = 0; a.family.child.talents.國語 = 0; a.family.child.talents.數學 = 0;
+  const ra = a.hidden.主見, rb = b.hidden.主見; applyTags(a, ['嘗試新活動'], T, { turn: 25, stage: '國小中高', ctx: {} }); applyTags(b, ['嘗試新活動'], T, { turn: 25, stage: '國小中高', ctx: {} });
+  assert.ok(b.hidden.主見 - rb < a.hidden.主見 - ra, '高依賴度的孩子，嘗試新活動的好處打折');
+});
+import { discountHomework } from '../js/engine/tags.js';
