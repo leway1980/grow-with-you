@@ -194,7 +194,7 @@ test('學習軸的 3C 懲罰依階段（overByStage）：國小用 over 35，國
   assert.equal(pen.over, 35);
   assert.deepEqual(Object.keys(pen.overByStage), ['國中', '高中', '離家']);
   assert.ok(pen.overByStage.國中 > pen.over && pen.overByStage.高中 >= pen.overByStage.國中 && pen.overByStage.離家 >= pen.overByStage.高中, '青少年的門檻不低於國小');
-  assert.ok(pen.overByStage.高中 <= 45, '不能鬆到全域 45（會讓 controlling 三邊都垮掉到 3% 以下）');
+  assert.deepEqual(pen.overByStage, { 國中: 43, 高中: 48, 離家: 48 }, '引擎的 3C 常態（base3c 50／55／55）減 7，與國小 35＝42−7 同一個邏輯');
   assert.ok(pen.overByStage_why, '要有理由與來源（設計估計要寫明）');
   assert.equal(overFor(pen, null), 35); assert.equal(overFor(pen, '國小中高'), 35); assert.equal(overFor(pen, '高中'), pen.overByStage.高中);
   // 其他輸入固定在 50，3C 時間 = 41：國小扣 0.3×6、高中扣 0.3×(41−高中門檻)
