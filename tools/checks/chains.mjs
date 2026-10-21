@@ -4,6 +4,7 @@
 // 單獨執行：node tools/checks/chains.mjs [局數] [起始種子]
 import { fileURLToPath } from 'node:url';
 import { rateVerdict } from '../mech.mjs';
+import { HUMAN_MIX } from '../bots.mjs';
 
 const share = (xs, f) => (xs.length ? xs.filter(f).length / xs.length : NaN);
 const pct = (x) => (Number.isFinite(x) ? (x * 100).toFixed(0) + '%' : '—');
@@ -18,7 +19,8 @@ export async function measure({ runBots, T, N, s0 }) {
   return {
     games: all.length, n,
     atLeast3: share(all, (r) => r.chains.n >= 3),
-    byBot: Object.fromEntries(T.bots.map((b) => [b, { n3: share(g[b], (r) => r.chains.n >= 3), pos: share(g[b], (r) => r.chains.pos >= 1), late: share(g[b], (r) => r.chains.latePos), avg: sum(g[b].map((r) => r.chains.n)) / g[b].length }])),
+    humanMix3: sum(HUMAN_MIX.map((b) => share(g[b], (r) => r.chains.n >= 3))) / HUMAN_MIX.length, // 真人混合（HUMAN_MIX 的輪流比例）加權
+    byBot: Object.fromEntries(T.bots.map((b) => [b, { n3: share(g[b], (r) => r.chains.n >= 3), n2: share(g[b], (r) => r.chains.n >= 2), pos: share(g[b], (r) => r.chains.pos >= 1), late: share(g[b], (r) => r.chains.latePos), avg: sum(g[b].map((r) => r.chains.n)) / g[b].length }])),
     warmFirmPositive: share(g.warmFirm, (r) => r.chains.pos >= 1),
     lateStarterPositive: share(g.lateStarter, (r) => r.chains.latePos),
     lateStarterCand: share(g.lateStarter, (r) => r.chains.latePosCand),
@@ -37,8 +39,15 @@ export function rows(v, T) {
   // 比例用 Wilson 95% 區間（tools/mech.mjs rateVerdict，和機制發生率同一條規則）
   const rrow = (R, name, x, n, range, note = '') => { const vd = rateVerdict(x, n, R); return { ok: vd.ok, pending: !!T.pending || vd.pending, group: '決定鏈', name, value: `${pct(x)}，95% 區間 ${pct(vd.lo)}～${pct(vd.hi)}`, range, note: `${vd.small ? `只有 ${n} 局（<200）。` : ''}${note}${R.note ? '　[' + R.note + ']' : ''}` }; };
   const by = Object.entries(v.byBot).map(([b, o]) => `${b} ≥3條 ${pct(o.n3)}／有好鏈 ${pct(o.pos)}／12歲後好鏈 ${pct(o.late)}／平均 ${o.avg.toFixed(1)} 條`).join('；');
+  // 目標改法（規劃者決定，審查後）：原本『所有機器人合計 ≥ 3 條 ≥ 95%』把『很少碰到主題的偷懶／隨機／放任機器人』和『每個決定都照同一套原則的機器人』混在一起量。
+  // 稀疏機器人（random、permissive、tiredLazy）<3 條的局，另外驗證過：≥3 張帶主題的卡片都碰到了（137/137 局，三個機器人各 400 局）——不是內容不夠，是這些策略不會連續做同一類的選擇，鏈本來就不成立。
+  // 所以改量：(a) 每個一致的機器人 ≥ 3 條 ≥ 95%；(b) 每個機器人 ≥ 2 條 ≥ 95%；(c) 全部合計與真人混合加權的 ≥ 3 條只報告（真人加權約 90%）。
+  const bots = Object.entries(v.byBot), worst = (list, key) => list.map(([b, o]) => [b, o[key]]).sort((x, y) => x[1] - y[1])[0];
+  const cons = bots.filter(([b]) => T.consistent3.bots.includes(b)), w3 = worst(cons, 'n3'), w2 = worst(bots, 'n2');
   return [
-    rrow(T.atLeast3, `至少挑到 3 條鏈的局（${v.games} 局，${T.bots.length} 個機器人）`, v.atLeast3, v.games, `≥ ${T.atLeast3.min * 100}%`, by),
+    rrow(T.consistent3, `每個一致的機器人（${T.consistent3.bots.join('、')}）至少挑到 3 條鏈的局，取最低者（${w3[0]}，各 ${v.n} 局）`, w3[1], v.n, `≥ ${T.consistent3.min * 100}%`, by),
+    rrow(T.every2, `每個機器人至少挑到 2 條鏈的局，取最低者（${w2[0]}，各 ${v.n} 局）`, w2[1], v.n, `≥ ${T.every2.min * 100}%`, bots.map(([b, o]) => `${b} ${pct(o.n2)}`).join('、')),
+    { ok: true, pending: false, group: '決定鏈', name: `報告：全部機器人合計至少 3 條鏈的局（${v.games} 局）／真人混合加權`, value: `合計 ${pct(v.atLeast3)}；真人加權 ${pct(v.humanMix3)}`, range: '只報告；真人加權約 90%', note: '' },
     rrow(T.warmFirmPositive, `warmFirm 至少有 1 條往好的方向轉的鏈（${v.n} 局）`, v.warmFirmPositive, v.n, `≥ ${T.warmFirmPositive.min * 100}%`),
     rrow(T.lateStarterPositive, `lateStarter 在 12 歲以後有至少 1 條往好的方向轉的鏈（${v.n} 局）`, v.lateStarterPositive, v.n, `≥ ${T.lateStarterPositive.min * 100}%`, `候選（不限挑中）${pct(v.lateStarterCand)}`),
     row(T.integrity, '挑到的鏈缺內容的次數（選擇數不在 3–5、沒有處境、沒有曲線、沒有研究小卡）', v.integrity, String(v.integrity), '＝ 0'),
