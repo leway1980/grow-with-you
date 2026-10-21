@@ -162,7 +162,7 @@ export function lintData(raw = loadRaw()) {
   // ── 事件卡 ──
   const leakRe = new RegExp(hiddenKeys.join('|'));
   const allowedChoiceKeys = new Set(['label', 'effects', 'tags', 'result', 'showIf', 'grayIf', 'opens', 'followUp', 'chance', 'setFlags', 'clearFlags', 'setVars', 'incVars', 'direction', 'topic', 'needs', 'labelIf', 'resultIf', 'tagsIf', 'effectsIf', 'toward', 'classroom', 'flagMonths', 'route', 'habitPattern']);
-  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldownMonths', 'scale', 'requires', 'excludes', 'modifiers', 'stages', 'topic', 'direction', 'approach', 'initiate', 'toward', 'note', 'habit', 'traceOf', 'sensitive', 'reviewed', '_variantOf', '_variantIf', 'kMax', 'paceMonths']);
+  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldownMonths', 'scale', 'requires', 'excludes', 'modifiers', 'stages', 'topic', 'direction', 'approach', 'initiate', 'toward', 'note', 'habit', 'traceOf', 'sensitive', 'reviewed', '_variantOf', '_variantIf', 'kMax', 'paceMonths', 'noStack']);
     // 規則 25 的資料：followUp 圖上繞得回自己的卡（直接排自己，或 A→B→A）
   const selfLoopIds = (() => {
     const g = {}; for (const c of cards) { g[c.id] = new Set(); for (const ch of c.choices || []) for (const b of [ch, ...(ch.chance ? [ch.chance.win, ch.chance.lose] : [])]) for (const f of (b && b.followUp) || []) g[c.id].add(f.card); }

@@ -259,6 +259,15 @@ export function cardTagSet(card) {
   return out;
 }
 /**
+ * 一張卡的『同方向標籤』：它自己的標籤，加上所有和它的標籤餵給同一條因果圖邊（隱藏數值＋方向）的標籤。
+ * 例如 不比較 和 一起看哪裡卡住 都讓『期待壓力』往下，同一個回合帶其中一個，另一個就算疊在同一個方向上。
+ */
+export function stackTagSet(M, card) {
+  const mine = cardTagSet(card), out = new Set(mine);
+  for (const e of (M && M.edges) || []) if (e.id.startsWith('h:') && e.fromTags && e.fromTags.some((t) => mine.has(t))) for (const t of e.fromTags) out.add(t);
+  return out;
+}
+/**
  * 抽一張日常卡。excludeId／excludeHabit：這回合已經出現的卡與習慣家族不再抽。
  * excludeTags（Set）：這回合的固定事件卡（fx_*）可能帶的標籤；日常卡只要有任何一個選項帶了其中一個標籤就不抽，
  * 否則同一個回合裡固定事件和日常卡把同一個方向的標籤疊兩次（E1 審查：高一下 7 個月的回合『了解度-』單回合超過上限）。
@@ -282,13 +291,14 @@ export function pickFixed(st, data, tl, ctx) {
   return null;
 }
 /** 到期的後續卡。回傳 { card, delay }（delay＝從排進去到出現隔了幾個月），沒有就是 null。 */
-export function pickDelayed(st, data, tl, ctx, excludeId = null) {
+export function pickDelayed(st, data, tl, ctx, excludeId = null, excludeTags = null) {
   st.delayed.sort((a, b) => a.due - b.due);
   for (let i = 0; i < st.delayed.length; i++) {
     const d = st.delayed[i];
     if (d.due > st.turn) break;
     const c = data.cardIndex[d.card];
     if (c && c.id === excludeId) continue;
+    if (c && excludeTags && excludeTags.size && [...cardTagSet(c)].some((t) => excludeTags.has(t))) continue; // 疊在同一個方向的後續卡留到下一個回合
     st.delayed.splice(i, 1);
     if (c && passes(c, st, ctx)) return { card: c, delay: tl.ageMonths - data.timeline[Math.min(d.from ?? d.due, data.timeline.length - 1)].ageMonths }; // 延遲以月計
     i--;
