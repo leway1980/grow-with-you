@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { loadData, loadRaw } from '../tools/data-node.mjs';
 import { newState, startTurnOf } from '../js/engine/state.js';
 import { startTurn, chooseCard, nextCard, finishTurn, playTurn, buildTimeline, gradeName, ageLabel, playedStages } from '../js/engine/turn.js';
-import { drawCard, cardTagSet, stackTagSet, describeCard, buildCtx, poolWeight, applyChoice, slotAvailable, gateNames, choiceCtx, choiceState, applyEffects } from '../js/engine/events.js';
+import { describeCard, buildCtx, poolWeight, applyChoice, slotAvailable, gateNames, choiceCtx, choiceState, applyEffects } from '../js/engine/events.js';
 import { shuffleOrder } from '../js/engine/rng.js';
 import { doseView } from '../js/engine/dose.js';
 import { stateRng } from '../js/engine/rng.js';
@@ -539,37 +539,4 @@ test('模擬器的 money30 以月計：從出生與從國小開始的局都有�
     assert.equal(r.money30, r.st.vcurves.find((c) => c.t === t).錢);
     assert.equal(moneyAtSchoolPlus(r.st, data, e), r.money30);
   }
-});
-
-/* ───── 固定事件卡寫了 noStack：同一個回合的第二張卡不和它推同一個隱藏數值的同一個方向（E1 審查：同一個方向在一個回合疊兩次） ───── */
-test('noStack 的固定事件卡（fx_sh_track、fx_exam_basic）：第二張卡的任何選項都不和它推同一個隱藏數值的同一個方向', () => {
-  const flagged = data.events.cards.filter((c) => c.noStack).map((c) => c.id);
-  assert.deepEqual(flagged.sort(), ['fx_exam_basic', 'fx_sh_track']);
-  let checked = 0;
-  for (const tl of data.timeline) {
-    if (!tl.fixed.some((id) => flagged.includes(id))) continue;
-    for (let seed = 1; seed <= 150; seed++) {
-      const st = fresh(seed); st.turn = tl.turn;
-      const r = startTurn(st, data);
-      if (!r.card || !r.twoSlot || !flagged.includes(r.raw.id)) continue;
-      const fxTags = stackTagSet(data.model, r.raw);
-      const o = chooseCard(st, data, r.card.choices.find((c) => !c.disabled).i);
-      if (!o.more) continue; // 抽的日常卡與到期的後續卡都要遵守
-      const c2 = data.cardIndex[st.cur.next.id];
-      checked++;
-      const shared = [...cardTagSet(c2)].filter((t) => fxTags.has(t));
-      assert.deepEqual(shared, [], `回合 ${tl.turn}：${r.raw.id} 與 ${c2.id} 同方向標籤 ${shared.join('、')}`);
-    }
-  }
-  assert.ok(checked > 20, `只檢查到 ${checked} 個第二張卡`);
-});
-
-test('drawCard：excludeTags 排除任何選項（含 tagsIf 版本）帶那個標籤的卡', () => {
-  const st = fresh(7); st.turn = 64;
-  const tl = data.timeline[64], ctx = buildCtx(st, tl), r = stateRng(st, 'rngS');
-  const all = new Set();
-  for (let i = 0; i < 200; i++) { const c = drawCard(st, data, ctx, tl, r); if (c) all.add(c); }
-  assert.ok(all.size > 3);
-  const tag = [...cardTagSet([...all][0])][0];
-  for (let i = 0; i < 200; i++) { const c = drawCard(st, data, ctx, tl, r, null, null, new Set([tag])); if (c) assert.ok(!cardTagSet(c).has(tag), c.id); }
 });

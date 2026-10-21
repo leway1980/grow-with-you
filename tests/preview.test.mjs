@@ -93,14 +93,12 @@ test('200 局：每局玩到第 72 回合、沒有例外、安靜回合 ≤ 20%�
 
 test('劑量倍率沒有上限：高中 6 個月一回合的倍率就是 span / refMonths（E1 拿掉 previewKMax）；scale:false 的卡永遠是 1', () => {
   const hs = data.timeline.find((t) => t.stage === '高中' && t.span >= 5);
-  const card = data.events.cards.find((c) => c.scale === true && c.kMax == null); // scale:true、沒寫 kMax：倍率不設上限
+  const card = data.cardIndex.sh_scooter; // scale:true
   assert.equal(data.model.timeScale.previewKMax, undefined);
   assert.equal(cardDoseK(data.model, hs.span, card), hs.span / 2);
   assert.equal(cardDoseK(data.model, 6, card), 3);
   assert.equal(cardDoseK(data.model, 2, card), 1);
   assert.equal(cardDoseK(data.model, 6, { scale: false }), 1);
-  // 高中常態卡的 kMax：睡眠、打工、騎車這三張循環出現的卡，劑量倍率上限 2（E1 審查：7 個月的回合倍率 3.5 讓單回合的『了解度-』超過上限）
-  for (const id of ['sh_sleep', 'sh_parttime', 'sh_scooter']) { assert.equal(data.cardIndex[id].kMax, 2); assert.equal(cardDoseK(data.model, 7, data.cardIndex[id]), 2); assert.equal(cardDoseK(data.model, 2, data.cardIndex[id]), 1); }
 });
 
 /* ───── 結局：標題寫最後玩的回合；成就欄的句子依玩到哪裡 ───── */

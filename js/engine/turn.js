@@ -3,7 +3,7 @@
 // 改為：每回合一張卡、學前節奏較快、固定事件＋延遲後續卡＋兩段式抽卡，並在每回合結束記錄隱藏曲線給結局用。
 import { stateRng, rngAt } from './rng.js';
 import { setSlotData } from './slots.js';
-import { buildCtx, passes, pickFixed, pickDelayed, drawCard, stackTagSet, describeCard, applyChoice, applyEffects, rollLoads, fill, cardById, setGates } from './events.js';
+import { buildCtx, passes, pickFixed, pickDelayed, drawCard, describeCard, applyChoice, applyEffects, rollLoads, fill, cardById, setGates } from './events.js';
 import { driftHidden } from './tags.js';
 import { detectHabits, autoHabit, explainerOf, familyOf } from './habits.js';
 import { doseView } from './dose.js';
@@ -227,13 +227,8 @@ export function chooseCard(st, data, idx) {
   if (cur.twoSlot && cur.slot === 0) {
     const ctx = buildCtx(st, tl);
     const auto = st.autoLog.length ? st.autoLog[st.autoLog.length - 1] : null; // 這個回合已經自動帶入的習慣家族：第二張卡不再抽同家族的（M3 B2）
-    // 固定事件卡寫了 noStack:true（fx_sh_track：高一下 7 個月的回合；fx_exam_basic：會考前）：這個回合的日常卡不能和它推同一個隱藏數值的同一個方向
-    // （自己的標籤，或餵給同一條因果圖邊的標籤），否則同一個方向在一個回合疊兩次。
-    // 不是每張固定事件卡都這樣：國小、國中、整個高中全面排除的量測是決定鏈 ≥ 3 條 95% → 88%、回家第一句非混合 70% → 30%、高中翻轉習慣 27%（< 30%），
-    // 因為那些回合的第二張日常卡正是決定鏈、習慣改變、『不太來找你』離開卡片出現的地方
-    const fxTags = card.noStack ? stackTagSet(data.model, card) : null;
-    const d = pickDelayed(st, data, tl, ctx, card.id, fxTags);
-    const c2 = d ? d.card : drawCard(st, data, ctx, tl, r, card.id, auto && auto.turn === st.turn && auto.tags.length ? auto.family : null, fxTags);
+    const d = pickDelayed(st, data, tl, ctx, card.id);
+    const c2 = d ? d.card : drawCard(st, data, ctx, tl, r, card.id, auto && auto.turn === st.turn && auto.tags.length ? auto.family : null);
     if (c2) { cur.next = { id: c2.id, fu: d ? d.delay : null }; return { result: out.result, note: out.note, dose: null, more: true }; }
   }
   return { result: out.result, note: out.note, dose: doseView(cur.acc, st, tl.stage, tl.span), more: false };

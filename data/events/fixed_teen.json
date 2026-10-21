@@ -237,7 +237,6 @@
    "cooldownMonths": 0,
    "weight": 1,
    "scale": false,
-   "noStack": true,
    "choices": [
     {
      "label": "晚餐照平常吃，不問進度，不提別人考幾分，十點關燈，送到考場門口就走",
@@ -812,7 +811,6 @@
    "cooldownMonths": 0,
    "weight": 1,
    "scale": false,
-   "noStack": true,
    "choices": [
     {
      "label": "把選組要看的資料各印一份，兩個人各自標出想法，再對照，最後由{他}填",
