@@ -20,4 +20,4 @@ jobs:
       # 試作階段：機制體檢只報告、不擋（老師 2026-10-21：之後用真人遊玩紀錄來調，不靠模擬）
       - name: Design check (report only during prototype)
         continue-on-error: true
-        run: node tools/check-design.mjs 3000
+        run: node tools/check-design.mjs 1000
