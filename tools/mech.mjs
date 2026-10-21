@@ -2,7 +2,7 @@
 // 重要：這個檔案只依賴「一局玩完之後的 st」與引擎的舊介面（vars／hist／curves／parentGrowth／buildEnding），
 // 因為 tools/impact.mjs 會把它複製到別的 git 版本去跑，那個版本的引擎可能還沒有新的 API。
 import { avg, share } from './stats.mjs';
-import { censorStats, playableEndMonths } from './approach-log.mjs';
+import { censorStats, playableEndMonths, censorByStage } from './approach-log.mjs';
 
 const WINDOW = 12; // 個月（A2.5：舊的 6 個國小回合＝12 個月，窗口以月計）
 /** 在連續 WINDOW 個月內，帶有某標籤的選擇最多出現幾次（§4.33 3C 當保母的連用）。hist 的每筆要有月齡 m（舊版本的紀錄沒有，由 mechRecord 依時間軸補上） */
@@ -32,13 +32,15 @@ export function mechRecord(st, data, extra = {}) {
   const aw = st.curves.filter((c) => c.t < firstAcc).map((c) => c.交通安全認知 ?? 0);
   const relief = hist.filter((h) => (h.tags || []).some((t) => data.tags.tags[t] && data.tags.tags[t].relief)).length;
   const needs = ((st.family && st.family.child && st.family.child.needs) || []).map((n) => n.kind);
-  const cens = extra.approachEpisodes ? censorStats(extra.approachEpisodes, playableEndMonths(data)) : { entries: 0, eligible: 0, exited: 0 }; // 右設限的離開比例（tools/approach-log.mjs）
+  const zero = { entries: 0, eligible: 0, exited: 0 };
+  const byStage = extra.approachEpisodes ? censorByStage(extra.approachEpisodes, data) : { elem: zero, teen: zero, jh: zero, sh: zero }; // 右設限的離開比例，依進入的階段分開（tools/approach-log.mjs）
+  const cens = byStage.elem; // entries24／elig24／exit24＝國小畢業以前的進入（和 A0 同一個定義）；國中以後的進入另算（teen／jh／sh）
   const base = (id) => SIGNAL_COND[String(id).replace(GEN, '')];
   const sig = hist.filter((h) => base(h.card)).length, sigGen = hist.filter((h) => GEN.test(h.card) && base(h.card)).length;
   const sigOn = hist.filter((h) => base(h.card) && base(h.card).some((k) => needs.includes(k))).length;
   return {
     signal: { by: Object.fromEntries(Object.keys(SIGNAL_COND).flatMap((k) => [k, k + '_gen']).map((k) => [k, ids(k)]).filter(([, n]) => n)), shown: sig, onCond: sigOn, gen: sigGen, hasNeed: needs.some((k) => k !== '資優') ? 1 : 0, share: sig ? sigOn / sig : null },
-    avoid: { ever: (st.vars.不太來找你_曾 ?? (st.vars.不太來找你 ? 1 : 0)) > 0 ? 1 : 0, end: st.vars.不太來找你 ? 1 : 0, approachSeen, exitApproach: st.vars.不太來找你_離開_接住 || 0, exitInitiate: st.vars.不太來找你_離開_主動 || 0, exitAny: (st.vars.不太來找你_離開_接住 || 0) + (st.vars.不太來找你_離開_主動 || 0) > 0 ? 1 : 0, entries24: cens.entries, elig24: cens.eligible, exit24: cens.exited },
+    avoid: { ever: (st.vars.不太來找你_曾 ?? (st.vars.不太來找你 ? 1 : 0)) > 0 ? 1 : 0, end: st.vars.不太來找你 ? 1 : 0, approachSeen, exitApproach: st.vars.不太來找你_離開_接住 || 0, exitInitiate: st.vars.不太來找你_離開_主動 || 0, exitAny: (st.vars.不太來找你_離開_接住 || 0) + (st.vars.不太來找你_離開_主動 || 0) > 0 ? 1 : 0, entries24: cens.entries, elig24: cens.eligible, exit24: cens.exited, teenEntries: byStage.teen.entries, teenElig: byStage.teen.eligible, teenExit: byStage.teen.exited, jhEntries: byStage.jh.entries, jhElig: byStage.jh.eligible, jhExit: byStage.jh.exited, shEntries: byStage.sh.entries, shElig: byStage.sh.eligible, shExit: byStage.sh.exited },
     c3: { count: st.tagCounts['3C當保母'] || 0, window: maxInWindow(hist, '3C當保母') },
     acc: { mode, scrape: ids('cm_scrape'), near: ids('cm_near'), hospital: ids('cm_hospital'), any: ids('cm_scrape') + ids('cm_near') + ids('cm_hospital'), any01: accTurns.length ? 1 : 0, awareBefore: aw.length ? aw.reduce((a, b) => a + b, 0) / aw.length : 0 },
     self: { cards: pool('父母自己'), rest: hist.filter((h) => (h.tags || []).includes('父母自己休息')).length, relief },
@@ -102,8 +104,9 @@ export function evaluateMechanisms(recs, targets) {
       const overlap = (m.min == null || hi >= m.min) && (m.max == null || lo <= m.max);
       if (!ok) { if (!overlap) ok = false; else if (pool.length < 200) { pending = true; ok = false; ci += `，只有 ${pool.length} 局（<200）`; } else ok = true; }
     }
+    if (m.pending && !ok) pending = true; // 暫時：只報告、不擋 CI（顯示 △）
     if (m.reportOnly) { ok = true; pending = false; }
-    rows.push({ ok, pending, group: m.reportOnly ? '機制（僅報告）' : '機制', name: m.name + (m.mode || m.where ? `（${pool.length} 局）` : ''), value: fmt(v) + ci, range: `${m.min == null ? '' : fmt(m.min)}～${m.max == null ? '' : fmt(m.max)}`, note: pending ? '樣本不足：' + (m.note || '') : m.note || '' });
+    rows.push({ ok, pending, group: m.reportOnly ? '機制（僅報告）' : '機制', name: m.name + (m.mode || m.where ? `（${pool.length} 局）` : ''), value: fmt(v) + ci, range: `${m.min == null ? '' : fmt(m.min)}～${m.max == null ? '' : fmt(m.max)}`, note: pending ? (m.pending ? '暫時（pending，只報告不擋 CI）：' : '樣本不足：') + (m.note || '') : m.note || '' });
   }
   for (const d of targets.mechanisms.directions || []) {
     const scoped = (d.where || []).length ? recs.filter((x) => d.where.every((c) => fired(x, c))) : recs;

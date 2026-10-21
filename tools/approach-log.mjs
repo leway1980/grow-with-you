@@ -29,3 +29,23 @@ export function censorStats(episodes, endMonths, window = CENSOR_WINDOW_MONTHS) 
   const el = episodes.filter((e) => e.enter <= endMonths - window);
   return { entries: episodes.length, eligible: el.length, exited: el.filter((e) => e.exit != null && e.exit - e.enter <= window).length };
 }
+
+/** 某個階段的起點月齡（時間軸裡第一個該階段的回合）；沒有這個階段就是 null */
+export const stageStartMonths = (data, stage) => { const t = data.timeline.find((x) => x.stage === stage); return t ? t.ageMonths : null; };
+
+/**
+ * 依進入的階段分開算右設限的離開比例（E1 審查：不同進入階段的離開機會本來就不同，不能混在一起比）：
+ *  - elem：國小畢業以前（含幼兒園）的進入，用『國中開始的月齡』當終點，定義和 A0（遊戲在小六結束）完全相同；
+ *  - teen／jh／sh：國中以後（國中、高中、離家前）的進入，終點是可玩範圍的結束。
+ * 每一組回傳 { entries, eligible, exited }（censorStats 的格式）。
+ */
+export function censorByStage(episodes, data, window = CENSOR_WINDOW_MONTHS) {
+  const jh = stageStartMonths(data, '國中'), sh = stageStartMonths(data, '高中'), end = playableEndMonths(data);
+  const pick = (f) => episodes.filter((e) => f(e.enter));
+  return {
+    elem: censorStats(pick((m) => jh == null || m < jh), jh == null ? end : jh, window),
+    teen: censorStats(pick((m) => jh != null && m >= jh), end, window),
+    jh: censorStats(pick((m) => jh != null && m >= jh && (sh == null || m < sh)), end, window),
+    sh: censorStats(pick((m) => sh != null && m >= sh), end, window),
+  };
+}

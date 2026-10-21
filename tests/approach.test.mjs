@@ -5,6 +5,7 @@ import { loadData } from '../tools/data-node.mjs';
 import { newState } from '../js/engine/state.js';
 import { applyTags } from '../js/engine/tags.js';
 import { buildCtx, describeCard } from '../js/engine/events.js';
+import { censorByStage, censorStats, playableEndMonths, stageStartMonths } from '../tools/approach-log.mjs';
 
 const data = loadData();
 const T = data.tags;
@@ -142,4 +143,27 @@ test('假裝聽：和敷衍帶過一樣算錯過（連續錯過進入不太來�
   for (let i = 0; i < A.enterAt; i++) applyTags(st, ['假裝聽'], T, { turn: st.turn, stage, ctx: {}, approach: true });
   assert.equal(st.vars.不太來找你, 1);
   assert.notDeepEqual(T.tags['假裝聽'].d, T.tags['敷衍帶過'].d);
+});
+
+test('離開比例依進入的階段分開算（E1 審查）：國小畢業以前的進入用「國中開始的月齡」當終點（和 A0 同一個定義），國中以後的進入用可玩終點；各自右設限', () => {
+  const jh = stageStartMonths(data, '國中'), sh = stageStartMonths(data, '高中'), end = playableEndMonths(data);
+  assert.equal(jh, 144); assert.ok(sh > jh && end > sh);
+  const ep = [
+    { enter: 30, exit: 40 },           // 幼兒園：進入時離國小畢業 ≥ 24 個月，10 個月內離開 → 算
+    { enter: 100, exit: null },        // 國小：沒離開 → 符合條件但沒離開
+    { enter: 110, exit: 150 },         // 國小：離開在 40 個月後（> 24）→ 符合條件，沒在 24 個月內離開
+    { enter: 130, exit: 135 },         // 進入時離國小畢業不到 24 個月 → 不符合條件（右設限）
+    { enter: 150, exit: 160 },         // 國中：離可玩終點 ≥ 24 個月，10 個月內離開
+    { enter: 170, exit: null },        // 國中：沒離開
+    { enter: end - 30, exit: end - 20 }, // 高中：離可玩終點 ≥ 24 個月，離開
+    { enter: end - 10, exit: null },   // 離可玩終點不到 24 個月 → 不符合條件
+  ];
+  const c = censorByStage(ep, data);
+  assert.deepEqual(c.elem, { entries: 4, eligible: 3, exited: 1 });
+  assert.deepEqual(c.teen, { entries: 4, eligible: 3, exited: 2 });
+  assert.deepEqual(c.jh, { entries: 2, eligible: 2, exited: 1 });
+  assert.deepEqual(c.sh, { entries: 2, eligible: 1, exited: 1 });
+  // 混在一起算（E1 的做法，終點一律是可玩終點）：國小最後兩年才進入的人也算進來（右設限被延後），整體符合條件 7、離開 4——和分開算的結果不同
+  const all = censorStats(ep, end);
+  assert.deepEqual(all, { entries: 8, eligible: 7, exited: 4 });
 });
