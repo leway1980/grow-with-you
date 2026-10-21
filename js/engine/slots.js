@@ -7,7 +7,7 @@ import { evalCond } from './events.js';
 
 // 舊的固定代稱，由 events.fill 處理，不屬於槽
 // 依角色切換的稱謂（DESIGN §11 規則 15）：由 events.js 的 roleWords 依玩家的角色（爸爸／媽媽）與家庭決定，不抽籤
-export const ROLE_TOKENS = ['你爸媽', '另一半稱呼', '另一半稱呼_大人', '另一半代名詞', '長輩稱呼', '同學叫你', '假期結束', '另一個大人'];
+export const ROLE_TOKENS = ['你爸媽', '另一半稱呼', '另一半稱呼_大人', '另一半代名詞', '長輩稱呼', '同學叫你', '假期結束', '另一個大人', '嗜好', '嗜好夥伴', '嗜好邀約', '嗜好帶孩子'];
 export const FIXED_TOKENS = ['孩子', '他', '另一半', '寵物名', '學校', '長輩', ...ROLE_TOKENS];
 const RE = /\{([^{}]+)\}/g;
 let TABLE = {};

@@ -6,7 +6,7 @@ import { mulberry32, pickWeighted, gauss, rngAt } from './rng.js';
 export const STREAMS = {
   county: 0x1a2b3c4d, job: 0x2b3c4d5e, econ: 0x3c4d5e6f, struct: 0x4d5e6f70, partner: 0x5e6f7081, elders: 0x6f708192,
   housing: 0x708192a3, support: 0x8192a3b4, upbringing: 0x92a3b4c5, child: 0xa3b4c5d6, childNeeds: 0xb4c5d6e7, childInterest: 0xc5d6e7f8,
-  childName: 0xd6e7f809, background: 0x5a6b7c8d, rank: 0x3d4e5f60, transport: 0x4e5f6071, commute: 0x5f607182, childResp: 0xc3d4e5f6, siblings: 0xe7f8091a, space: 0xf8091a2b, pet: 0x091a2b3c, school: 0x1a2b3c5d, childcare: 0x2b3c4d6e, elderCare: 0x3c4d5e7f,
+  childName: 0xd6e7f809, background: 0x5a6b7c8d, rank: 0x3d4e5f60, transport: 0x4e5f6071, commute: 0x5f607182, childResp: 0xc3d4e5f6, siblings: 0xe7f8091a, space: 0xf8091a2b, pet: 0x091a2b3c, school: 0x1a2b3c5d, childcare: 0x2b3c4d6e, elderCare: 0x3c4d5e7f, hobby: 0x4d5e6f81,
 };
 const rs = (seed, name) => mulberry32(((seed >>> 0) ^ STREAMS[name]) >>> 0);
 const wpick = (r, opts, ws) => pickWeighted(r, opts.map((o, i) => ({ o, w: ws[i] })), (x) => x.w)?.o ?? opts[0];
@@ -63,6 +63,29 @@ export function rollBackground(seed, idn, county, urban) {
   const w = B.labels.map((l, i) => B.w[i] * (B.byUrban[l]?.[urban] ?? 1) * (B.countyMult[l]?.[county] ?? 1));
   return wpick(rs(seed, 'background'), B.labels, w);
 }
+
+/**
+ * 父母的嗜好（DESIGN §4.41）：開局抽 1 或 2 個（依城鄉略調），每個再抽有沒有固定的夥伴。用自己的亂數流（hobby），
+ * 新增或調整這張表不會讓其他抽籤改變；舊存檔沒有時由 state.migrate 用同一個種子補上。表在 data/identities.json 的 hobbies（設計估計）。
+ * 回傳 [{ id, name, buddy: 夥伴稱呼 或 '', invite, kidMonths, kidLine }]（卡片用的句子一起存進家庭，roleWords 不必再讀資料表）。
+ */
+export function rollHobbies(seed, idn, urban) {
+  const H = idn.hobbies;
+  if (!H) return [];
+  const r = rs(seed, 'hobby');
+  const n = wpick(r, [1, 2], H.countW);
+  const pool = H.options.map((o) => ({ o, w: o.w * ((o.byUrban && o.byUrban[urban]) ?? 1) }));
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const cand = pool.filter((x) => !out.some((h) => h.id === x.o.id));
+    const o = pickWeighted(r, cand, (x) => x.w).o;
+    const buddy = r() < o.buddyP;
+    out.push({ id: o.id, name: o.name, buddy: buddy ? o.buddy : '', invite: o.invite, kidMonths: o.kidMonths ?? null, kidLine: o.kidLine || '' });
+  }
+  return out;
+}
+/** 有夥伴的第一個嗜好（會來約的那個）；沒有就是 null */
+export const hobbyPrimary = (fam) => (fam.hobbies || []).find((x) => x.buddy) || null;
 
 export function generateFamily(seed, idn) {
   seed >>>= 0;
@@ -214,7 +237,7 @@ export function generateFamily(seed, idn) {
     seed, county: county.name, district, urban,
     job: { name: job.name, line: job.line }, pattern, econ, econRaw, ...rollWork(seed, idn, job, econ, urban),
     structure: struct.id, background: rollBackground(seed, idn, county.name, urban), partner, elders, housing, space, support, upbringing,
-    child, siblings, pet, school, childcare,
+    child, siblings, pet, school, childcare, hobbies: rollHobbies(seed, idn, urban),
   };
 }
 
@@ -267,6 +290,7 @@ export function familyCtx(fam, role, ageMonths, turnsUntil = null) {
     有ADHD: has('ADHD'), 有學習障礙: has('學習障礙'), 有自閉症類群: has('自閉症'), 有發展遲緩: has('發展遲緩'),
     有特殊需求ADHD: has('ADHD'), 有情緒行為障礙: has('情緒行為障礙'), 有特殊需求: fam.child.needs.some((n) => n.kind !== '資優'), 有資優: has('資優'),
     偏鄉: fam.urban === '偏鄉' || fam.urban === '離島', 都會: fam.urban === '都會核心' || fam.urban === '都會外圍',
+    有嗜好夥伴: (fam.hobbies || []).some((h) => h.buddy), // 嗜好（§4.41）：有固定夥伴才會有人來約
   };
 }
 

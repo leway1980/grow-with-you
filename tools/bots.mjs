@@ -137,7 +137,13 @@ for (const b of C3_PERM_BASES) {
   C3_BOTS[`c3Ctrl_${b}`] = { desc: `對照：${b}，螢幕卡上只加時間管控、不拿螢幕當保母`, prefer: ['事前訂規則', '說到做到', '規定不談判', '3C限定場所'], avoid: AVOID_NANNY, screenOnly: true, fallback: b };
   C3_BOTS[`c3Perm_${b}`] = { desc: `放任型 3C：${b}，只在螢幕卡上選沒人在旁、沒有後續的做法，其他卡和對照組完全一樣`, prefer: ['3C當保母', '沒有下文', '吵了才讓步', '兩手一攤'], screenOnly: true, fallback: b };
 }
-export const ALL_BOTS = { ...BOTS, ...HUMAN_BOTS, ...SURFACE_BOTS, ...BLIND_BOTS, ...PLASTICITY_BOTS, ...PHASE_BASE, ...C3_BOTS };
+/* 父母的嗜好的對照（DESIGN §4.41；tools/checks/hobby_teacher.mjs）：各組只在『嗜好邀約』池的卡上不同，其他卡照同一個 fallback（commonReaction）。 */
+export const HB_BOTS = {
+  hbKeep: { desc: '夥伴來約一律照去（只在嗜好邀約的卡上）', prefer: ['嗜好_照去'], poolOnly: '嗜好邀約', fallback: 'commonReaction' },
+  hbReduce: { desc: '夥伴來約一律去但減量（早點回家）', prefer: ['嗜好_減量'], poolOnly: '嗜好邀約', fallback: 'commonReaction' },
+  hbAbandon: { desc: '夥伴第一次來約就乾脆退出', prefer: ['嗜好_退出'], poolOnly: '嗜好邀約', fallback: 'commonReaction' },
+};
+export const ALL_BOTS = { ...HB_BOTS, ...BOTS, ...HUMAN_BOTS, ...SURFACE_BOTS, ...BLIND_BOTS, ...PLASTICITY_BOTS, ...PHASE_BASE, ...C3_BOTS };
 
 /** only：選填，卡片 id 的集合——只在這些卡上照 bot 的做法選，其他卡隨機（tools/surface.mjs 逐檔量字面機器人用） */
 export function botPolicy(botName, seedSalt, only = null) {

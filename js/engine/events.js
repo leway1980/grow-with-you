@@ -2,7 +2,7 @@
 // 改動：移除高中專屬的態度／交往／詐騙邏輯，條件環境改為親子遊戲，新增『池開啟／加重』、選項層級條件（showIf）與機率分支。純函式，無 DOM。
 import { pickWeighted, clamp, rngAt, shuffleOrder } from './rng.js';
 import { fillSlots, persistedSlots } from './slots.js';
-import { familyCtx } from './family.js';
+import { familyCtx, hobbyPrimary } from './family.js';
 import { applyTags, isGrowthChoice, depFactor, discountHomework } from './tags.js';
 import { cardDoseK, scaleEffects, turnAtOrAfter, REF_MONTHS } from './timescale.js';
 import { applyClassroomTags, resetClassroom, classroomCtx, CARE_P, CARE_P_CONCERNED } from './classroom.js';
@@ -154,6 +154,13 @@ function habitCtx(st) {
   for (const [f, h] of Object.entries(st.habits || {})) { o['習慣_' + f] = (h && h.pattern) || ''; o['習慣改變_' + f] = (h && h.shift && h.shift.n) || 0; }
   return o;
 }
+function hobbyCtx(st, tl) {
+  const h = hobbyPrimary(st.family), v = st.vars;
+  return {
+    嗜好可帶孩子: !!(h && h.kidMonths != null && tl.ageMonths >= h.kidMonths), 嗜好推掉連續: v.嗜好推掉連續 || 0, 嗜好退出: !!v.嗜好退出, 嗜好荒廢: !!v.嗜好荒廢, 嗜好夥伴不約: !!v.嗜好夥伴不約,
+    嗜好照去: v.嗜好照去 || 0, 嗜好減量: v.嗜好減量 || 0,
+  };
+}
 export function buildCtx(st, tl, extra = {}) {
   const f = st.family, P = st.parent, C = st.child;
   const month = tl.month ?? ((f.child.birthMonth - 1 + Math.floor(tl.ageMonths / 12) * 12 + (tl.ageMonths % 12)) % 12) + 1;
@@ -171,6 +178,7 @@ export function buildCtx(st, tl, extra = {}) {
     在學: !(st.vars.學制 === '未升學' || ['在家', '工作', '職訓'].includes(st.vars.中途離校)), // 孩子現在有沒有在學校（中途離校後待在家、工作、職訓，或沒進學校）；自學（實驗教育）算在學習
     心情低連續: 0, 離校機率: 0, 離校骰: 0, ...(CTX_HOOK ? CTX_HOOK(st, tl) : null), // 中途離校的前兆（paths.js，只在高中算）
     ...habitCtx(st), // 習慣_<家族>（目前的習慣模式）、習慣改變_<家族>（已連續換了幾次）；沒有習慣資料時什麼都不加
+    ...hobbyCtx(st, tl), // 嗜好（§4.41）：夥伴的狀態、孩子現在能不能帶去
     上學方式: st.vars.上學方式 || '', 孩子來找_連續錯過: st.vars.孩子來找_連續錯過 || 0, 不太來找你: !!st.vars.不太來找你,
     三C陪伴連續: st.vars['3C陪伴_連續'] || 0, 三C回彈中: (st.vars['3C回彈'] || 0) > 0.5, 三C依賴高: (st.hidden['3C依賴度'] ?? 0) >= 50, 邀約接受: st.vars.邀約接受 || 0, 邀約婉拒: st.vars.邀約婉拒 || 0, // 手機與平板（§4.39）、假日邀約（§4.40）：計數與狀態，卡片的條件與池權重讀它；依賴度本身（隱藏）不進條件環境以外的任何畫面
     事故骰: rngAt(st.seed, st.turn, 'acc_dice'), // 命運骰（0–1）：重大意外（cm_hospital）只在這個回合的骰子夠小時才可能出現，不因為『池裡剩下它』就被抽到
@@ -302,6 +310,10 @@ export function rollLoads(st, data, ctx) {
  * 另一半代名詞＝他／她；長輩稱呼＝孩子叫長輩的說法；同學叫你＝孩子的朋友叫你叔叔或阿姨；假期結束＝媽媽是產假、爸爸是假期；
  * 另一個大人＝可以「去問」的人：另一半在家就是另一半，不然是長輩。
  */
+function hobbyWords(f) {
+  const h = hobbyPrimary(f);
+  return h ? { 嗜好: h.name, 嗜好夥伴: h.buddy, 嗜好邀約: h.invite.replace('{嗜好夥伴}', h.buddy), 嗜好帶孩子: h.kidLine } : { 嗜好: '', 嗜好夥伴: '', 嗜好邀約: '', 嗜好帶孩子: '' };
+}
 export function roleWords(st) {
   const f = st.family, dad = st.role === '爸爸';
   const partner = dad ? '你媽' : '你爸';
@@ -310,12 +322,14 @@ export function roleWords(st) {
     你爸媽: dad ? '爸爸' : '媽媽', 另一半稱呼: partner, 另一半稱呼_大人: dad ? '我太太' : '我先生', 另一半代名詞: dad ? '她' : '他',
     長輩稱呼: f.elders.who || '長輩', 同學叫你: dad ? '叔叔' : '阿姨', 假期結束: dad ? '假期結束' : '產假結束',
     另一個大人: near ? partner : (f.elders.who || '長輩'),
+    ...hobbyWords(f), // 嗜好（§4.41）：{嗜好}{嗜好夥伴}{嗜好邀約}{嗜好帶孩子}
   };
 }
 export function fill(text, st, ctx, scope) {
   if (text == null) return '';
   if (ctx && text.includes('{')) text = fillSlots(text, st, ctx, null, scope || {});
   const f = st.family;
+  if (text.includes('{')) { const rw = roleWords(st); text = text.replace(/\{([^{}]+)\}/g, (m, n) => (n in rw ? rw[n] : m)); } // 稱謂先換（嗜好的句子裡還有 {他}、{孩子}，下面一起換）
   text = text.replace(/\{孩子\}/g, f.child.given).replace(/\{他\}/g, f.child.pronoun).replace(/\{另一半\}/g, f.partner.present ? '另一半' : '對方')
     .replace(/\{寵物名\}/g, f.pet ? f.pet.name : (st.vars && st.vars.養的寵物名) || '').replace(/\{學校\}/g, f.school.name).replace(/\{長輩\}/g, f.elders.who || '長輩');
   if (text.includes('{')) { const rw = roleWords(st); text = text.replace(/\{([^{}]+)\}/g, (m, n) => (n in rw ? rw[n] : m)); }

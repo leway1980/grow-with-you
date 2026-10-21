@@ -23,7 +23,9 @@
   "events/health.json",
   "events/pathways.json",
   "events/screen.json",
-  "events/invite.json"
+  "events/invite.json",
+  "events/hobby.json",
+  "events/teacher.json"
  ],
  "extras": [
   "paths.json",

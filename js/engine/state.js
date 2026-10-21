@@ -1,7 +1,7 @@
 // 遊戲狀態：整個遊戲就是一個可 JSON 序列化的物件（種子 + 目前進度）。
 // 沿用《高中，只有一次》(leway1980/Game 47wan @ ce1d972) state.js 的存檔作法（SAVE_VERSION、serialize/deserialize、種子衍生的亂數流）；
 // 內容改為親子遊戲：可見的父母／孩子數值、隱藏數值（只能經由 tags.js 改變）、興趣向量、父母傳遞的方向計數、歷史紀錄與曲線。
-import { generateFamily, familyCtx, rollWork, rollBackground } from './family.js';
+import { generateFamily, familyCtx, rollWork, rollBackground, rollHobbies } from './family.js';
 import { evalCond } from './events.js';
 import { recomputeDerived } from './tags.js';
 import { newClassroom } from './classroom.js';
@@ -20,7 +20,7 @@ export function startTurnOf(data, mode) {
 }
 
 /** st.vars 的預設值。M3 的路線變數（學制、國中類型、去向、中途離校、實驗教育、選組）先登記成空字串：之後 paths.js 與卡片寫入，buildCtx 讀取，舊存檔由 migrate 補上 */
-const VAR_DEFAULTS = { 托育方式: '', 幼兒園類型: '', 照顧者: '', 換照顧者次數: 0, 孩子主動開口: 0, 孩子不再開口: 0, 上學方式: '', 孩子來找_連續錯過: 0, 孩子來找_回來連續: 0, 不太來找你: 0, 不太來找你_曾: 0, '3C無人陪': 0.6, '3C陪伴_連續': 0, '3C陪伴_最長': 0, '3C回彈': 0, '3C依賴高': 0, 邀約接受: 0, 邀約婉拒: 0, 養的寵物: '', 養的寵物名: '', 想要的球類: '', 選的才藝: '', 校隊項目: '', 校隊比賽層級: '', 學制: '', 志願偏好: '', 國中類型: '', 去向: '', 中途離校: '', 實驗教育: '', 選組: '' };
+const VAR_DEFAULTS = { 托育方式: '', 幼兒園類型: '', 照顧者: '', 換照顧者次數: 0, 孩子主動開口: 0, 孩子不再開口: 0, 上學方式: '', 孩子來找_連續錯過: 0, 孩子來找_回來連續: 0, 不太來找你: 0, 不太來找你_曾: 0, '3C無人陪': 0.6, '3C陪伴_連續': 0, '3C陪伴_最長': 0, '3C回彈': 0, '3C依賴高': 0, 邀約接受: 0, 邀約婉拒: 0, 嗜好照去: 0, 嗜好減量: 0, 嗜好推掉連續: 0, 嗜好退出: 0, 嗜好荒廢: 0, 嗜好夥伴不約: 0, 導師換人次數: 0, 養的寵物: '', 養的寵物名: '', 想要的球類: '', 選的才藝: '', 校隊項目: '', 校隊比賽層級: '', 學制: '', 志願偏好: '', 國中類型: '', 去向: '', 中途離校: '', 實驗教育: '', 選組: '' };
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
 
@@ -176,6 +176,7 @@ export function migrate(st, data) {
   if (jd && !(f.rank && f.transport && f.commute)) Object.assign(f, rollWork(st.seed, data.identities, jd, f.econ, f.urban));
   // 舊存檔沒有族群背景：用同一個種子補上；舊的隔代存檔另一半是『同住』，改成在外地工作（隔代＝你和另一半都不在孩子身邊）
   if (f.background == null) f.background = rollBackground(st.seed, data.identities, f.county, f.urban);
+  if (!f.hobbies) f.hobbies = rollHobbies(st.seed, data.identities, f.urban); // 舊存檔沒有嗜好：用同一個種子補上（自己的亂數流）
   if (f.structure === '隔代' && f.partner && f.partner.present && f.partner.status === '同住') { f.partner.status = '在外地工作'; f.partner.attitude = '幾乎不在家'; }
   st.slotS ??= (st.seed ^ 0x7f4a7c15) >>> 0;
   st.autoS ??= (st.seed ^ 0x51ed270b) >>> 0;

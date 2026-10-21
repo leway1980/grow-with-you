@@ -214,7 +214,7 @@ test('整局：預覽局的終局有 chains 與 classroom；3–5 條、依年�
   const e = buildEnding(rec.st, data);
   assert.ok(e.chains.length >= 3 && e.chains.length <= 5, String(e.chains.length));
   assert.deepEqual(e.chains.map((c) => c.m0), e.chains.map((c) => c.m0).sort((x, y) => x - y));
-  for (const c of e.chains) { assert.ok(c.choices.length >= 3 && c.choices.length <= 5); assert.ok(c.research && c.research.tip); assert.ok(c.situation); }
+  for (const c of e.chains) { assert.ok(c.choices.length >= 3 && c.choices.length <= 5); assert.ok((c.research && c.research.tip) || data.chains.themes[c.theme].setting, "遊戲設定的主題不掛研究小卡"); assert.ok(c.situation); }
   assert.ok(e.chains.some((c) => c.positive), 'warmFirm 至少一條往好的方向');
   assert.ok(e.classroom.lines.length >= 2);
   assert.equal(rec.chains.n, e.chains.length);

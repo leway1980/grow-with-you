@@ -294,5 +294,10 @@ export function classroomSummary(st, data) {
   if (replies.length) lines.push('得到的回覆：' + replies.map((r) => `${r.age}，${r.reply}`).join(' '));
   if (events.length) lines.push('班上被記下來的事：' + events.map((e) => `${e.age}「${e.title}」`).join('、') + '。');
   lines.push(!reached ? '' : coldGrades.length ? `${st.family.child.given}後來不想上某一科的年級：${names(coldGrades)}。` : `${st.family.child.given}沒有變得討厭某一科。`);
-  return { lowGrades: lowGrades.map(gradeName), reports, replies, events, coldGrades: coldGrades.map(gradeName), lines: lines.filter(Boolean) };
+  // 一直換導師（§4.42）：哪一個年級中途換過導師、那一年共有幾位（學年開始的那位 + 換了幾次）
+  const byChange = new Map();
+  for (const e of (st.classroom && st.classroom.log) || []) byChange.set(e.grade, (byChange.get(e.grade) || 0) + 1);
+  const teacherYears = [...byChange.entries()].sort((a, b) => a[0] - b[0]).map(([g, n]) => ({ grade: gradeName(g), teachers: n + 1 }));
+  if (teacherYears.length) lines.push(teacherYears.map((t) => `${t.grade}那年，換了${t.teachers}位導師。`).join(''));
+  return { teacherYears, lowGrades: lowGrades.map(gradeName), reports, replies, events, coldGrades: coldGrades.map(gradeName), lines: lines.filter(Boolean) };
 }

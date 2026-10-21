@@ -104,6 +104,7 @@ const ICONS = {
   lantern: () => A(['', '......yy........', '......yy........', '....nnnnnn......', '...rrrrrrrr.....', '..rrrryyrrrr....', '..rrryyyyrrr....', '..rrryyyyrrr....', '..rrrryyrrrr....', '...rrrrrrrr.....', '....nnnnnn......', '......yy........', '.....yyyy.......', '......yy........'], (g) => { for (let y = 0; y < SZ; y++) for (let x = 15; x > 0; x--) g[y][x] = g[y][x - 1]; for (let y = 0; y < SZ; y++) g[y][0] = null; }),
   school: () => A(['', '......y.........', '......yyyy......', '......o.........', '...wwwwwwww.....', '..wwwwwwwwww....', '.wwwwwbbwwwww...', '.wuuwwbbwwuuw...', '.wuuwwbbwwuuw...', '.wwwwwbbwwwww...', '.wuuwwbbwwuuw...', '.wwwwwbbwwwww...', '.RRRRRRRRRRRRR..'].map((r) => r.padEnd(16, '.').slice(0, 16)), (g) => { for (let y = 0; y < SZ; y++) for (let x = 14; x > 0; x--) g[y][x + 1] = g[y][x]; for (let y = 0; y < SZ; y++) g[y][0] = null; }),
   paw: () => { const g = blank(); disc(g, 8, 11, 3, 'D'); for (const [x, y] of [[4, 7], [7, 5], [10, 5], [13, 7]]) disc(g, x, y, 1, 'D'); return svgOf(outline(g)); },
+  hobby: () => { const g = blank(); disc(g, 8, 8, 6, 'O'); rect(g, 2, 8, 12, 1, 'e'); rect(g, 8, 2, 1, 12, 'e'); put(g, 5, 5, 'e'); put(g, 11, 5, 'e'); put(g, 5, 11, 'e'); put(g, 11, 11, 'e'); return svgOf(outline(g)); },
   speech: () => A(['', '', '', '..wwwwwwwwwwww..', '.wwwwwwwwwwwwww.', '.wweeweeweewwww.', '.wwwwwwwwwwwwww.', '..wwwwwwwwwwww..', '....ww..........', '...ww...........']),
 };
 
@@ -155,7 +156,7 @@ export function rowIcon(sec, k, v) {
     case '孩子':
       return k === '名字' ? faceBaby(girl) : k === '性別' ? I(girl ? 'bow' : 'cap') : k === '出生月份' ? I('calendar') : k === '氣質' ? I('heart') : k === '排行／手足' ? I('family') : '';
     case '你':
-      return k === '身分' ? faceParent(val) : k === '職業' ? I(jobIcon(val)) : k === '職位' ? I('badge') : k === '工時型態' ? I('clock') : k === '回家帶不帶工作' ? I('bag') : k === '教養背景' ? I('book') : '';
+      return k === '身分' ? faceParent(val) : k === '職業' ? I(jobIcon(val)) : k === '職位' ? I('badge') : k === '工時型態' ? I('clock') : k === '回家帶不帶工作' ? I('bag') : k === '教養背景' ? I('book') : k === '孩子出生前的嗜好' ? I('hobby') : '';
     case '另一半':
       return k === '職業' ? I(jobIcon(val)) : k === '現況' ? I(/分開|外地/.test(val) ? 'apart' : 'person') : k === '對教養的態度' ? I('speech') : '';
     case '家': {

@@ -22,6 +22,9 @@ const SUPPORT = { 自己就是資源: '熟悉升學制度，期待容易偏高',
 const ELDERS = (f) => ({ 同住: `${f.elders.who}同住`, 住附近會幫忙: `${f.elders.who}住附近，會來幫忙`, 住遠: `${f.elders.who}住得遠，一年見不了幾次`, 沒有: '身邊沒有長輩幫忙' })[f.elders.status];
 const STRUCT = { 雙親: '雙親家庭', 離異: '離異（孩子跟你住）', 隔代: '隔代教養（孩子平常跟長輩住）', 重組: '重組家庭', 喪親: '單親（另一半已離世）' };
 
+/** 嗜好（§4.41）：「打球（有固定的球友）、追劇」。沒有嗜好（舊存檔補不到表時）回 '—' */
+export const hobbyText = (fam) => (fam.hobbies && fam.hobbies.length ? fam.hobbies.map((h) => (h.buddy ? `${h.name}（有固定的${h.buddy}）` : h.name)).join('、') : '—');
+
 /** @returns {{title:string, rows:[string,string][]}[]} */
 export function introSections(fam, role) {
   const c = fam.child, older = fam.siblings.filter((s) => s.older);
@@ -35,7 +38,7 @@ export function introSections(fam, role) {
   return [
     { title: '孩子', rows: [['名字', c.name], ['性別', c.sex === '男' ? '男孩' : '女孩'], ['出生月份', `${c.birthMonth} 月`], ['氣質', TEMP(c.temperament)],
       ['排行／手足', older.length ? `老么，上有${older.map((s) => s.rel).join('和')}` : '第一個孩子']] },
-    { title: '你', rows: [['身分', role], ['職業', fam.job.name], ['職位', fam.rank], ['工時型態', fam.pattern], ['回家帶不帶工作', TAKE_WORK[fam.rank]], ['教養背景', SUPPORT[fam.support]]] },
+    { title: '你', rows: [['身分', role], ['職業', fam.job.name], ['職位', fam.rank], ['工時型態', fam.pattern], ['回家帶不帶工作', TAKE_WORK[fam.rank]], ['教養背景', SUPPORT[fam.support]], ['孩子出生前的嗜好', hobbyText(fam)]] },
     { title: '另一半', rows: partner },
     { title: '家', rows: [['地點', `${fam.county}${fam.district}`], ['城鄉', fam.urban], ['經濟', fam.econ], ['家庭型態', STRUCT[fam.structure]], ['住屋', housing],
       ['孩子寫功課的地方', fam.space === '自己的房間' ? '自己的房間' : fam.space === '和手足同房' ? '和手足同一間房' : '客廳或餐桌'],

@@ -58,6 +58,14 @@ export function moneyAtSchoolPlus(st, data, e, months = 6) {
 
 /* ───── 一局 ───── */
 export function playGame(data, bot, seed, opts = {}) {
+  // 對照用：opts.tcX＝換導師機率的倍率（0＝不換、1＝照設定、3＝更常換；tools/checks/hobby_teacher.mjs 的配對比較）。只在這一局暫時改 tags.json 的 classroom.turnover.hazardX
+  const TO = opts.tcX != null && data.tags.classroom.turnover;
+  if (!TO) return playGameInner(data, bot, seed, opts);
+  const keep = TO.hazardX;
+  TO.hazardX = opts.tcX;
+  try { return playGameInner(data, bot, seed, opts); } finally { TO.hazardX = keep; }
+}
+function playGameInner(data, bot, seed, opts = {}) {
   const st = newState(seed, data, { role: opts.role || (seed % 2 ? '媽媽' : '爸爸'), startMode: opts.startMode || 'birth' });
   const meter = opts.influence ? influenceMeter(st, data) : null;
   const tracker = approachTracker(data), policy = botPolicy(bot, SALT, opts.only ? new Set(opts.only) : null);
@@ -103,6 +111,14 @@ export function playGame(data, bot, seed, opts = {}) {
       money: avg(st.vcurves.map((c) => c.錢)), work: avg(st.vcurves.map((c) => c.工作表現)),
       c3Cards: st.hist.filter((h) => data.cardIndex[h.card] && data.cardIndex[h.card].screen).length, maxStreak: st.vars['3C陪伴_最長'] || 0, avoidEver: st.vars.不太來找你_曾 || 0,
     };
+  }
+  if (opts.hb) { // 父母的嗜好（DESIGN §4.41；tools/checks/hobby_teacher.mjs）
+    const H = data.tags.hobby;
+    rec.hb = { elig: (f.hobbies || []).some((h) => h.buddy) ? 1 : 0, invites: st.hist.filter((h) => (h.tags || []).some((t) => H.go.includes(t) || H.skip.includes(t) || H.quit.includes(t))).length, go: st.vars.嗜好照去 || 0, reduce: st.vars.嗜好減量 || 0, quit: st.vars.嗜好退出 || 0, silent: st.vars.嗜好夥伴不約 || 0, stab: st.hidden.父母情緒穩定度 };
+  }
+  if (opts.tc) { // 一直換導師（DESIGN §4.42）
+    const cl = st.classroom, lastM = st.vcurves[st.vcurves.length - 1].m;
+    rec.tc = { changes: cl.changes, hires: (cl.hires || []).map((h) => ({ ...h, months: (h.endM ?? lastM) - h.startM })), notices: st.hist.filter((h) => h.card === 'cl_teacher_change').length, clashes: st.hist.filter((h) => h.card.startsWith('cl_sub_words')).length };
   }
   if (opts.mech) {
     rec.mech = mechRecord(st, data, { approachEpisodes: tracker.episodes });
@@ -175,7 +191,7 @@ export async function execute(tasks, opts) {
   }
   const url = new URL(import.meta.url);
   const parts = await Promise.all(chunk(tasks, nw).map((ts) => new Promise((res, rej) => {
-    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, snap: opts.snap, mech: opts.mech, c3: opts.c3, influence: opts.influence, trust: opts.trust, axRecent: opts.axRecent, role: opts.role, only: opts.only, habits: opts.habits, paths: opts.paths, chains: opts.chains } });
+    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, snap: opts.snap, mech: opts.mech, c3: opts.c3, influence: opts.influence, trust: opts.trust, axRecent: opts.axRecent, role: opts.role, only: opts.only, habits: opts.habits, paths: opts.paths, chains: opts.chains, hb: opts.hb, tc: opts.tc, tcX: opts.tcX } });
     w.once('message', res); w.once('error', rej);
   })));
   return parts.flat();

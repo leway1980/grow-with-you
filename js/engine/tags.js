@@ -97,6 +97,24 @@ export function updateAdherence(st, tags, T) {
   }
 }
 
+/**
+ * 父母自己的嗜好（DESIGN §4.41）：只看『連續』。go（照去、減量、帶孩子）⇒ 連續推掉歸零；skip（這次不去）⇒ 連續 +1；
+ * 連續達 enterAt ⇒ 『嗜好荒廢』（父母情緒穩定度每月往下，driftHidden）；達 silentAt ⇒ 夥伴不再約（池權重 0，要靠 back 的回頭才恢復）；
+ * quit（乾脆退出）⇒ 退出、荒廢立刻成立；back（主動回頭）⇒ 全部歸零。st.vars 由這個檔案唯一寫入。tags.json 的 hobby。
+ */
+export function updateHobby(st, tags, T) {
+  const H = T.hobby;
+  if (!H) return;
+  const v = st.vars, set = new Set(tags || []), has = (l) => l.some((t) => set.has(t));
+  if (!(has(H.go) || has(H.skip) || has(H.quit) || has(H.back))) return;
+  v.嗜好推掉連續 ||= 0;
+  if (has(H.back)) { v.嗜好推掉連續 = 0; v.嗜好退出 = 0; v.嗜好夥伴不約 = 0; }
+  else if (has(H.quit)) v.嗜好退出 = 1;
+  else if (has(H.skip)) { v.嗜好推掉連續++; if (v.嗜好推掉連續 >= H.silentAt) v.嗜好夥伴不約 = 1; }
+  else v.嗜好推掉連續 = 0;
+  v.嗜好荒廢 = v.嗜好退出 || v.嗜好推掉連續 >= H.enterAt ? 1 : 0;
+}
+
 /** 重複加速的倍率（只有 accel:true 的標籤才會用到） */
 export function repetitionMult(st, tag, months, T) {
   const rep = T.repetition;
@@ -242,6 +260,7 @@ export const applyTags = writer((st, tags, T, opts) => {
   }
   updateApproach(st, tags, T, opts);
   updateAdherence(st, tags, T);
+  updateHobby(st, tags, T);
   // 父母的收穫：一個選項只算一次，只在這裡寫（單一寫入口）；飽和與其他隱藏數值相同
   if (isGrowthChoice(T, tags)) {
     const before = st.hidden.父母的收穫 ?? 0;
@@ -299,6 +318,13 @@ export const driftHidden = writer((st, T, opts = {}) => {
     const e = T.model && edgeById(T.model).get('k:不太來找你→了解度');
     if (e) st.hidden.了解度 = clamp(st.hidden.了解度 - e.w * span, 0, 100);
   }
+  // 嗜好荒廢（DESIGN §4.41）：連續推掉或乾脆退出之後，父母的情緒穩定度每月往下（邊 k:嗜好荒廢→父母情緒穩定度 的 w；月制，span 個月乘 span）
+  if (st.vars.嗜好荒廢) {
+    const e = T.model && edgeById(T.model).get('k:嗜好荒廢→父母情緒穩定度');
+    if (e) st.hidden.父母情緒穩定度 = clamp(st.hidden.父母情緒穩定度 - e.w * span, 0, 100);
+  }
+  // 一直換導師（DESIGN §4.42）：這個學年換導師的次數越多，孩子的安全感與班級風氣每月被往下推（邊 k:導師換人→…的 w ×　本學年換的次數）
+  if (st.classroom && st.classroom.yearChanges > 0) for (const e of T.model.edges) if (e.from === '導師換人_本年') st.hidden[e.to] = clamp(st.hidden[e.to] - e.w * st.classroom.yearChanges * span, 0, 100);
   // 手機與平板的依賴度（DESIGN §4.39）：使用方式慢慢回預設、一次大活動回彈、每月被動累積（讀孩子實際的 3C 時間）
   const SC = T.screen;
   if (SC) {
