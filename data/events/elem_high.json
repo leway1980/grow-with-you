@@ -3,6 +3,7 @@
   {
    "id": "hi_phone",
    "pool": "日常_國小中高",
+   "screen": true,
    "habit": "手機規則",
    "scale": true,
    "title": "第一支手機",
@@ -22,6 +23,7 @@
   {
    "id": "fu_phone_test",
    "pool": "手機後續",
+   "screen": true,
    "habit": "手機規則",
    "title": "晚上九點",
    "text": "晚上九點多，你起來倒水，發現{孩子}房間門縫透出一道藍光。手機又在棉被裡亮著。",
@@ -43,6 +45,7 @@
   {
    "id": "fu_phone_reclaim",
    "traceOf": "3C規則",
+   "screen": true,
    "pool": "手機後續",
    "habit": "手機規則",
    "title": "手機玩到三更半夜",
@@ -321,6 +324,7 @@
   {
    "id": "hi_game_pay",
    "pool": "3C",
+   "screen": true,
    "habit": "手機規則",
    "scale": true,
    "title": "帳單上的{遊戲}",

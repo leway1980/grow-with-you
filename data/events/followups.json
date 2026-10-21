@@ -3,6 +3,7 @@
   {
    "id": "fu_screen_ask",
    "pool": "3C",
+   "screen": true,
    "title": "「我要看影片」",
    "text": "{孩子}看到你拿出手機，就伸手說：「我要看！我要看那個！」最近每次出門都是這樣。",
    "requires": {"flags":["手機安撫"]},

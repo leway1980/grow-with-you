@@ -196,6 +196,7 @@
   {
    "id": "jh_dm_found",
    "traceOf": "3C規則",
+   "screen": true,
    "pool": "手機後續",
    "scale": false,
    "title": "手機上的記號",
@@ -403,6 +404,7 @@
   {
    "id": "jh_phone_rules",
    "pool": "日常_國中",
+   "screen": true,
    "scale": true,
    "title": "手機放哪裡",
    "text": "{孩子}說：「我都國中了，手機不要再放客廳充電了啦。」{他}說同學都帶進房間，睡前還要查資料、用鬧鐘。",

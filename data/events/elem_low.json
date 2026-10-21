@@ -274,6 +274,7 @@
   {
    "id": "lo_tablet",
    "pool": "日常_國小低",
+   "screen": true,
    "habit": "手機規則",
    "scale": true,
    "title": "學校發的平板",
@@ -294,6 +295,7 @@
   {
    "id": "lo_3c_stash",
    "pool": "3C",
+   "screen": true,
    "habit": "手機規則",
    "title": "棉被裡的亮光",
    "text": "半夜起來上廁所，你看到{孩子}的房門縫透出光。推開門，{他}縮在棉被裡，平板的螢幕照亮了{他}的臉。",
