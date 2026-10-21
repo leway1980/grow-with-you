@@ -33,6 +33,18 @@ export async function measure({ runBots, data, T, N, s0 }) {
     harshRatio: dropHarsh / dropElem, dropHarsh, dropElem, lapse: A[early] - A.earlyLapse,
     wEarlyLate: W[early] - W[late], wLateNever: W[late] - W[never], wVlNever: W[vl] - W[never], wLapse: W[early] - W.earlyLapse,
   };
+  // 單步擺幅（E1 審查；DESIGN §6：高中每一次決定對親子關係隱藏值的單次影響比小時候小）：
+  // 7 種策略各 S.games 局，每回合結束後親子信任的絕對變動，高中的 P95 不超過國小中高，P99 不超過國小中高的 p99Ratio 倍
+  const S = T.stepSwing;
+  let swing = null;
+  if (S) {
+    const gs = await runBots(S.games, s0, { bots: S.bots, trust: true });
+    const by = {};
+    for (const b of S.bots) for (const r of gs[b]) for (const [stg, d] of r.trustSteps) (by[stg] ||= []).push(d);
+    const q = (a, p) => { const x = [...a].sort((m, n) => m - n); return x[Math.min(x.length - 1, Math.floor(p * x.length))]; };
+    const E = by.國小中高 || [], H = by.高中 || [];
+    swing = { e95: q(E, 0.95), e99: q(E, 0.99), h95: q(H, 0.95), h99: q(H, 0.99), n: S.games * S.bots.length };
+  }
   const ok = (x, R) => Number.isFinite(x) && (R.min == null || x >= R.min) && (R.max == null || x <= R.max);
   const f1 = (x) => (x >= 0 ? '+' : '') + x.toFixed(1), rng = (R) => (R.min != null && R.max != null ? `${R.min}–${R.max}` : R.min != null ? `≥ ${R.min}` : `≤ ${R.max}`);
   const n = `（各 ${g[early].length} 局）`;
@@ -44,9 +56,13 @@ export async function measure({ runBots, data, T, N, s0 }) {
     row(T.veryLateApproachExit, `veryLateStarter：第 ${sw} 回合時在『不太來找你』的局，之後離開的比例（${inState.length} 局）`, { x: v.exitRate, s: (v.exitRate * 100).toFixed(0) + '%' }, '', `≥ ${T.veryLateApproachExit.min * 100}%`),
     row(T.harshLateVsElem, 'earlyHarshLate 的親子軸下降 ÷ 同劑量嚴厲放在國小（elemHarsh）的下降', { x: v.harshRatio, s: v.harshRatio.toFixed(2) }, `國中起嚴厲，到第 72 回合下降 ${v.dropHarsh.toFixed(1)}；國小嚴厲，到第 50 回合下降 ${v.dropElem.toFixed(1)}`),
     row(T.earlyMinusLapse, 'earlyGood − earlyLapse，親子軸', { x: v.lapse, s: f1(v.lapse) }, `w.2：${f1(v.wLapse)}`),
+    ...(swing ? [
+      { ok: swing.h95 <= swing.e95 * (S.p95Ratio ?? 1) + 1e-9, pending: !!T.pending, group: '階段可塑性', name: `單步擺幅：高中每回合 |Δ親子信任| P95 ≤ 國小中高 P95（${swing.n} 局）`, value: `高中 ${swing.h95.toFixed(2)} vs 國小中高 ${swing.e95.toFixed(2)}`, range: `高中 ≤ 國小中高 × ${S.p95Ratio ?? 1}`, note: S.note || '' },
+      { ok: swing.h99 <= swing.e99 * S.p99Ratio + 1e-9, pending: !!T.pending, group: '階段可塑性', name: `單步擺幅：高中每回合 |Δ親子信任| P99 ≤ 國小中高 P99 × ${S.p99Ratio}（${swing.n} 局）`, value: `高中 ${swing.h99.toFixed(2)} vs 國小中高 ${swing.e99.toFixed(2)}（×${S.p99Ratio} ＝ ${(swing.e99 * S.p99Ratio).toFixed(2)}）`, range: `高中 ≤ 國小中高 × ${S.p99Ratio}`, note: '' },
+    ] : []),
     { ok: true, pending: false, group: '階段可塑性', name: `報告：lateStarter − neverChange 的 w.2 ${n}`, value: f1(v.wLateNever), range: '（只報告）', note: `ax.0：${f1(A[late] - A[never])}` },
   ];
-  return { v, rows, A, W };
+  return { v, rows, A, W, swing };
 }
 
 export default async function check(ctx) {

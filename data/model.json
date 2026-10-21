@@ -2,6 +2,11 @@
  "_readme": "因果圖（DESIGN §3.7）：全遊戲「誰影響誰」的唯一來源。tags.js（承受度、規則式漂移）、ending.js（結果軸、幸福、組合門檻）、tools/lint-data.mjs、tests/scenarios.test.mjs、tools/check-design.mjs 都從這裡讀方向、上限與權重，不在別處另寫。標籤的數字大小在 data/tags.json（標籤→節點的對照表），這裡管方向與上限：lint 會擋「標籤的效果方向和這裡的邊矛盾」「標籤沒有任何邊涵蓋」。改這張圖（新增節點、改方向或上限）屬於設計決定：要在 changelog 加一行日期與理由，並請老師或審查代理看過（ARC-06）。maxTurn／maxGame：單一回合／整局，這條邊上的標籤對該節點的實際變動量上限（點數），由 node tools/check-design.mjs --write-caps 依模擬量測再加餘裕寫入。",
  "changelog": [
   {
+   "date": "2026-10-21",
+   "what": "E1 審查修補：plasticity.byStage 高中、離家 1 → 0.7（其他階段不變；負向仍在親子信任、安全感、內在穩定取 max(byStage, 0.85)，傷害不因年紀變輕）。原因：DESIGN §6 明寫『高中每一次決定對親子關係隱藏值的單次影響比小時候小』，E1 拿掉預覽的劑量上限 previewKMax（高中 6 個月一回合，倍率 3）之後，單步擺幅反而比國小大（7 種策略 × 200 局，每回合 |Δ親子信任|：國小中高 P95 4.1／P99 7.6；高中 P95 4.9／P99 10.3／最大 23.0）。0.7 之後高中 P95 3.2、P99 7.0。新增強制目標 plasticity.stepSwing（高中 P95 ≤ 國小中高 P95、P99 ≤ 1.1 × 國小中高 P99）；原本六項可塑性目標仍全過（補救比例 0.57、earlyGood−lateStarter +15.2、veryLateStarter−neverChange +11.2、veryLate 離開 89%、earlyHarshLate 0.71、earlyGood−earlyLapse +13.5）。離家跟著 0.7，因為測試要求 byStage 不隨階段變大。influenceCaps 沒有改。",
+   "by": "E1 審查修補工作包，待老師／審查代理複核"
+  },
+  {
    "date": "2026-10-20",
    "what": "E1 審查修補：學習軸的 3C 懲罰門檻改成依階段（outcomes.學習.pen[3C時間].overByStage：國中 40、高中 42、離家 42；國小以前仍是 over 35）。原因：over 35 是國小的『一般的量』，青少年的 3C 常態本來就較高（turn.js base3c 國小中高 42、國中 50、高中 55），72 回合後最後 24 個月 warmFirm 的 3C 升到 47，白白被扣約 3.6 分，三邊都顧到被壓低。數值是設計估計（docs/research 沒有可引用的台灣青少年 3C 常態，待老師複核），不是從目標回推；結果組合的門檻沒有動。掃描與護欄（controlling 三邊都垮 ≥ 3%）寫在 overByStage_why。ending.js 新增 endStage（最後一筆紀錄的月齡）、model.js 新增 overFor。",
    "by": "E1 審查修補工作包，待老師／審查代理複核"
@@ -833,7 +838,7 @@
  },
  "plasticity": {
   "_why": "階段可塑性（M3 B1；DESIGN §6 節奏原則、『木已成舟』）：親子互動模式多在學齡前到國小成形，越晚才開始的好做法，同樣的一次選擇改變得越少（byStage 倍率）。只作用在孩子端的節點；主見、替他做主、期待壓力、試探度的年齡加成已在各標籤的 stage 表，了解度本來就會漂回 40，所以都不在 nodes 裡。標籤有自己的 stage 表且當前階段在表中時，不再乘（exemptIfTagHasStageMap）。負向變化在 negativeFloor.nodes 取 max(byStage, negativeFloor.min)：傷害與信任的流失不因年紀大而變得太輕。沒有錨點（計畫 §8 第 4 項）。",
-  "byStage": {"嬰幼兒":1,"幼兒園":1,"國小低":1,"國小中高":1,"國中":1,"高中":1,"離家":1},
+  "byStage": {"嬰幼兒":1,"幼兒園":1,"國小低":1,"國小中高":1,"國中":1,"高中":0.7,"離家":0.7},
   "nodes": ["親子信任","安全感","內在穩定","自我效能","自理與責任","閱讀習慣","溫暖陪伴"],
   "exemptIfTagHasStageMap": true,
   "negativeFloor": {"nodes": ["親子信任","安全感","內在穩定"], "min": 0.85}

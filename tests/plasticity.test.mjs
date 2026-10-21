@@ -86,7 +86,7 @@ test('applyTags：標籤有自己的 stage 表且當前階段在表中 → 不�
   assert.ok(Math.abs(c.親子信任 / d.親子信任 - BY.高中) < 1e-9);
 });
 
-/* ───── 正式資料：只檢查結構（byStage 目前刻意全部是 1，等 B2 之後重新量測再調；機制由上面的合成數值測試）───── */
+/* ───── 正式資料：檢查結構與 E1 審查定下的值（高中、離家 0.7；單步擺幅另有強制目標 tools/targets/plasticity.json stepSwing）；機制由上面的合成數值測試 ───── */
 test('正式資料：七個孩子端節點、不含排除的節點；byStage 涵蓋每個階段、在 (0, 1]、嬰幼兒與幼兒園是 1、越大越小或持平；沒有錨點', () => {
   const R = loadRaw(), P = R.model.plasticity, stages = R.tags.stages;
   assert.deepEqual([...P.nodes].sort(), [...NODES].sort());
@@ -94,6 +94,7 @@ test('正式資料：七個孩子端節點、不含排除的節點；byStage 涵
   assert.deepEqual(Object.keys(P.byStage), stages);
   for (const s of stages) assert.ok(P.byStage[s] > 0 && P.byStage[s] <= 1, `${s}: ${P.byStage[s]}`);
   assert.equal(P.byStage.嬰幼兒, 1); assert.equal(P.byStage.幼兒園, 1);
+  assert.equal(P.byStage.高中, 0.7); // E1 審查：高中每一次決定對親子關係隱藏值的單次影響比小時候小（DESIGN §6）
   stages.forEach((s, i) => { if (i) assert.ok(P.byStage[s] <= P.byStage[stages[i - 1]], `${s} 不該比前一階段大`); });
   assert.equal(P.exemptIfTagHasStageMap, true);
   assert.deepEqual([...P.negativeFloor.nodes].sort(), ['內在穩定', '安全感', '親子信任']);

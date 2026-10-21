@@ -40,6 +40,13 @@
       "max": 25,
       "note": "國中起不再陪伴，到 18 歲時親子分數明顯下降是合理的；上限防止早期完全無效。B2 之前（全 1）+21.2；B2 之後（全 1）+19.8；B5 混合之後（全 1）+13.4（已過）；原範圍 3–12 改為 8–25（規劃者決定）"
     },
-    "_note": "2026-10-20 E1：拿掉預覽的劑量上限 previewKMax、結局混合改成每一局（appliesTo:'all'）之後，全 1 的六項都過（補救比例 0.62、earlyGood−lateStarter +14.0、veryLateStarter−neverChange +14.0、veryLate 離開 89%、earlyHarshLate 0.80、earlyGood−earlyLapse +14.5），byStage 維持 1。以下是 B1 當時的記錄：byStage 目前全部是 1（B1 規劃者決定：等 B2 習慣與國中以後的來找你卡片之後重新量測，再決定是否調到 1 以下）。B5 的結局混合（data/ending.json outcomeBlend）之後，全 1 的六項都已通過，所以 byStage 暫時維持 1；以下 note 是 byStage 全 1、600 局的數值。"
+    "stepSwing": {
+      "games": 200,
+      "bots": ["random", "permissive", "controlling", "warmFirm", "tiredLazy", "commonReaction", "occasionalResearch"],
+      "p95Ratio": 1,
+      "p99Ratio": 1.1,
+      "note": "2026-10-20 E1 審查：DESIGN §6『高中每一次決定對親子關係隱藏值的單次影響比小時候小』。7 種策略 × 200 局，每回合結束後親子信任的絕對變動：高中 P95 ≤ 國小中高 P95、P99 ≤ 1.1 × 國小中高 P99。byStage 全 1 時（審查者量測）高中 P95 4.9 > 4.1、P99 10.3 > 7.6、最大 23.0；byStage.高中 = 0.7 之後 P95 3.2、P99 7.0（本機量測）"
+    },
+    "_note": "2026-10-21 E1 審查：byStage.高中、離家 = 0.7（見 stepSwing）；六項目標仍全過。以下是 2026-10-20 E1 的記錄：拿掉預覽的劑量上限 previewKMax、結局混合改成每一局（appliesTo:'all'）之後，全 1 的六項都過（補救比例 0.62、earlyGood−lateStarter +14.0、veryLateStarter−neverChange +14.0、veryLate 離開 89%、earlyHarshLate 0.80、earlyGood−earlyLapse +14.5），byStage 維持 1。以下是 B1 當時的記錄：byStage 目前全部是 1（B1 規劃者決定：等 B2 習慣與國中以後的來找你卡片之後重新量測，再決定是否調到 1 以下）。B5 的結局混合（data/ending.json outcomeBlend）之後，全 1 的六項都已通過，所以 byStage 暫時維持 1；以下 note 是 byStage 全 1、600 局的數值。"
   }
 }
