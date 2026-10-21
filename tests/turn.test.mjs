@@ -542,11 +542,11 @@ test('模擬器的 money30 以月計：從出生與從國小開始的局都有�
 });
 
 /* ───── 固定事件的回合：日常卡不和固定事件卡共用標籤（E1 審查：同一個方向在一個回合疊兩次） ───── */
-test('固定事件的回合：第二張日常卡的任何選項都不帶固定事件卡的標籤', () => {
+test('高中固定事件的回合：第二張日常卡的任何選項都不帶固定事件卡的標籤', () => {
   let checked = 0;
   for (const tl of data.timeline) {
-    if (!tl.fixed.length) continue;
-    for (let seed = 1; seed <= 25; seed++) {
+    if (!tl.fixed.length || tl.stage !== '高中') continue;
+    for (let seed = 1; seed <= 60; seed++) {
       const st = fresh(seed); st.turn = tl.turn;
       const r = startTurn(st, data);
       if (!r.card || !r.twoSlot) continue;
@@ -560,7 +560,7 @@ test('固定事件的回合：第二張日常卡的任何選項都不帶固定�
       assert.deepEqual(shared, [], `回合 ${tl.turn}：${r.raw.id} 與 ${c2.id} 共用標籤 ${shared.join('、')}`);
     }
   }
-  assert.ok(checked > 50, `只檢查到 ${checked} 個第二張日常卡`);
+  assert.ok(checked > 20, `只檢查到 ${checked} 個第二張日常卡`);
 });
 
 test('drawCard：excludeTags 排除任何選項（含 tagsIf 版本）帶那個標籤的卡', () => {

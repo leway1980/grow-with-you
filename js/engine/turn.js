@@ -228,8 +228,9 @@ export function chooseCard(st, data, idx) {
     const ctx = buildCtx(st, tl);
     const d = pickDelayed(st, data, tl, ctx, card.id);
     const auto = st.autoLog.length ? st.autoLog[st.autoLog.length - 1] : null; // 這個回合已經自動帶入的習慣家族：第二張卡不再抽同家族的（M3 B2）
-    // 這回合的固定事件（fx_*）可能帶的標籤：日常卡不能和它共用標籤（同一個方向在一個回合疊兩次）
-    const fxTags = cardTagSet(card);
+    // 高中的固定事件回合（5–7 個月，日常卡的劑量倍率最高）：日常卡不能和固定事件卡共用標籤（同一個方向在一個回合疊兩次）。
+    // 只限高中：國小、國中的固定事件回合很常見（約三分之一），全面排除會讓決定鏈、習慣偵測和『不太來找你』的離開卡片少很多（量測：決定鏈 ≥ 3 條 95% → 88%、回家第一句非混合 70% → 30%）
+    const fxTags = tl.stage === '高中' ? cardTagSet(card) : null;
     const c2 = d ? d.card : drawCard(st, data, ctx, tl, r, card.id, auto && auto.turn === st.turn && auto.tags.length ? auto.family : null, fxTags);
     if (c2) { cur.next = { id: c2.id, fu: d ? d.delay : null }; return { result: out.result, note: out.note, dose: null, more: true }; }
   }
