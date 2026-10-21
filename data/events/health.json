@@ -272,7 +272,8 @@
   {
    "id": "hl_myopia_daily",
    "pool": "健康後續",
-   "scale": true,
+   "scale": false,
+   "paceMonths": 7,
    "title": "點藥了嗎",
    "text": "睡前，{孩子}已經鑽進被窩，散瞳劑的瓶子還放在餐桌上。",
    "textIf": [
@@ -812,7 +813,8 @@
   {
    "id": "hl_braces_upkeep",
    "pool": "健康後續",
-   "scale": true,
+   "scale": false,
+   "paceMonths": 4.5,
    "title": "橡皮筋",
    "text": "回診前一晚，{孩子}翻了一個白眼，把橡皮筋丟在桌上：「戴這個超醜，同學都在笑。」",
    "stages": [

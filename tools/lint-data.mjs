@@ -162,8 +162,15 @@ export function lintData(raw = loadRaw()) {
   // ── 事件卡 ──
   const leakRe = new RegExp(hiddenKeys.join('|'));
   const allowedChoiceKeys = new Set(['label', 'effects', 'tags', 'result', 'showIf', 'grayIf', 'opens', 'followUp', 'chance', 'setFlags', 'clearFlags', 'setVars', 'incVars', 'direction', 'topic', 'needs', 'labelIf', 'resultIf', 'tagsIf', 'effectsIf', 'toward', 'classroom', 'flagMonths', 'route', 'habitPattern']);
-  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldownMonths', 'scale', 'requires', 'excludes', 'modifiers', 'stages', 'topic', 'direction', 'approach', 'initiate', 'toward', 'note', 'habit', 'traceOf', 'sensitive', 'reviewed', '_variantOf', '_variantIf']);
-  const gateVars = new Set(gateNames());
+  const allowedCardKeys = new Set(['id', 'pool', 'title', 'text', 'textIf', 'choices', 'weight', 'once', 'cooldownMonths', 'scale', 'requires', 'excludes', 'modifiers', 'stages', 'topic', 'direction', 'approach', 'initiate', 'toward', 'note', 'habit', 'traceOf', 'sensitive', 'reviewed', '_variantOf', '_variantIf', 'kMax', 'paceMonths']);
+    // 規則 25 的資料：followUp 圖上繞得回自己的卡（直接排自己，或 A→B→A）
+  const selfLoopIds = (() => {
+    const g = {}; for (const c of cards) { g[c.id] = new Set(); for (const ch of c.choices || []) for (const b of [ch, ...(ch.chance ? [ch.chance.win, ch.chance.lose] : [])]) for (const f of (b && b.followUp) || []) g[c.id].add(f.card); }
+    const out = new Set();
+    for (const id of Object.keys(g)) { const seen = new Set(), stack = [...g[id]]; while (stack.length) { const x = stack.pop(); if (x === id) { out.add(id); break; } if (seen.has(x) || !g[x]) continue; seen.add(x); stack.push(...g[x]); } }
+    return out;
+  })();
+const gateVars = new Set(gateNames());
   const seeds = [1, 2, 3, 4, 5, 6, 7, 8].map((sd) => newState(sd, data, {}));
   const dirSlotOk = (d) => d[0] !== '@' || (slots[d.slice(1)] && slots[d.slice(1)].every((v) => v.dir));
   let restCards = 0;
@@ -184,6 +191,11 @@ export function lintData(raw = loadRaw()) {
     // 時間單位（A2.5）：冷卻是『月』；scale:false＝一次性的固定事件，劑量不隨回合長度放大
     if ('cooldownMonths' in c && !(Number.isInteger(c.cooldownMonths) && c.cooldownMonths >= 0)) errors.push(`${W}：cooldownMonths 要是 ≥ 0 的整數（月）`);
     if ('scale' in c && typeof c.scale !== 'boolean') errors.push(`${W}：scale 要是 true 或 false（true＝隨回合長度放大的『一段時間的政策』，false＝一次性事件）`);
+    // 規則 25（E1 審查 Issue 7）：自己排後續卡給自己（followUp 繞回自己，直接或繞一圈）的卡，頻率已經由 afterMonths 以月份排程，
+    // 不能再乘回合長度的劑量倍率（否則高中 6 個月一回合的每月劑量是國小的兩倍）：要寫 scale:false，或用數字 kMax 明寫倍率上限
+    if (selfLoopIds.has(c._variantOf || c.id) && c.scale !== false && !(typeof c.kMax === 'number' && c.kMax > 0) && !(typeof c.paceMonths === 'number' && c.paceMonths > 0)) errors.push(`${W}：規則 25：followUp 會排回自己的卡不可以 scale:true（或沒寫 scale）——要寫 scale:false（建議加 paceMonths：劑量依實際間隔），或寫數字 kMax（劑量倍率上限）`);
+    if ('kMax' in c && !(typeof c.kMax === 'number' && c.kMax > 0)) errors.push(`${W}：kMax 要是正數`);
+    if ('paceMonths' in c && !(typeof c.paceMonths === 'number' && c.paceMonths > 0 && selfLoopIds.has(c._variantOf || c.id))) errors.push(`${W}：paceMonths 要是正數，而且只給自己排後續卡給自己的卡用`);
     // 規則 24（A2.5 審查 Issue 6）：一次性的卡與國中、高中、離家的卡要明寫 scale——單一事件寫 false，設定規矩／安排的卡寫 true；離家（逐月）一律 false，否則 k＝0.5 會把效果減半
     if ((c.once || (c.stages || []).some((x) => ['國中', '高中', '離家'].includes(x))) && !('scale' in c)) errors.push(`${W}：${c.once ? '一次性（once）' : '國中、高中、離家'}的卡要明寫 scale（單一事件 false；設定規矩或安排的政策卡 true）`);
     if ((c.stages || []).includes('離家') && c.scale !== false) errors.push(`${W}：離家的卡要寫 scale:false（逐月回合，不能依回合長度縮放）`);

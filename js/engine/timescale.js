@@ -21,9 +21,15 @@ export const decaySpan = (dMonth, span) => Math.pow(dMonth, span);
  * 卡片選擇的劑量倍率：(span / 2)^α。一張卡代表這段時間裡反覆出現的同類時刻，所以回合越長，一張卡的劑量越大；
  * 國小舊的 2 個月回合不變。card.scale === false（一次性的固定事件：運動會、入學、畢業……）不隨回合長度放大。
  */
-export function doseScale(alpha, span, card) {
+export function doseScale(alpha, span, card, elapsed = null) {
+  // paceMonths（E1 審查）：自己排後續卡給自己的循環卡（點藥、橡皮筋、吃藥）。頻率已經由 afterMonths 以月份排程，所以不能再乘回合長度；
+  // 但回合越長、排程被取整到下一個回合的間隔越長，所以劑量＝『這次距離上次隔了幾個月』÷ paceMonths（夾在 0.5–2），每個月的劑量才不隨日曆變。
+  // 第一次出現（不是後續卡，elapsed 是 null）算 1 份。
+  if (card && typeof card.paceMonths === 'number' && card.paceMonths > 0) return elapsed == null ? 1 : Math.max(0.5, Math.min(2, elapsed / card.paceMonths));
   if (card && card.scale === false) return 1;
-  return Math.pow(span / REF_MONTHS, alpha || 0);
+  const k = Math.pow(span / REF_MONTHS, alpha || 0);
+  // kMax：要放大就明寫倍率上限（lint 規則 25）
+  return card && typeof card.kMax === 'number' && card.kMax > 0 ? Math.min(k, card.kMax) : k;
 }
 
 /**
@@ -31,9 +37,9 @@ export function doseScale(alpha, span, card) {
  * E1 起拿掉預覽專用的上限 previewKMax：α＝1 的劑量、固定的疲勞 EMA 與依劑量加權的計數就是真正的模型。
  * 第四個參數（舊的預覽旗標）只為相容保留，沒有作用。
  */
-export function cardDoseK(model, span, card) {
+export function cardDoseK(model, span, card, elapsed = null) {
   const ts = (model && model.timeScale) || {};
-  return doseScale(ts.alpha || 0, span, card);
+  return doseScale(ts.alpha || 0, span, card, elapsed);
 }
 
 /** 乘上倍率後的效果表（不改原物件） */

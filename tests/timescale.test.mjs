@@ -164,3 +164,58 @@ test('劑量加權：hist 每筆記錄 k；recentCount 與 maxInWindow 依 k 加
   assert.equal(recentCount({ hist: [{ m: 99, tags: ['罵一頓'] }] }, '罵一頓', 100, T), 1);
   assert.equal(maxInWindow([{ m: 0, k: 3, tags: ['x'] }, { m: 6, k: 3, tags: ['x'] }, { m: 30, tags: ['x'] }], 'x', 12), 6);
 });
+
+/* ───── E1 審查 Issue 7：自己排後續卡給自己的循環卡（hl_braces_upkeep、hl_myopia_daily、sn_med_daily）─────
+        這類卡的頻率已經用 afterMonths 以月份排程，若再乘回合長度的劑量倍率（scale:true），高中 6 個月一回合的每月劑量是國小的兩倍。
+        修法：scale:false ＋ paceMonths（劑量＝距離上次隔了幾個月 ÷ paceMonths）。在 1／2／3／6 個月的合成日曆上，每個月的劑量要差 ≤ 10%。 ───── */
+function syntheticLoop(step, cardPatch) {
+  const raw = loadRaw();
+  const n = 96 / step;
+  raw.calendar = { ...raw.calendar, stages: [{ id: '國小中高', turns: n, startMonths: 96, stepMonths: step }], totalTurns: n, playableTurns: n, fixed: [], schoolFixed: [] };
+  raw.model.timeScale.alpha = 1;
+  raw.pools = { ...raw.pools, loads: [] };
+  const loop = [{ card: 'syn_self', afterMonths: [3, 5], chance: 1 }];
+  raw.events = { ...raw.events, cards: [
+    { id: 'syn_boot', pool: '日常_國小中高', stages: ['國小中高'], title: '起點', text: '起點。', weight: 1000, once: true, scale: false, choices: [{ label: 'x', effects: { 心情: 1 }, tags: ['放下手機陪'], result: '。', followUp: loop }] },
+    { id: 'syn_fill', pool: '日常_國小中高', stages: ['國小中高'], title: '填充', text: '填充。', weight: 1, scale: false, choices: [{ label: 'x', effects: { 心情: 1 }, tags: [], result: '。' }] },
+    { id: 'syn_self', pool: '手機後續', stages: ['國小中高'], title: '循環卡', text: '循環卡。', weight: 1, ...cardPatch, choices: [{ label: 'x', effects: { 心情: 1 }, tags: ['放下手機陪'], result: '。', followUp: loop }] },
+  ] };
+  return prepareData(raw);
+}
+/** 每個月的劑量：循環卡每次出現的 h.k 加起來 ÷ 第一次到最後一次之間的月數（多個種子取平均，排除亂數造成的間隔差） */
+function loopDosePerMonth(step, cardPatch, seeds = 60) {
+  const d = syntheticLoop(step, cardPatch);
+  let dose = 0, months = 0;
+  for (let seed = 1; seed <= seeds; seed++) {
+    const st = guardHidden(newState(seed, d, { role: '媽媽', startMode: 'birth' }));
+    st.turn = 0;
+    playToEnd(st, d, { choose: (s, v) => v.choices[0].i });
+    const hs = st.hist.filter((h) => h.card === 'syn_self');
+    if (hs.length < 3) continue;
+    dose += hs.slice(1).reduce((a, h) => a + (h.k ?? 1), 0); // 第一次出現是後續卡的第一個，也有 elapsed；從第二次起算，分母用兩端的間隔
+    months += hs.at(-1).m - hs[0].m;
+  }
+  return dose / months;
+}
+const spread = (xs) => (Math.max(...xs) - Math.min(...xs)) / Math.max(...xs);
+
+test('循環卡：scale:true 的每月劑量隨回合長度差很多（這就是 lint 規則 25 要擋的）；scale:false 單用還是差；加上 paceMonths 後 1／2／3／6 個月的合成日曆每月劑量差 ≤ 10%', () => {
+  const steps = [1, 2, 3, 6];
+  const asTrue = steps.map((s) => loopDosePerMonth(s, { scale: true }));
+  const asFalse = steps.map((s) => loopDosePerMonth(s, { scale: false }));
+  const paced = steps.map((s) => loopDosePerMonth(s, { scale: false, paceMonths: 4.5 }));
+  assert.ok(spread(asTrue) > 0.3, `scale:true 差 ${spread(asTrue).toFixed(2)}：${asTrue.map((x) => x.toFixed(3))}`);
+  assert.ok(spread(asFalse) > 0.1, `scale:false（沒有 paceMonths）仍會因排程取整而差 ${spread(asFalse).toFixed(2)}：${asFalse.map((x) => x.toFixed(3))}`);
+  assert.ok(spread(paced) <= 0.1, `paceMonths 差 ${spread(paced).toFixed(2)}：${paced.map((x) => x.toFixed(3))}`);
+});
+
+test('循環卡：正式資料裡自己排後續卡給自己的卡都已經 scale:false ＋ paceMonths（hl_braces_upkeep、hl_myopia_daily、sn_med_daily）；doseScale 的 elapsed 與夾範圍', () => {
+  for (const id of ['hl_braces_upkeep', 'hl_myopia_daily', 'sn_med_daily']) {
+    const c = data.cardIndex[id];
+    assert.equal(c.scale, false, id); assert.ok(c.paceMonths > 0, id);
+    assert.equal(doseScale(1, 6, c), 1, '第一次出現（不是後續卡）算 1 份');
+    assert.ok(Math.abs(doseScale(1, 6, c, c.paceMonths) - 1) < 1e-12);
+    assert.equal(doseScale(1, 6, c, 100), 2); assert.equal(doseScale(1, 6, c, 0.1), 0.5);
+  }
+  assert.equal(doseScale(1, 6, { scale: true, kMax: 1.5 }), 1.5); assert.equal(doseScale(1, 2, { scale: true, kMax: 1.5 }), 1);
+});

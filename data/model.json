@@ -3,6 +3,11 @@
  "changelog": [
   {
    "date": "2026-10-21",
+   "what": "E1 審查修補：自己排後續卡給自己的三張循環卡（hl_braces_upkeep、hl_myopia_daily、sn_med_daily）改成 scale:false ＋ paceMonths（4.5、7、6.5＝各自 afterMonths 取整到國小 2 個月回合後的平均間隔）。原因：這類卡的頻率已經用 afterMonths 以月份排程，scale:true 又乘一次回合長度的劑量倍率，每個月的劑量國小約 0.21、國中約 0.30、高中約 0.50 份（合成日曆 1／2／3／6 個月：0.125／0.215／0.302／0.500），違反 α＝1『每個月的效果相同』；hl_braces_upkeep 單卡整局最大 15–33 份，『罵一頓』整局前 5 高的局都是 controlling，一半以上來自這張卡，所以標籤、卡片、池三個上限其實是同一件事。paceMonths 的劑量＝距離上次隔了幾個月 ÷ paceMonths（夾在 0.5–2；第一次出現算 1 份），每月劑量與日曆無關（0.222／0.222／0.222／0.222）。新增 lint 規則 25（followUp 繞得回自己的卡不可以 scale:true，除非寫數字 kMax 或 paceMonths）與 tests/timescale.test.mjs 的合成日曆測試。influenceCaps 在第 10 項才重新推導。",
+   "by": "E1 審查修補工作包，待老師／審查代理複核"
+  },
+  {
+   "date": "2026-10-21",
    "what": "E1 審查修補：plasticity.byStage 高中、離家 1 → 0.7（其他階段不變；負向仍在親子信任、安全感、內在穩定取 max(byStage, 0.85)，傷害不因年紀變輕）。原因：DESIGN §6 明寫『高中每一次決定對親子關係隱藏值的單次影響比小時候小』，E1 拿掉預覽的劑量上限 previewKMax（高中 6 個月一回合，倍率 3）之後，單步擺幅反而比國小大（7 種策略 × 200 局，每回合 |Δ親子信任|：國小中高 P95 4.1／P99 7.6；高中 P95 4.9／P99 10.3／最大 23.0）。0.7 之後高中 P95 3.2、P99 7.0。新增強制目標 plasticity.stepSwing（高中 P95 ≤ 國小中高 P95、P99 ≤ 1.1 × 國小中高 P99）；原本六項可塑性目標仍全過（補救比例 0.57、earlyGood−lateStarter +15.2、veryLateStarter−neverChange +11.2、veryLate 離開 89%、earlyHarshLate 0.71、earlyGood−earlyLapse +13.5）。離家跟著 0.7，因為測試要求 byStage 不隨階段變大。influenceCaps 沒有改。",
    "by": "E1 審查修補工作包，待老師／審查代理複核"
   },

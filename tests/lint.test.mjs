@@ -207,6 +207,20 @@ test('規則 24：once 的卡與國中、高中、離家的卡要明寫 scale；
   assert.doesNotMatch(mut((r) => { card(r, 'hi_phone').scale = true; card(r, 'cm_hospital').scale = false; }), /scale/); // true 與 false 都合法
 });
 
+test('規則 25：followUp 會排回自己的卡不可以 scale:true（除非寫 kMax 或 paceMonths）；paceMonths 只給循環卡用', () => {
+  const loops = ['hl_braces_upkeep', 'hl_myopia_daily', 'sn_med_daily'];
+  for (const id of loops) {
+    assert.match(mut((r) => { card(r, id).scale = true; delete card(r, id).paceMonths; }), new RegExp(`${id}：規則 25`));
+    assert.match(mut((r) => { delete card(r, id).scale; delete card(r, id).paceMonths; }), new RegExp(`${id}：規則 25`));
+    assert.doesNotMatch(mut((r) => { card(r, id).scale = true; delete card(r, id).paceMonths; card(r, id).kMax = 1.5; }), /規則 25/); // 明寫倍率上限也行
+    assert.doesNotMatch(mut((r) => { card(r, id).scale = false; delete card(r, id).paceMonths; }), /規則 25/);
+  }
+  assert.match(mut((r) => { card(r, 'hi_phone').paceMonths = 4; }), /hi_phone：paceMonths 要是正數，而且只給自己排後續卡給自己的卡用/);
+  assert.match(mut((r) => { card(r, 'hl_braces_upkeep').kMax = 0; }), /kMax 要是正數/);
+  // 兩張卡互相排對方（A→B→A）也算繞回自己
+  assert.match(mut((r) => { const a = card(r, 'hi_phone'); a.scale = true; a.choices[0].followUp = [{ card: 'cm_hospital', afterMonths: [2, 3] }]; card(r, 'cm_hospital').choices[0].followUp = [{ card: 'hi_phone', afterMonths: [2, 3] }]; }), /hi_phone：規則 25/);
+});
+
 test('靜態上限用『參考劑量』的名義值比較（不乘劑量倍率）：把一張 scale:true 的高中卡放大 3 倍不會讓它超過上限，而名義值超過就會', () => {
   const raw = loadRaw();
   const r1 = lintData(raw); assert.deepEqual(r1.errors, []);
