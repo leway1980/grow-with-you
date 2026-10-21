@@ -19,8 +19,10 @@
    "max": 0.1
   },
   "wf-range": {
-   "min": 75,
-   "max": 85
+   "relativeTo": {"axis": "親子", "band": "good"},
+   "min": 15,
+   "max": 25,
+   "why": "原 75–85 是 50 回合只看近期時訂的；混合（0.6 近期＋0.4 全期）壓縮 −1.9，改以凍結的好門檻為基準。min／max 是相對 model.json bands.axes.親子.good 的差（good 59.3 → 74.3 … 84.3），門檻改了目標跟著走"
   },
   "random-route": {
    "maxLargest": 0.45,
