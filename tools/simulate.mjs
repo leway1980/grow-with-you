@@ -88,6 +88,22 @@ export function playGame(data, bot, seed, opts = {}) {
     hid: { ...st.hidden }, money30: moneyAtSchoolPlus(st, data, e), lowBody: st.vcurves.filter((c) => c.體力 < 35).length / st.vcurves.length,
     elemTurns, elemNonFixed, nTurnsElem, fu: st.hist.filter((h) => h.fu != null).map((h) => h.fu), // 後續卡的延遲（月） cards: st.hist.length,
   };
+  if (opts.c3) { // 手機與平板、假日邀約的量測（tools/checks/c3.mjs）：依賴度的曲線、第一次大活動前後、邀約與父母的收入
+    const key = '3C依賴度', cv = st.curves, trip = st.hist.find((h) => (h.tags || []).includes('3C一次大活動'));
+    let tripRec = null;
+    if (trip) {
+      const pre = [...cv].reverse().find((c) => c.t < trip.turn), post = cv.find((c) => c.t === trip.turn), d12 = cv.find((c) => c.m >= trip.m + 12), mn = Math.min(...cv.filter((c) => c.t >= trip.turn && c.m <= trip.m + 12).map((c) => c[key]));
+      tripRec = pre && post && d12 ? { m: trip.m, pre: pre[key], post: post[key], min: mn, d12: d12[key] } : null;
+    }
+    const jobs = ['大學教授', '教師', '醫生', '藥師或醫檢師', '科技業工程師', '外商公司', '自由接案（設計、攝影）'];
+    rec.dep = {
+      end: st.hidden[key], base: st.startHidden[key], trip: tripRec, curve: cv.map((c) => [c.m, c[key]]),
+      invites: st.hist.filter((h) => h.card === 'we_invite').length, accepted: st.vars.邀約接受 || 0, declined: st.vars.邀約婉拒 || 0,
+      elig: f.rank === '主管' || f.rank === '自己當老闆' || jobs.includes(f.job.name) ? 1 : 0,
+      money: avg(st.vcurves.map((c) => c.錢)), work: avg(st.vcurves.map((c) => c.工作表現)),
+      c3Cards: st.hist.filter((h) => data.cardIndex[h.card] && data.cardIndex[h.card].screen).length, maxStreak: st.vars['3C陪伴_最長'] || 0, avoidEver: st.vars.不太來找你_曾 || 0,
+    };
+  }
   if (opts.mech) {
     rec.mech = mechRecord(st, data, { approachEpisodes: tracker.episodes });
     rec.und = st.curves.map((c) => [c.m, c.了解度]); // 每回合的了解度（月齡, 值）：『不太來找你』之後 12 個月的配對比較用（tools/mech.mjs matchedAge）
@@ -159,7 +175,7 @@ export async function execute(tasks, opts) {
   }
   const url = new URL(import.meta.url);
   const parts = await Promise.all(chunk(tasks, nw).map((ts) => new Promise((res, rej) => {
-    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, snap: opts.snap, mech: opts.mech, influence: opts.influence, trust: opts.trust, axRecent: opts.axRecent, role: opts.role, only: opts.only, habits: opts.habits, paths: opts.paths, chains: opts.chains } });
+    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, snap: opts.snap, mech: opts.mech, c3: opts.c3, influence: opts.influence, trust: opts.trust, axRecent: opts.axRecent, role: opts.role, only: opts.only, habits: opts.habits, paths: opts.paths, chains: opts.chains } });
     w.once('message', res); w.once('error', rej);
   })));
   return parts.flat();

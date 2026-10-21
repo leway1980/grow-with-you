@@ -106,7 +106,22 @@ export const PLASTICITY_BOTS = {
   earlyHarshLate: { desc: '國小溫暖＋堅定，國中起嚴厲', phases: [[0, 'warmFirm'], [50, 'harsh']] },
   elemHarsh: { desc: '鏡像：同樣的嚴厲決定數（22 個回合）放在國小（第 28–49 回合），其餘溫暖＋堅定', phases: [[0, 'warmFirm'], [28, 'harsh'], [50, 'warmFirm']] },
 };
-export const ALL_BOTS = { ...BOTS, ...HUMAN_BOTS, ...SURFACE_BOTS, ...BLIND_BOTS, ...PLASTICITY_BOTS, ...PHASE_BASE };
+/* ───── 手機與平板、假日邀約的對照機器人（DESIGN §4.39、§4.40；tools/checks/c3.mjs）─────
+   prefer：依序（越前面越優先）挑帶這些標籤的選項；screenOnly：只在 screen 卡上這樣挑；once：只用一次（一次大活動）；
+   其餘（沒有帶偏好標籤的選項、不是 screen 卡）交給 fallback。不放進 BOTS／HUMAN_BOTS：校準與影響上限的局數不應該多出這些策略。 */
+export const C3_BOTS = {
+  c3Base: { desc: '給了就不管（任何卡有螢幕當保母就選；螢幕卡上選沒人在旁、沒有後續的做法；其他卡照習慣反應）', everywhere: ['3C當保母'], prefer: ['3C當保母', '沒有下文', '吵了才讓步', '兩手一攤'], screenOnly: true, fallback: 'commonReaction' },
+  c3Agreed: { desc: '約定且大人在旁（螢幕卡）；不拿螢幕當保母', prefer: ['3C約定且在旁'], avoid: ['3C當保母'], screenOnly: true, fallback: 'c3Base' },
+  c3Task: { desc: '任務型借用、用完收回（沒有這個選項時退到約定且在旁）；不拿螢幕當保母', prefer: ['3C任務借用', '3C約定且在旁'], avoid: ['3C當保母'], screenOnly: true, fallback: 'c3Base' },
+  c3Limit: { desc: '只加時間管控（螢幕卡），沒有陪伴；不拿螢幕當保母', prefer: ['事前訂規則', '說到做到', '規定不談判'], avoid: ['3C當保母'], screenOnly: true, fallback: 'c3Base' },
+  c3Confiscate: { desc: '只強制收回（螢幕卡），其餘給了就不管', prefer: ['沒收裝置'], screenOnly: true, fallback: 'c3Base' },
+  c3Companion: { desc: '持續的陪伴互動（螢幕卡）；不拿螢幕當保母', prefer: ['3C陪伴同行', '一起參與', '觀察與參與', '放下手機陪'], avoid: ['3C當保母'], screenOnly: true, fallback: 'c3Base' },
+  c3Trip: { desc: '只有一次大活動（第一次遇到旅行卡就去），其餘給了就不管', prefer: ['3C一次大活動'], once: true, screenOnly: true, fallback: 'c3Base' },
+  c3TripCompanion: { desc: '一次大活動之後接上持續的陪伴', prefer: ['3C一次大活動'], once: true, screenOnly: true, fallback: 'c3Companion' },
+  wkAccept: { desc: '假日的邀約一律接', prefer: ['假日缺席', '沒有下文'], fallback: 'commonReaction' },
+  wkDecline: { desc: '假日的邀約一律婉拒', prefer: ['婉拒邀約'], fallback: 'commonReaction' },
+};
+export const ALL_BOTS = { ...BOTS, ...HUMAN_BOTS, ...SURFACE_BOTS, ...BLIND_BOTS, ...PLASTICITY_BOTS, ...PHASE_BASE, ...C3_BOTS };
 
 /** only：選填，卡片 id 的集合——只在這些卡上照 bot 的做法選，其他卡隨機（tools/surface.mjs 逐檔量字面機器人用） */
 export function botPolicy(botName, seedSalt, only = null) {
@@ -114,6 +129,25 @@ export function botPolicy(botName, seedSalt, only = null) {
   if (bot.phases) { // 分段機器人：依回合序號換成該段的機器人
     const subs = bot.phases.map(([, b]) => botPolicy(b, seedSalt, only));
     return { choose(st, view, raw, data) { let k = 0; bot.phases.forEach(([from], i) => { if (st.turn >= from) k = i; }); return subs[k].choose(st, view, raw, data); } };
+  }
+  if (bot.prefer) { // 偏好標籤的機器人（C3_BOTS）
+    const fb = botPolicy(bot.fallback || 'commonReaction', seedSalt, only);
+    let spent = false;
+    const tagsOf = (st, data, raw, o) => resolvedChoice(st, data, raw, o.i).tags || [];
+    return {
+      choose(st, view, raw, data) {
+        const opts = view.choices.filter((c) => !c.disabled);
+        const pick = (list) => { // 依 list 的順序（越前面越優先）挑；沒有就是 null
+          let best = null, br = 0;
+          for (const o of opts) { const tg = tagsOf(st, data, raw, o); for (let k = 0; k < list.length; k++) if (tg.includes(list[k]) && list.length - k > br) { br = list.length - k; best = o; } }
+          return best;
+        };
+        if (bot.everywhere) { const e = pick(bot.everywhere); if (e && !raw.screen) return e.i; }
+        if ((!bot.screenOnly || raw.screen) && !(bot.once && spent)) { const b = pick(bot.prefer); if (b) { spent = true; return b.i; } }
+        if (bot.avoid) { const keep = opts.filter((o) => !tagsOf(st, data, raw, o).some((t) => bot.avoid.includes(t))); if (keep.length && keep.length < opts.length) return fb.choose(st, { ...view, choices: keep }, raw, data); }
+        return fb.choose(st, view, raw, data);
+      },
+    };
   }
   let holder = null;
   return {
