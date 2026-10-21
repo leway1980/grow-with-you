@@ -111,6 +111,17 @@ export function lintModel(raw, data, cards) {
   }
   for (const r of M.rules || []) { const e = byId.get(r.edge); if (!e) errors.push(`因果圖 rules ${r.id}：邊「${r.edge}」不存在`); else for (const [k, d] of Object.entries(r.d)) if (e.to !== k || e.from !== r.stat || (d < 0 ? '+' : '-') !== e.sign) errors.push(`因果圖 rules ${r.id}：規則是『${r.stat} 低 → ${k} ${d < 0 ? '下降' : '上升'}』，邊 ${r.edge} 的方向（${e.sign}）或端點不一致`); }
   for (const id of [M.openness.spoke, M.openness.silent]) if (!byId.get(id) || typeof byId.get(id).w !== 'number') errors.push(`因果圖 openness：邊「${id}」要有數字 w`);
+  // 三條軸各自的好／差門檻（bands.axes；E1 審查）：要有數字、好 > 差、離共用的 good／bad 不超過 5 分（只抵銷混合的壓縮，不是重畫分布），而且要記來源（方法、策略、種子、局數、日期）
+  if (M.bands.axes) {
+    for (const ax of AXES) {
+      const T = M.bands.axes[ax];
+      if (!T || typeof T.good !== 'number' || typeof T.bad !== 'number') { errors.push(`bands.axes：「${ax}」要有數字 good 與 bad`); continue; }
+      if (!(T.good > T.bad)) errors.push(`bands.axes.${ax}：good（${T.good}）要大於 bad（${T.bad}）`);
+      if (Math.abs(T.good - M.bands.good) > 5 || Math.abs(T.bad - M.bands.bad) > 5) errors.push(`bands.axes.${ax}：離共用的 good／bad（${M.bands.good}／${M.bands.bad}）超過 5 分——這個修正只抵銷結局混合的壓縮`);
+    }
+    const S = M.bands.axesSource;
+    if (!S || !S.method || !S.date || !S.games || !Array.isArray(S.bots) || !S.seeds) errors.push('bands.axes：要有 axesSource（method、bots、seeds、games、date）');
+  }
   if (ROUTE_DELTA !== M.bands.routeDelta) errors.push(`ending.js 的 ROUTE_DELTA（${ROUTE_DELTA}）和 model.bands.routeDelta（${M.bands.routeDelta}）不一致`);
   const W = outcomeWeights(M);
   // 路線（M3 B4）：結果軸、推算值與邊都不能讀 學制、志願偏好、去向、中途離校——沒有一條路是失敗結局，路線只換文字與後面的事件
@@ -228,13 +239,15 @@ export function lintEnding(raw, E, M, errors, warns, stats = {}) {
   if (broken) return;
   // 實際跑：每個軸的高中低組合 × 幸福組合，都挑得到三個 facet 的後備句，而且沒有矛盾（在條件的邊界值格子上）
   const vals = (v) => [...new Set([0, 100, ...[...(thresholds[v] || [])].flatMap((t) => [t - 0.5, t])])].sort((a, b) => a - b);
-  const bands = { hi: M.bands.good + 5, mid: (M.bands.good + M.bands.bad) / 2, lo: M.bands.bad - 5 };
+  // 三條軸各有自己的好／差門檻（bands.axes）：每條軸取三個『剛好在門檻上』的值——高區的下緣（good，含等號算 hi）、中區的中間、低區的上緣（bad−0.01）——
+  // 句子條件只讀區間名稱，所以每個區間取它在邊界上的值，就涵蓋了邊界值格子（E1 審查：換門檻後要重跑）
+  const axisVals = (ax) => { const T = (M.bands.axes && M.bands.axes[ax]) || M.bands; const r = (x) => +x.toFixed(4); return [r(T.bad - 0.01), r((T.good + T.bad) / 2), r(T.good)]; };
   const recList = recNames.filter((n) => E.sentences.some((s) => tokenize(s.when).some((t) => t.t === 'var' && t.v === n)));
   let combos = 0, contradictions = 0, missing = 0;
   const examples = [];
   const route = { kind: '' };
   const axisSets = [];
-  for (const a of Object.values(bands)) for (const p of Object.values(bands)) for (const l of Object.values(bands)) axisSets.push({ 親子: a, 人際: p, 學習: l });
+  for (const a of axisVals('親子')) for (const p of axisVals('人際')) for (const l of axisVals('學習')) axisSets.push({ 親子: a, 人際: p, 學習: l });
   for (const axes of axisSets) {
     for (const c of vals('孩子幸福')) for (const pa of vals('父母幸福')) for (const bt of vals('彼此之間')) for (let mask = 0; mask < (1 << recList.length); mask++) {
       const rec = Object.fromEntries(recNames.map((n) => [n, 0]));

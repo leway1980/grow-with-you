@@ -117,7 +117,7 @@ export function evaluateMechanisms(recs, targets) {
 export { WINDOW };
 
 /* ───── 黃金範例 ───── */
-const bandOf = (v, B) => (v >= B.good ? 'hi' : v < B.bad ? 'lo' : 'mid');
+const bandOf = (v, B, axis = null) => { const T = (axis && B.axes && B.axes[axis]) || B; return v >= T.good ? 'hi' : v < T.bad ? 'lo' : 'mid'; }; // 與 js/engine/ending.js 的 bandOf 同一個規則（三條軸各有自己的門檻）
 /** 最長的標籤連用：同一個標籤在連續的選擇裡出現的最長一段（回合差 ≤ 1 算連續），取前三名 */
 export function topStreams(hist, n = 3) {
   const runs = {};
@@ -139,7 +139,7 @@ export function goldenSnapshot(st, data, ending) {
   return {
     wellbeing: bandOf(mean, B),
     wellbeingParts: [bandOf(w.child, B), bandOf(w.parent, B), bandOf(w.between, B)].join('/'),
-    axes: [bandOf(ending.axes.親子, B), bandOf(ending.axes.人際, B), bandOf(ending.axes.學習, B)].join('/'),
+    axes: [bandOf(ending.axes.親子, B, '親子'), bandOf(ending.axes.人際, B, '人際'), bandOf(ending.axes.學習, B, '學習')].join('/'),
     achievement: ending.achievement.scoreWord,
     combo: ending.combo,
     route: ending.route.kind,

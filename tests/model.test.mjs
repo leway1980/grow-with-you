@@ -9,6 +9,7 @@ import { applyTags, setTagObserver, recomputeDerived } from '../js/engine/tags.j
 import { getEnding, endStage, outcomeAxes, wellbeing, opennessOf, comboOf, bandOf, buildEnding, pickLines, lineContradictions, endingContext, chainRecords } from '../js/engine/ending.js';
 import { edgeForTagEffect, outcomeWeights, evalOutcome, overFor, AXES } from '../js/engine/model.js';
 import { botPolicy, SALT } from '../tools/bots.mjs';
+import { fitBands } from '../tools/bands-fit.mjs';
 
 const data = loadData();
 const M = data.model, E = data.ending;
@@ -205,4 +206,45 @@ test('學習軸的 3C 懲罰依階段（overByStage）：國小用 over 35，國
   // 結局時的階段取自最後一筆紀錄的月齡
   assert.equal(endStage({ vcurves: [] }), null); assert.equal(endStage({ vcurves: [{ m: 120 }] }), null);
   assert.equal(endStage({ vcurves: [{ m: 150 }] }), '國中'); assert.equal(endStage({ vcurves: [{ m: 190 }] }), '高中'); assert.equal(endStage({ vcurves: [{ m: 216 }] }), '離家');
+});
+
+/* ───── 三條軸各自的好／差門檻（bands.axes；E1 審查問題 10）───── */
+test('bands.axes：三條軸各有 good／bad；bandOf 傳軸名就用該軸的門檻，不傳（幸福三項、舊資料）用共用的 good／bad；邊界值恰好在門檻上', () => {
+  const B = M.bands;
+  assert.deepEqual(Object.keys(B.axes), AXES);
+  for (const ax of AXES) {
+    const T = B.axes[ax];
+    assert.ok(T.good > T.bad && Math.abs(T.good - B.good) <= 5 && Math.abs(T.bad - B.bad) <= 5, ax);
+    assert.equal(bandOf(T.good, B, ax), 'hi'); assert.equal(bandOf(T.good - 0.01, B, ax), 'mid');
+    assert.equal(bandOf(T.bad, B, ax), 'mid'); assert.equal(bandOf(T.bad - 0.01, B, ax), 'lo');
+  }
+  assert.equal(bandOf(B.good, B), 'hi'); assert.equal(bandOf(B.bad - 0.01, B), 'lo');
+  assert.equal(bandOf(B.good, { good: 60, bad: 45 }, '親子'), 'hi', '沒有 axes 的舊資料退回共用門檻');
+  const hi = Object.fromEntries(AXES.map((a) => [a, B.axes[a].good]));
+  assert.equal(comboOf(hi), '三邊都顧到');
+  assert.equal(comboOf({ ...hi, 學習: B.axes.學習.good - 0.01 }), '關係好、人際好，成績普通');
+  const lo = Object.fromEntries(AXES.map((a) => [a, B.axes[a].bad - 0.01]));
+  assert.equal(comboOf(lo), '三邊都垮');
+  assert.equal(comboOf({ 親子: lo.親子, 人際: B.axes.人際.bad, 學習: hi.學習 }), '成績好、關係冷');
+  assert.equal(comboOf({ 親子: B.axes.親子.bad, 人際: lo.人際, 學習: hi.學習 }), '成績好、人際孤立');
+  // 結局句子讀的區間也是各軸自己的門檻
+  const ctx = endingContext({ axes: { 親子: B.axes.親子.good, 人際: B.axes.人際.bad - 0.01, 學習: B.axes.學習.bad }, wellbeing: { child: 50, parent: 50, between: 50 }, route: { kind: '' }, combo: '' }, {}, E, M);
+  assert.deepEqual([ctx.親子帶, ctx.人際帶, ctx.學習帶], ['高', '低', '中']);
+});
+
+test('bands.axes 的來源：記方法、策略、種子、局數、日期；lint 擋得住離共用門檻太遠、good ≤ bad、沒有來源', () => {
+  const S = M.bands.axesSource;
+  assert.ok(S.method && S.date && S.games >= 2800 && S.bots.length >= 7 && S.seeds, JSON.stringify(S));
+  assert.match(mut((r) => { r.model.bands.axes.親子.good = 70; }), /bands.axes.親子：離共用的 good／bad/);
+  assert.match(mut((r) => { r.model.bands.axes.人際.good = 40; }), /bands.axes.人際：good（40）要大於 bad/);
+  assert.match(mut((r) => { delete r.model.bands.axesSource; }), /bands.axes：要有 axesSource/);
+  assert.match(mut((r) => { delete r.model.bands.axes.學習.bad; }), /bands.axes：「學習」要有數字 good 與 bad/);
+});
+
+test('fitBands：混合把分布壓扁時，門檻跟著往中間收，讓「混合軸 ≥ 好門檻」的比例等於「只看近期 ≥ 60」的比例', () => {
+  const recs = [];
+  for (let i = 0; i < 1000; i++) { const r = i / 10; recs.push({ ax: [25 + 0.5 * r, 25 + 0.5 * r, 25 + 0.5 * r], axRecent: [r, r, r] }); } // 近期 0–99.9 均勻；混合 25–75
+  const f = fitBands(recs);
+  // 近期 ≥ 60 的占 40%、< 45 的占 45%；混合軸的 40% 分位在 25 + 0.5 × 60 = 55，45% 分位在 25 + 0.5 × 45 = 47.5
+  for (const ax of AXES) { assert.ok(Math.abs(f[ax].good - 55) <= 0.2, `${ax} good ${f[ax].good}`); assert.ok(Math.abs(f[ax].bad - 47.5) <= 0.2, `${ax} bad ${f[ax].bad}`); }
 });

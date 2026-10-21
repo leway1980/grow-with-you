@@ -105,6 +105,11 @@ export function playGame(data, bot, seed, opts = {}) {
     };
   }
   if (meter) rec.inf = meter.result();
+  if (opts.axRecent) { // 只看近期的三條軸（關掉『整個童年』混合）：tools/bands-fit.mjs 用它對齊各軸的好／差門檻
+    const E = data.ending, keep = E.outcomeBlend;
+    E.outcomeBlend = { ...keep, recent: 1, whole: 0 };
+    try { const a0 = outcomeAxes(st); rec.axRecent = [a0.親子, a0.人際, a0.學習]; } finally { E.outcomeBlend = keep; }
+  }
   if (opts.trust) { // 單步擺幅（opts.trust；tools/checks/plasticity.mjs）：每個回合結束後親子信任的絕對變動，記在『剛玩完的那個回合』的階段
     const c = st.curves, steps = [];
     for (let i = 1; i < c.length; i++) steps.push([data.timeline[c[i - 1].t]?.stage, Math.abs(c[i].親子信任 - c[i - 1].親子信任)]);
@@ -153,7 +158,7 @@ export async function execute(tasks, opts) {
   }
   const url = new URL(import.meta.url);
   const parts = await Promise.all(chunk(tasks, nw).map((ts) => new Promise((res, rej) => {
-    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, snap: opts.snap, mech: opts.mech, influence: opts.influence, trust: opts.trust, role: opts.role, only: opts.only, habits: opts.habits, paths: opts.paths, chains: opts.chains } });
+    const w = new Worker(url, { workerData: { __sim: true, tasks: ts, tagScale: opts.tagScale, variants: opts.variants, synthetic: opts.synthetic, exposure: opts.exposure, startMode: opts.startMode, snap: opts.snap, mech: opts.mech, influence: opts.influence, trust: opts.trust, axRecent: opts.axRecent, role: opts.role, only: opts.only, habits: opts.habits, paths: opts.paths, chains: opts.chains } });
     w.once('message', res); w.once('error', rej);
   })));
   return parts.flat();

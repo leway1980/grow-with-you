@@ -137,7 +137,7 @@ export function chainRecords(st, E = getEnding()) {
 /** 句子條件的環境：第 4 層的結果（含高中低）＋決定鏈紀錄 */
 export function endingContext({ axes, wellbeing: w, route, combo }, records, E = getEnding(), M = getModel()) {
   const ctx = { ...records, 親子: axes.親子, 人際: axes.人際, 學習: axes.學習, 孩子幸福: w.child, 父母幸福: w.parent, 彼此之間: w.between, 路線: route.kind, 組合: combo };
-  for (const [ax, name] of Object.entries(E.bandVars)) ctx[name] = E.bandNames[bandOf(axes[ax], M.bands)];
+  for (const [ax, name] of Object.entries(E.bandVars)) ctx[name] = E.bandNames[bandOf(axes[ax], M.bands, ax)];
   return ctx;
 }
 const SLOTS = { home: ['home'] };
@@ -190,13 +190,17 @@ export function routePosition(st) {
 }
 
 /** §3.1 的七種組合（結局用）。thresholds：好 ≥ 60、差 < 45。 */
-/** 高低區間（結果軸與幸福共用）：好 ≥ bands.good、差 < bands.bad，其餘 mid；門檻在 data/model.json */
-export const bandOf = (v, B = getModel().bands) => (v >= B.good ? 'hi' : v < B.bad ? 'lo' : 'mid');
+/** 高低區間：好 ≥ good、差 < bad，其餘 mid；門檻在 data/model.json 的 bands。
+ *  三條結果軸（傳 axis）各有自己的門檻 bands.axes[軸]（E1 審查：結局混合把各軸壓扁的程度不同，用同一組 60／45 會讓『好』『差』的比例隨軸亂跳）；
+ *  幸福三項（不傳 axis）與沒有 axes 的舊資料用 bands.good／bands.bad */
+export const bandOf = (v, B = getModel().bands, axis = null) => {
+  const T = (axis && B.axes && B.axes[axis]) || B;
+  return v >= T.good ? 'hi' : v < T.bad ? 'lo' : 'mid';
+};
 export const COMBOS = ['三邊都顧到', '關係好、人際好，成績普通', '成績好、關係冷', '成績好、人際孤立', '關係好、自律弱', '人際好、在家說不上話', '三邊都垮', '其他'];
 export function comboOf(ax) {
   const B = getModel().bands;
-  const lv = (v) => bandOf(v, B);
-  const a = lv(ax.親子), p = lv(ax.人際), l = lv(ax.學習);
+  const a = bandOf(ax.親子, B, '親子'), p = bandOf(ax.人際, B, '人際'), l = bandOf(ax.學習, B, '學習');
   if (a === 'lo' && p === 'lo' && l === 'lo') return '三邊都垮';
   if (a === 'hi' && p === 'hi' && l === 'hi') return '三邊都顧到';
   if (a === 'hi' && p === 'hi' && l === 'mid') return '關係好、人際好，成績普通';
