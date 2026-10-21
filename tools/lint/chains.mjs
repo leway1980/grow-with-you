@@ -24,7 +24,7 @@ export default function lint({ raw, cards, T }) {
   for (const [name, th] of Object.entries(C.themes || {})) {
     const w = `決定鏈主題「${name}」`;
     const ids = [th.research, ...(th.researchAlso || []), ...(th.researchLate ? [th.researchLate.id] : [])];
-    if (!th.research) errors.push(`${w}：沒有 research（每個主題都要對到研究卡）`);
+    if (!th.research && !th.setting) errors.push(`${w}：沒有 research（每個主題都要對到研究卡）`);
     for (const id of ids.filter(Boolean)) if (!R.cards[id]) errors.push(`${w}：研究卡「${id}」不在 data/research.json（被略過或不存在；見 research.json 的 skipped）`);
     const pos = (th.tags && th.tags['+']) || [], neg = (th.tags && th.tags['-']) || [];
     for (const t of [...pos, ...neg, ...(th.always || [])]) if (!T.tags[t]) errors.push(`${w}：標籤「${t}」不存在`);
@@ -38,8 +38,10 @@ export default function lint({ raw, cards, T }) {
       for (const c of wh.cards || []) if (!cardIds.has(c)) errors.push(`${w}：where.cards「${c}」不存在`);
       for (const h of wh.habits || []) if (!habits[h]) errors.push(`${w}：where.habits「${h}」不是 habits.json 的家族`);
     }
-    if (th.habit && !habits[th.habit]) errors.push(`${w}：habit「${th.habit}」不是 habits.json 的家族`);
-    if (th.habit && !(habits[th.habit].auto)) warns.push(`${w}：habit「${th.habit}」不自動帶入（auto:false），習慣句不會出現在鏈裡`);
+    for (const hb of [].concat(th.habit || []).filter(Boolean)) {
+      if (!habits[hb]) errors.push(`${w}：habit「${hb}」不是 habits.json 的家族`);
+      else if (!habits[hb].auto) warns.push(`${w}：habit「${hb}」不自動帶入（auto:false），習慣句不會出現在鏈裡`);
+    }
   }
   for (const c of cards) for (const t of [].concat(c.traceOf || [])) if (!(C.themes || {})[t]) errors.push(`卡「${c.id}」：traceOf「${t}」不是決定鏈的主題`);
   // 研究卡和 evidence.md 同步

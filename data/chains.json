@@ -13,7 +13,7 @@
  "themes": {
   "3C規則": {
    "label": "3C 與螢幕",
-   "research": "ev9", "habit": "餐桌",
+   "research": "", "setting": true, "habit": ["手機規則", "餐桌"],
    "curveNode": "3C依賴度",
    "where": {"pools": ["3C", "手機後續", "螢幕"], "habits": ["手機規則", "餐桌"]},
    "always": ["3C當保母", "3C約定且在旁", "3C任務借用", "3C陪伴同行", "3C一次大活動", "沒收裝置"],

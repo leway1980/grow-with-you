@@ -23,6 +23,9 @@ export const gradeName = (g) => GRADES[g - 1] || '';
 const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 const firstSentence = (s) => { const m = (s || '').match(/^[^。！？]*[。！？」]?/); return (m ? m[0] : s || '').trim(); };
 
+/** 主題的 habit 可以是一個家族名稱或一串家族名稱（3C 規則：手機規則＋餐桌）；空字串＝沒有 */
+const habitsOf = (theme) => [].concat(theme.habit || []).filter(Boolean);
+
 /* ───── 一個選擇屬於哪個主題、往哪個方向 ───── */
 function inWhere(theme, card, h) {
   const w = theme.where;
@@ -59,9 +62,10 @@ function themeEvents(st, data, name, theme, C) {
     if (!sign) continue;
     out.push({ key: `h:${h.turn}:${h.card}`, turn: h.turn, m: h.m ?? data.timeline[h.turn].ageMonths, sign, w: 1, auto: false, text: h.label, title: h.title, tags, card: h.card, ch: h.ch, stage: data.timeline[h.turn].stage });
   }
-  if (theme.habit) {
+  const fams = habitsOf(theme);
+  if (fams.length) {
     for (const a of st.autoLog || []) {
-      if (a.family !== theme.habit || !a.tags || !a.tags.length) continue;
+      if (!fams.includes(a.family) || !a.tags || !a.tags.length) continue;
       const sign = signOf({ ...theme, where: null }, null, {}, a.tags);
       if (!sign) continue;
       const tl = data.timeline[a.turn];
@@ -161,8 +165,8 @@ function traceOf(st, data, name, theme, endM, C) {
     const reply = ch && ch.result ? firstSentence(fillName(ch.result, st)) : '';
     return { kind: 'card', age: ageAt(m), m, title: h.title, text: `${ageAt(m)}，「${fillName(h.title, st)}」${reply && !/[{}]/.test(reply) ? '：' + reply : ''}` };
   }
-  if (theme.habit) {
-    const a = (st.autoLog || []).find((x) => x.family === theme.habit && x.tags && x.tags.length && data.timeline[x.turn].ageMonths >= endM + C.settings.traceAfterMonths);
+  if (habitsOf(theme).length) {
+    const a = (st.autoLog || []).find((x) => habitsOf(theme).includes(x.family) && x.tags && x.tags.length && data.timeline[x.turn].ageMonths >= endM + C.settings.traceAfterMonths);
     if (a) { const m = data.timeline[a.turn].ageMonths; return { kind: 'habit', age: ageAt(m), m, text: `${ageAt(m)}，${a.line}（習慣）` }; }
   }
   return null;
@@ -172,10 +176,11 @@ function traceOf(st, data, name, theme, endM, C) {
 function formedBy(st, data, theme, e) {
   const out = [];
   const lb = (data.habits && data.habits.lookback) || {};
-  const flipped = !!(st.habits && st.habits[theme.habit] && st.habits[theme.habit].flipped);
+  const fam = e.family;
+  const flipped = !!(st.habits && st.habits[fam] && st.habits[fam].flipped);
   for (const h of st.hist) {
     const card = data.cardIndex[h.card];
-    if (!card || card.habit !== theme.habit || h.turn >= e.turn) continue;
+    if (!card || card.habit !== fam || h.turn >= e.turn) continue;
     const stage = data.timeline[h.turn].stage;
     if (!lb[stage] && !(flipped && (stage === '國中' || stage === '高中'))) continue;
     if (!(h.tags || []).some((t) => e.tags.includes(t))) continue;

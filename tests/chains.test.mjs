@@ -21,7 +21,7 @@ const ev = (m, sign, w = 1) => ({ key: `${m}:${sign}`, m, sign, w });
 test('資料：決定鏈的主題、設定與計畫一致（11 個主題，每個都有研究卡 id）', () => {
   assert.ok(C && data.research);
   for (const t of ['3C規則', '考後反應', '替他做主', '工作插播', '講座', '回家第一句', '情緒與管教', '修補', '夫妻衝突', '班級', '特殊需求的一致性']) assert.ok(C.themes[t], t);
-  for (const [n, th] of Object.entries(C.themes)) assert.ok(data.research.cards[th.research], `${n} → ${th.research}`);
+  for (const [n, th] of Object.entries(C.themes)) assert.ok(th.setting ? !th.research : data.research.cards[th.research], `${n} → ${th.research}`); // setting:true＝遊戲設定，不掛研究小卡（3C 規則，DESIGN §4.39）
   assert.equal(C.settings.minRun, 3); assert.equal(C.settings.autoWeight, 0.5);
   assert.deepEqual(C.settings.pick, { min: 3, max: 5, atLeastOnePositive: true });
 });
@@ -177,7 +177,7 @@ test('研究小卡：數字只取自【已核】或【已核，已更正】的�
 
 test('研究小卡：data/research.json 和 evidence.md 同步（單一來源）；每個主題的研究卡都在、都有強度標籤與「試試」', () => {
   assert.equal(readFileSync(OUT, 'utf8'), serialize(buildResearch(readEvidence())));
-  for (const th of Object.values(C.themes)) for (const id of [th.research, ...(th.researchAlso || []), ...(th.researchLate ? [th.researchLate.id] : [])]) {
+  for (const th of Object.values(C.themes)) for (const id of [th.research, ...(th.researchAlso || []), ...(th.researchLate ? [th.researchLate.id] : [])].filter(Boolean)) {
     const c = data.research.cards[id]; assert.ok(c, id); assert.ok(c.level && c.tip && c.plain);
   }
   // 數字都來自已核的條目：ev2 的 Gershoff 數字在、ev1 的未核數字不在

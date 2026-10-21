@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { loadData } from '../tools/data-node.mjs';
 import { newState } from '../js/engine/state.js';
 import { buildCtx, applyChoice } from '../js/engine/events.js';
-import { applyTags } from '../js/engine/tags.js';
+import { applyTags, driftHidden } from '../js/engine/tags.js';
 import { startTurn, finishTurn } from '../js/engine/turn.js';
 import { detectHabits, autoHabit, assertAppliedSubset, chosenWeights, familyOf } from '../js/engine/habits.js';
 import { cardDoseK } from '../js/engine/timescale.js';
@@ -65,13 +65,29 @@ test('混合退路：不到 minWeight、或沒有任何模式占過半 → 混�
   }
 });
 
-test('手機規則：只偵測、不自動套用（auto:false）', () => {
-  assert.equal(H.families['手機規則'].auto, false);
+test('手機規則：和回家第一句、餐桌一起輪流自動套用（auto:true、算在螢幕情境裡）；一張國小中高的卡就足以形成習慣', () => {
+  assert.equal(H.families['手機規則'].auto, true); assert.equal(H.families['手機規則'].screen, true);
+  const one = atJH([pick(MID[0], 'hi_task_borrow', ['3C任務借用'])]);
+  detectHabits(one, data);
+  assert.equal(one.habits['手機規則'].pattern, '任務借用', '1.0 ≥ minWeight 1.0');
   const st = atJH([...MID.slice(0, 4).map((t) => pick(t, 'hi_phone', ['事前訂規則'])), ...MID.slice(4, 8).map((t) => pick(t, 'hi_home_first', ['敷衍帶過'])), ...MID.slice(8, 12).map((t) => pick(t, 'hi_table', ['放下手機陪']))]);
-  for (let i = 0; i < 6; i++) { st.turn = JH0 + i; autoHabit(st, data, data.timeline[st.turn], ctxOf(st)); }
+  for (let i = 0; i < 9; i++) { st.turn = JH0 + i; autoHabit(st, data, data.timeline[st.turn], ctxOf(st)); }
   assert.equal(st.habits['手機規則'].pattern, '說到做到');
-  assert.ok(st.autoLog.length >= 6 && st.autoLog.every((e) => e.family !== '手機規則'));
-  assert.deepEqual([...new Set(st.autoLog.map((e) => e.family))].sort(), ['回家第一句', '餐桌']); // 兩個 auto 家族輪流
+  assert.deepEqual([...new Set(st.autoLog.map((e) => e.family))].sort(), ['回家第一句', '手機規則', '餐桌']); // 三個 auto 家族輪流
+});
+
+test('手機規則：自動套用時『無人陪伴的比例』照習慣的樣子走，不會在幾張卡之後回到預設值', () => {
+  const U = data.tags.screen.useVar;
+  const run = (pattern, tags) => {
+    const st = atJH([]); st.turn = JH0;
+    for (const f of Object.keys(H.families)) st.habits[f] = { pattern: H.mixedPattern, tags: [], shift: { n: 0, to: '' }, flipped: false, flips: 0 };
+    st.habits['手機規則'] = { pattern, tags, shift: { n: 0, to: '' }, flipped: false, flips: 0 };
+    st.hist = MID.slice(0, 4).map((t) => pick(t, 'hi_phone', tags)); // 規則 18 的例外：標籤要是玩家選過的
+    for (let i = 0; i < 12; i++) { st.turn = JH0 + i; const tl = data.timeline[st.turn]; autoHabit(st, data, tl, ctxOf(st)); driftHidden(st, data.tags, { span: tl.span, months: tl.ageMonths, stage: tl.stage }); }
+    return st.vars[U];
+  };
+  const none = run('沒規則', ['沒有下文']), limit = run('說到做到', ['事前訂規則']), together = run('陪著用', ['3C陪伴同行']);
+  assert.ok(none > 0.7 && limit < 0.6 && together < limit, [none, limit, together].join(' '));
 });
 
 test('套用的劑量：國中 0.5、高中 0.4（乘上這個回合的劑量倍率）；approach:false；只寫 autoLog，不進 hist', () => {
