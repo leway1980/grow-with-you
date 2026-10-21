@@ -209,3 +209,16 @@ test('結局：依賴度仍高、學習軸好的局，寫出「成績很好。�
   assert.ok(!mk(0, 'hi').some((l) => l.id === 'learn-quiet') && !mk(1, 'lo').some((l) => l.id === 'learn-quiet'));
   assert.ok(!/(應該|不好|可惜|問題)/.test(quiet.text), '陳述事實，不評論');
 });
+
+test('沒有任何選項同時帶「約定／陪伴」類標籤和 3C當保母（偏好機器人的 avoid 優先於 prefer，資料也不能自相矛盾）', () => {
+  const GOOD = ['3C約定且在旁', '3C任務借用', '3C陪伴同行', '一起參與', '觀察與參與', '放下手機陪'], NANNY = '3C當保母';
+  const bad = [];
+  const walk = (x, id) => {
+    if (Array.isArray(x)) return x.forEach((v) => walk(v, id));
+    if (!x || typeof x !== 'object') return;
+    if (Array.isArray(x.tags) && x.tags.includes(NANNY) && x.tags.some((t) => GOOD.includes(t))) bad.push(`${id}：${x.tags.join('、')}`);
+    for (const v of Object.values(x)) walk(v, id);
+  };
+  for (const c of data.events.cards) walk(c, c.id);
+  assert.deepEqual(bad, []);
+});

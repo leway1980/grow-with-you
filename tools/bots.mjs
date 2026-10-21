@@ -153,9 +153,10 @@ export function botPolicy(botName, seedSalt, only = null) {
     return {
       choose(st, view, raw, data) {
         const opts = view.choices.filter((c) => !c.disabled);
+        const okOpts = bot.avoid ? opts.filter((o) => !tagsOf(st, data, raw, o).some((t) => bot.avoid.includes(t))) : opts; // 偏好的選項也不能帶 avoid 的標籤（avoid 優先於 prefer）
         const pick = (list) => { // 依 list 的順序（越前面越優先）挑；沒有就是 null
           let best = null, br = 0;
-          for (const o of opts) { const tg = tagsOf(st, data, raw, o); for (let k = 0; k < list.length; k++) if (tg.includes(list[k]) && list.length - k > br) { br = list.length - k; best = o; } }
+          for (const o of okOpts) { const tg = tagsOf(st, data, raw, o); for (let k = 0; k < list.length; k++) if (tg.includes(list[k]) && list.length - k > br) { br = list.length - k; best = o; } }
           return best;
         };
         if (bot.everywhere) { const e = pick(bot.everywhere); if (e && !raw.screen) return e.i; }
