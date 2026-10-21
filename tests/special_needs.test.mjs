@@ -138,7 +138,7 @@ test('用藥追蹤：盯著吃時，用藥的 ADHD 孩子成績與作業被拖�
   const med = data.cardIndex.as_med;
   assert.ok(med.choices.filter((c) => (c.setFlags || []).includes('用藥中')).length >= 2, '決定用藥的選項都會開始追蹤');
   const daily = data.cardIndex.sn_med_daily;
-  assert.equal(daily.scale, true);
+  assert.equal(daily.scale, false); assert.ok(daily.paceMonths > 0); // E1 審查：自己排後續卡給自己的循環卡，頻率已用月份排程，不再乘回合長度（劑量依實際間隔，paceMonths）
   assert.deepEqual(daily.requires.flags, ['用藥中']);
   assert.ok(daily.choices.every((c) => c.followUp && c.followUp.some((f) => f.card === 'sn_med_daily')), '每個選項都排下一次追蹤');
 });
